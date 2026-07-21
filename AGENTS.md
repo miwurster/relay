@@ -59,7 +59,7 @@ Do not soft-wrap sentences across multiple lines.
 
 ### Issue tracker
 
-Jira project `PSD` via the Atlassian MCP, scoped to this repo by the `repo:sandcastle` label. See `docs/agents/issue-tracker.md`.
+Local markdown — issues live as files under `.scratch/<feature-slug>/` in this repo. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
