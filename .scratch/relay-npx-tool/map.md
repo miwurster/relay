@@ -1,10 +1,10 @@
 <!-- wayfinder:map -->
 
-# Map: sandcastle npx tool
+# Map: relay npx tool
 
 ## Destination
 
-A locked spec + resolved decisions for `@quantum-hub/sandcastle` — a distributable npx tool (built + published via GitLab CI kipu commons components) that runs **one** pass over **one** Jira work item and hands off to a human.
+A locked spec + resolved decisions for `@quantum-hub/relay` — a distributable npx tool (built + published via GitLab CI kipu commons components) that runs **one** pass over **one** Jira work item and hands off to a human.
 
 - Input: a work-item key, or — with no param — the next `ready-for-agent` **Story / Bug / Vulnerability** for the current repo. A **Task** is never auto-picked; a Task passed as param exits with `error`.
 - The pass is orchestrated as **Sandcastle-dispatched proper subagents per role** (planner, per-ticket implementer under TDD, per-ticket fast code + spec review, fixer, whole-branch in-depth code + spec review, fixer, quality-gate, commit) — the harness is the orchestrator, not one umbrella `kipu-afk` agent.
@@ -30,7 +30,7 @@ Plan only: this map produces the spec + decisions, then hands off to a build eff
 **Locked at chart time (from grilling):**
 
 - Plan-only destination; hand to a build effort afterward.
-- Package/command name stays `sandcastle`; NPM scope `@quantum-hub`.
+- Package/command name is `relay` (renamed from `sandcastle` to avoid colliding with the upstream `@ai-hero/sandcastle` library it is built on); NPM scope `@quantum-hub`.
 - Pilot on qc-catalog (Java/Maven); generalization to other repo types is out of scope.
 - Hard constraint: orchestration lives in the harness; each role is a first-class `sandcastle.run()` so spawning skills work — inverting kipu-afk's inline-rubric compromise.
 - Hard constraint: rebuild from scratch on the author's templates/examples; the qc-catalog spike is reference/prototype only, never a base.

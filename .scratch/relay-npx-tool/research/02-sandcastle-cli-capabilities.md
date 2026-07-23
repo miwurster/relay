@@ -1,6 +1,6 @@
 # Sandcastle CLI and framework capabilities
 
-Research for the `@quantum-hub/sandcastle` npx tool.
+Research for the `@quantum-hub/relay` npx tool.
 Sources: `/Users/michael.wurster/work/sandbox/sandcastle` (framework, v0.12.0) and the real usage in `/Users/michael.wurster/work/sandbox/course-video-manager/.sandcastle/`.
 
 ## 1. The question
@@ -160,7 +160,7 @@ For our Jira tool this is the closest template: gather the work item on the host
 - ESM-only, Node. Ships `dist` only, but includes `dist/templates`. Runtime dep footprint is tiny (`@clack/prompts`); Zod is only needed by *us* if we use `Output.object` (it is a devDependency in the framework, so **we must add zod as our own dependency**). Vercel/Daytona SDKs are optional peers — irrelevant if we use docker/podman/noSandbox.
 - Session capture writes to host `~/.claude/projects/...` (Claude), `~/.codex/...`, `~/.pi/...`. Capture failure fails the run. For a distributed tool this means the invoking user needs a working Claude Code auth (`CLAUDE_CODE_OAUTH_TOKEN` via `claude setup-token`, or `ANTHROPIC_API_KEY`) and, for docker, a locally built image whose UID matches the host.
 
-### Packaging implications for `@quantum-hub/sandcastle`
+### Packaging implications for `@quantum-hub/relay`
 
 1. We depend on `@ai-hero/sandcastle` as a library (`run`, `createSandbox`, `claudeCode`, `docker`/`noSandbox`, `Output`) — the CLI itself only bootstraps. Our npx tool is essentially our own `main.ts` orchestration published as a bin.
 2. `sandcastle init` is a one-time dev-time bootstrap for the `.sandcastle/` dir + image; it is NOT something our end users run per-invocation. We either ship a pre-authored `.sandcastle/` (Dockerfile, prompts) or bake prompts into our package.

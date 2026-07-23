@@ -1,6 +1,6 @@
 # 01 — Headless skill delivery into a Sandcastle Docker subagent
 
-Research question for the "sandcastle npx tool" wayfinder.
+Research question for the "relay npx tool" wayfinder.
 Date: 2026-07-21.
 
 > Status note: the core mechanism findings below come from **primary source** — the
