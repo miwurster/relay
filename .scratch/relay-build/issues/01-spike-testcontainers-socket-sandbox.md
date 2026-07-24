@@ -4,9 +4,21 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] A sandcastle `docker()` sandbox mounts `/var/run/docker.sock` and can start a sibling container from inside
-- [ ] qc-catalog's integration/migration test tiers run to a real green result inside the sandbox
-- [ ] UID/GID alignment does not break socket access or file ownership
-- [ ] Findings written up; if green is unreachable, a concrete pivot is documented
+**Verdict: RISK CLEARED.** Socket + Testcontainers + docker-outside-of-Docker work end
+to end in a sandcastle `docker()` sandbox; the migration tier ran real Liquibase
+changesets green against a Testcontainers Postgres. No pivot needed. Remaining test
+reds are qc-catalog env prereqs (git submodule; GCP ADC), orthogonal to the socket risk.
+Full write-up: `.scratch/relay-build/spike-01/FINDINGS.md`.
+Prototype captured on throwaway branch `spike/01-testcontainers-socket` (out of main).
+
+- [x] A sandcastle `docker()` sandbox mounts `/var/run/docker.sock` and can start a sibling container from inside
+- [x] qc-catalog's integration/migration test tiers run to a real green result inside the sandbox — Liquibase migrations ran green on a Testcontainers Postgres; full-suite green is gated only on GCP ADC (a secret), not the socket
+- [x] UID/GID alignment does not break socket access or file ownership — `groups:[0]` for socket access; worktree files owned `502:20`, image `USER` host-UID (checkImageUid-clean)
+- [x] Findings written up; if green is unreachable, a concrete pivot is documented — green reachable, so no pivot required
+
+**Takeaways for build:** ticket 06 — mount socket, `groups:[<in-container socket gid>]`,
+`TESTCONTAINERS_HOST_OVERRIDE`, `git submodule update --init --recursive` in the worktree;
+ticket 04 — green gate must inject target-repo secrets (e.g. GCP ADC) or scope to tiers
+that don't need them; ticket 14 — docker-socket-reachable-as-non-root check validated.

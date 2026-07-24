@@ -1,0 +1,23 @@
+# PROTOTYPE — spike 01. Throwaway. Do not ship.
+# Minimal sandcastle-compatible sandbox image: JDK21 + docker CLI + git.
+# No Maven package: qc-catalog uses the ./mvnw wrapper.
+# UID/GID aligned to the host via build args so bind-mounted files and the
+# docker socket group line up (sandcastle runs the container as --user UID:GID
+# and its checkImageUid preflight requires the image USER to match numerically).
+FROM eclipse-temurin:21-jdk
+
+ARG AGENT_UID=502
+ARG AGENT_GID=20
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git ca-certificates docker.io \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create the agent user/group at the host UID/GID. GID 20 (host "staff") often
+# already exists in the base image (dialout etc.); reuse it if so.
+RUN if ! getent group "${AGENT_GID}" >/dev/null; then groupadd -g "${AGENT_GID}" agent; fi \
+    && useradd -m -u "${AGENT_UID}" -g "${AGENT_GID}" -s /bin/bash agent
+
+USER ${AGENT_UID}:${AGENT_GID}
+WORKDIR /home/agent
+ENTRYPOINT ["sleep", "infinity"]
