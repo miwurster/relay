@@ -4,6 +4,8 @@ Type: grilling
 Status: resolved
 Blocked by: 01
 
+> Revised by ticket 13: spec-review roles fetch brief/spec from the tracker (not a harness-materialized file), so each spec-review `sandbox.run` needs Atlassian MCP wired.
+
 ## Question
 
 What is the exact subagent graph that replaces kipu-afk-as-umbrella, built on the author's Sandcastle patterns?

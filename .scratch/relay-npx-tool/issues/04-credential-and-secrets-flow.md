@@ -4,6 +4,8 @@ Type: grilling
 Status: resolved
 Blocked by: —
 
+> Revised by ticket 13: Jira **read** now extends to the spec-review roles (not planner-only). Same SA bearer, no new secret; writes/transitions still planner + handover.
+
 ## Question
 
 How do secrets reach a tool run via `npx` in an arbitrary repo, and who talks to Jira?
