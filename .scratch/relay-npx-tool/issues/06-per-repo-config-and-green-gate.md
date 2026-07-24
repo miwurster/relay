@@ -71,3 +71,7 @@ Not a conflict with ticket 03 — that moved the *Jira repo scope* off the remot
 
 - **`relay doctor`** — full opt-in diagnostic a human runs to verify a repo is wired: `relay.config.ts` valid + `issue-tracker.md` present + secrets resolvable + `glab` authenticated + Docker reachable + image present/buildable.
 - **A real run** does **cheap fail-fast only**: `relay.config.ts` parses / zod-valid + required secrets resolvable → else **exit 2** (ticket 05). Deep tool/auth/docker failures surface lazily where first used, still mapped to **exit 2**. No expensive upfront probing on every pass; no half-started pass from a bad config.
+
+## Correction (from ticket 07, 2026-07-24)
+
+Two changes to the per-role model map: the **`commit` row is removed** — there is no standalone commit role, commit folds into the implementer/fixer session via `/kipu-commit` (their model, sonnet); and **`quality-gate` moves haiku → sonnet** because the gate role now also triages failures to hand the fixer a diagnosis (reasoning work). Final map: planner opus, implementer sonnet, fixer sonnet, fast reviews opus, in-depth reviews fable, quality-gate sonnet, handover sonnet.
