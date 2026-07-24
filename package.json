@@ -1,0 +1,36 @@
+{
+  "name": "@quantum-hub/relay",
+  "version": "0.0.0",
+  "description": "Runs one autonomous pass over a single work item, then passes the baton to a human.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "relay": "dist/main.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "postbuild": "rm -rf dist/resources && cp -r src/resources dist/resources",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ai-hero/sandcastle": "0.12.0",
+    "jiti": "2.7.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
