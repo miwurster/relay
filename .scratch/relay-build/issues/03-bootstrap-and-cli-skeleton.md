@@ -4,9 +4,11 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `package.json`: ESM, Node `>=20`, exact-pinned sandcastle + zod + jiti, `tsup` build, `files: ["dist"]`, no host `claude` dependency
-- [ ] Flagless CLI dispatches `[WORK-ITEM]` vs `doctor` vs no-arg
-- [ ] Exit codes 0 / 1 / 2 wired through the entry point
-- [ ] Prompts + orchestration ship as data files in `dist`, resolved via `import.meta.url`
+Landed on main in `64926a5 feat(relay): bootstrap package and flagless CLI skeleton`.
+
+- [x] `package.json`: ESM, Node `>=20`, exact-pinned sandcastle + zod + jiti, `tsup` build, `files: ["dist"]`, no host `claude` dependency
+- [x] Flagless CLI dispatches `[WORK-ITEM]` vs `doctor` vs no-arg
+- [x] Exit codes 0 / 1 / 2 wired through the entry point
+- [x] Prompts + orchestration ship as data files in `dist`, resolved via `import.meta.url`
