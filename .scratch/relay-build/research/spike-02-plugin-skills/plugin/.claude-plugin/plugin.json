@@ -1,0 +1,5 @@
+{
+  "name": "kipu-all",
+  "version": "2.5.0-spike",
+  "description": "PROTOTYPE — throwaway. Minimal wrapper around the verbatim real kipu-commit skill to test plugin-delivered headless invocation under -p. No MCP servers, no userConfig — those are irrelevant to skill discovery."
+}
