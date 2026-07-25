@@ -1,12 +1,7 @@
 import { CONFIG_FILE_NAME, loadConfig, type RelayConfig } from "./config.js";
 import { ExitCode } from "./exit-codes.js";
-import {
-  type DockerRunner,
-  dockerDaemonVersionInSandbox,
-  resolveSandboxImage,
-  runDocker,
-  verifyPrebuiltImage,
-} from "./sandbox-image.js";
+import { type DockerRunner, dockerDaemonVersionInSandbox, runDocker } from "./docker-host.js";
+import { resolveSandboxImage, verifyPrebuiltImage } from "./sandbox-image.js";
 import { loadSecrets } from "./secrets.js";
 
 /** Why the daemon check cannot run when an earlier check failed. */

@@ -11,10 +11,10 @@ import type {
   ReviewScope,
   TicketRef,
 } from "../src/crew.js";
-import { createStubCrew } from "../src/crew.js";
 import { ExitCode } from "../src/exit-codes.js";
 import { exitCodeFor, MAX_GATE_FIX_ATTEMPTS, runHarness } from "../src/harness.js";
 import type { JiraIssue } from "../src/jira.js";
+import { createStubCrew } from "../src/stub-crew.js";
 
 const issue: JiraIssue = {
   key: "PSD-1",

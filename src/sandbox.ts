@@ -9,9 +9,9 @@ import type { RelayConfig } from "./config.js";
 import {
   detectDockerSocketGid,
   DOCKER_SOCKET_PATH,
-  resolveSandboxImage,
   resolveTestcontainersHost,
-} from "./sandbox-image.js";
+} from "./docker-host.js";
+import { resolveSandboxImage } from "./sandbox-image.js";
 import type { Secrets } from "./secrets.js";
 import { resolveSkillPlugins, type SkillPlugin } from "./skills.js";
 

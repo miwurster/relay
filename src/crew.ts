@@ -5,6 +5,7 @@ import { createImplementer } from "./implementer.js";
 import type { JiraIssue } from "./jira.js";
 import { createPlanner } from "./planner.js";
 import { createReviewer } from "./reviewer.js";
+import { createStubCrew } from "./stub-crew.js";
 
 /** One ticket of the pass's plan: the unit an implementer leg runs over. */
 export interface TicketRef {
@@ -124,60 +125,4 @@ export function createCrew({
     qualityGate: stub.qualityGate,
     handover: stub.handover,
   };
-}
-
-/**
- * A crew of stubs: the whole topology runs and every exit path is reachable
- * without an agent, a model or a network. Each real role replaces one method
- * of this in a later ticket.
- */
-export function createStubCrew(): Crew {
-  return {
-    async plan(issue) {
-      log("planner", `would plan ${issue.key}`);
-      return { kind: "plan", tickets: [{ key: issue.key, summary: "the work item itself" }] };
-    },
-
-    async implement(ticket) {
-      log("implementer", `would implement ${ticket.key}`);
-      return { kind: "done", base: "HEAD" };
-    },
-
-    async review(lens, scope) {
-      const target = scope.kind === "ticket" ? scope.ticket.key : "the branch";
-      log(lens, `would review ${target}`);
-      return [];
-    },
-
-    async fix(findings, target) {
-      const deduped = dedupeFindings(findings);
-      log("fixer", `would fix ${deduped.length} of ${findings.length} findings in ${target.kind}`);
-    },
-
-    async qualityGate() {
-      log("qualityGate", "would run the green gate");
-      return { green: true, detail: "stub gate is always green" };
-    },
-
-    async handover(outcome) {
-      log("handover", `would hand over: ${outcome.kind}`);
-    },
-  };
-}
-
-/**
- * Concurrent lenses see the same code, so the same problem arrives more than
- * once. The fixer is where that collapses — the harness merges blindly.
- */
-function dedupeFindings(findings: readonly Finding[]): Finding[] {
-  const seen = new Map<string, Finding>();
-  for (const finding of findings) {
-    const key = `${finding.ticket ?? ""}\0${finding.summary}`;
-    if (!seen.has(key)) seen.set(key, finding);
-  }
-  return [...seen.values()];
-}
-
-function log(role: string, message: string): void {
-  console.log(`relay: [${role} stub] ${message}`);
 }

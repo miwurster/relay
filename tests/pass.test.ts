@@ -7,12 +7,13 @@ import type { Sandbox } from "@ai-hero/sandcastle";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { runCli } from "../src/cli.js";
 import { relayConfigSchema } from "../src/config.js";
-import { createStubCrew, type Crew } from "../src/crew.js";
+import type { Crew } from "../src/crew.js";
 import { ConfigError, SandboxError } from "../src/errors.js";
 import { ExitCode } from "../src/exit-codes.js";
 import type { JiraClient, JiraIssue } from "../src/jira.js";
 import { type PassRun, runPass, runPassOnItem } from "../src/pass.js";
 import type { RelaySandbox } from "../src/sandbox.js";
+import { createStubCrew } from "../src/stub-crew.js";
 import type { Secrets } from "../src/secrets.js";
 import { TRACKER_DOC_PATH } from "../src/tracker-doc.js";
 

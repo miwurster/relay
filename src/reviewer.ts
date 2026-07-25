@@ -95,7 +95,5 @@ function describeScope(scope: ReviewScope, config: RelayConfig): ReviewTarget {
 }
 
 function toFinding(lens: ReviewLens, target: ReviewTarget, summary: string): Finding {
-  return target.ticket === undefined
-    ? { source: lens, summary }
-    : { source: lens, ticket: target.ticket, summary };
+  return { source: lens, ticket: target.ticket, summary };
 }

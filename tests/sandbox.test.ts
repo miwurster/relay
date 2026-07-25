@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { relayConfigSchema } from "../src/config.js";
-import { DOCKER_SOCKET_PATH } from "../src/sandbox-image.js";
+import { DOCKER_SOCKET_PATH } from "../src/docker-host.js";
 import {
   ATLASSIAN_MCP_URL,
   atlassianMcpConfig,
