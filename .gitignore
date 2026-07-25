@@ -1,5 +1,8 @@
 .claude
 
+# A relay pass's role artefacts (findings files and the like).
+.relay
+
 # Created by https://www.toptal.com/developers/gitignore/api/linux,macos,windows,jetbrains+all,visualstudiocode,node
 # Edit at https://www.toptal.com/developers/gitignore?templates=linux,macos,windows,jetbrains+all,visualstudiocode,node
 

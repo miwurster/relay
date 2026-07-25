@@ -14,31 +14,40 @@ const config = relayConfigSchema.parse({
 
 const ticket: TicketRef = { key: "PSD-8", summary: "the schema" };
 
+/** What the branch is at before the implementer runs. */
+const HEAD_SHA = "9e4d1a0";
+
 /** A sandbox whose only real behaviour is what one implementer run returns. */
 function fakeSandbox(stdout: string, commits: { sha: string }[]) {
   const runs: SandboxRunOptions[] = [];
+  const execs: string[] = [];
   const sandbox = {
     async run(options: SandboxRunOptions): Promise<SandboxRunResult> {
       runs.push(options);
       return { iterations: [], stdout, commits };
     },
+    async exec(command: string) {
+      execs.push(command);
+      return { stdout: `${HEAD_SHA}\n`, stderr: "", exitCode: 0 };
+    },
   } as unknown as Sandbox;
-  return { sandbox, runs };
+  return { sandbox, runs, execs };
 }
 
 const implementing = (stdout: string, commits = [{ sha: "c0ffee" }]) => {
-  const { sandbox, runs } = fakeSandbox(stdout, commits);
-  return { implement: createImplementer({ sandbox, config }), runs };
+  const { sandbox, runs, execs } = fakeSandbox(stdout, commits);
+  return { implement: createImplementer({ sandbox, config }), runs, execs };
 };
 
 const taggedResult = (json: string) =>
   `Wrote the test first.\n<${IMPLEMENT_TAG}>${json}</${IMPLEMENT_TAG}>`;
 
 describe("createImplementer", () => {
-  it("reports a committed ticket as done", async () => {
-    const { implement } = implementing(taggedResult('{"kind":"done"}'));
+  it("reports a committed ticket as done, from the base its change starts at", async () => {
+    const { implement, execs } = implementing(taggedResult('{"kind":"done"}'));
 
-    await expect(implement(ticket)).resolves.toEqual({ kind: "done" });
+    await expect(implement(ticket)).resolves.toEqual({ kind: "done", base: HEAD_SHA });
+    expect(execs).toEqual(["git rev-parse HEAD"]);
   });
 
   it("refuses a done that committed nothing", async () => {

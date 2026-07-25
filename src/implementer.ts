@@ -22,6 +22,15 @@ const implementSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("needs-input"), reason: z.string().min(1) }),
 ]);
 
+/** What the branch is at, so the ticket's own change has a base to diff from. */
+async function headSha(sandbox: Sandbox): Promise<string> {
+  const { stdout, stderr, exitCode } = await sandbox.exec("git rev-parse HEAD");
+  if (exitCode !== 0) {
+    throw new RoleError(`Could not read the branch's HEAD before implementing: ${stderr.trim()}`);
+  }
+  return stdout.trim();
+}
+
 /**
  * The real implementer: one fresh cold agent per ticket that builds it under
  * TDD and commits it itself.
@@ -38,6 +47,10 @@ export function createImplementer({
   config: RelayConfig;
 }): Crew["implement"] {
   return async function implement(ticket: TicketRef): Promise<ImplementResult> {
+    // Read before the run: afterwards the ticket's own commits are in the way,
+    // and this is what the reviewers diff the ticket's change from.
+    const base = await headSha(sandbox);
+
     const { stdout, commits } = await sandbox.run({
       name: `implementer-${ticket.key}`,
       agent: roleAgent(config.models.implementer),
@@ -59,9 +72,10 @@ export function createImplementer({
 
     // The implementer's own commit is what hands the ticket on: the reviewers
     // read it, and nothing else in the pass would commit the work for it.
-    if (result.kind === "done" && commits.length === 0) {
+    if (result.kind === "needs-input") return result;
+    if (commits.length === 0) {
       throw new RoleError(`The implementer reported ${ticket.key} done but committed nothing.`);
     }
-    return result;
+    return { ...result, base };
   };
 }

@@ -43,7 +43,7 @@ async function runLegs(crew: Crew, issue: JiraIssue): Promise<Outcome> {
   const blocked = await implementTickets(crew, plan.tickets);
   if (blocked) return blocked;
 
-  await reviewAndFix(crew, WHOLE_BRANCH_LENSES, { kind: "branch" });
+  await reviewAndFix(crew, WHOLE_BRANCH_LENSES, { kind: "branch", workItem: issue.key });
   return await driveGate(crew);
 }
 
@@ -61,7 +61,7 @@ async function implementTickets(
     if (result.kind === "needs-input") {
       return { kind: "mid-block", reason: result.reason };
     }
-    await reviewAndFix(crew, PER_TICKET_LENSES, { kind: "ticket", ticket });
+    await reviewAndFix(crew, PER_TICKET_LENSES, { kind: "ticket", ticket, base: result.base });
   }
   return undefined;
 }

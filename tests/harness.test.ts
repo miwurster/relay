@@ -44,7 +44,7 @@ function recordingCrew(overrides: Partial<Crew> = {}) {
     },
     async implement(ref): Promise<ImplementResult> {
       calls.push(`implement:${ref.key}`);
-      return { kind: "done" };
+      return { kind: "done", base: "c0ffee" };
     },
     async review(lens: ReviewLens, scope: ReviewScope): Promise<Finding[]> {
       calls.push(`review:${lens}:${scope.kind === "ticket" ? scope.ticket.key : "branch"}`);

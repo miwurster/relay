@@ -3,6 +3,7 @@ import type { RelayConfig } from "./config.js";
 import { createImplementer } from "./implementer.js";
 import type { JiraIssue } from "./jira.js";
 import { createPlanner } from "./planner.js";
+import { createReviewer } from "./reviewer.js";
 
 /** One ticket of the pass's plan: the unit an implementer leg runs over. */
 export interface TicketRef {
@@ -19,7 +20,10 @@ export type PlanResult =
  * How an implementer leg ended. A role that wants human input never pauses the
  * pass: it reports it, and the harness collapses it into a mid-block handover.
  */
-export type ImplementResult = { kind: "done" } | { kind: "needs-input"; reason: string };
+export type ImplementResult =
+  /** `base` is the commit the branch was at before the ticket was implemented. */
+  | { kind: "done"; base: string }
+  | { kind: "needs-input"; reason: string };
 
 /** The four review lenses, named as the per-role model map names them. */
 export type ReviewLens =
@@ -45,8 +49,17 @@ export interface GateResult {
   detail: string;
 }
 
-/** What the reviewers look at: one ticket's change, or the whole branch. */
-export type ReviewScope = { kind: "ticket"; ticket: TicketRef } | { kind: "branch" };
+/**
+ * What the reviewers look at: one ticket's change, or the whole branch.
+ *
+ * Each arm carries the key whose intent the change is measured against — the
+ * ticket's own brief, or the work item the whole branch belongs to. A ticket
+ * also carries the commit its own change starts at, since the branch already
+ * holds every earlier ticket of the pass.
+ */
+export type ReviewScope =
+  | { kind: "ticket"; ticket: TicketRef; base: string }
+  | { kind: "branch"; workItem: string };
 
 /**
  * How the pass ended, and therefore which handover it gets.
@@ -80,14 +93,17 @@ export interface Crew {
 export function createCrew({
   sandbox,
   config,
+  outputDir,
 }: {
   sandbox: Sandbox;
   config: RelayConfig;
+  outputDir: string;
 }): Crew {
   return {
     ...createStubCrew(),
     plan: createPlanner({ sandbox, config }),
     implement: createImplementer({ sandbox, config }),
+    review: createReviewer({ sandbox, config, outputDir }),
   };
 }
 
@@ -105,7 +121,7 @@ export function createStubCrew(): Crew {
 
     async implement(ticket) {
       log("implementer", `would implement ${ticket.key}`);
-      return { kind: "done" };
+      return { kind: "done", base: "HEAD" };
     },
 
     async review(lens, scope) {
