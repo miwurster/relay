@@ -1,5 +1,6 @@
 import type { Sandbox } from "@ai-hero/sandcastle";
 import type { RelayConfig } from "./config.js";
+import { createImplementer } from "./implementer.js";
 import type { JiraIssue } from "./jira.js";
 import { createPlanner } from "./planner.js";
 
@@ -83,7 +84,11 @@ export function createCrew({
   sandbox: Sandbox;
   config: RelayConfig;
 }): Crew {
-  return { ...createStubCrew(), plan: createPlanner({ sandbox, config }) };
+  return {
+    ...createStubCrew(),
+    plan: createPlanner({ sandbox, config }),
+    implement: createImplementer({ sandbox, config }),
+  };
 }
 
 /**
