@@ -4,11 +4,15 @@
 
 **Blocked by:** 03
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Branch pipeline: compile-typescript + oss-compliance-check
-- [ ] main pipeline: semantic-release bumps only (`npmPublish:false`), cuts tag
-- [ ] Tag pipeline: oss-compliance gate → publish-npm via OIDC (no NPM_TOKEN)
-- [ ] `package.json` gains `lint`/`test`/`build` scripts + `publishConfig.access:public`; Apache-2.0 LICENSE in `files`; root `package-lock.json` committed
-- [ ] All jobs `tags: [kubernetes, cluster]`
-- [ ] Setup prereqs recorded: npmjs trusted-publisher for `@quantum-hub/relay`; verify `node:lts` npm >= 11.5 for OIDC
+- [x] Branch pipeline: compile-typescript + oss-compliance-check
+- [x] main pipeline: semantic-release bumps only (`npmPublish:false`), cuts tag
+- [x] Tag pipeline: oss-compliance gate → publish-npm via OIDC (no NPM_TOKEN)
+- [x] `package.json` gains `lint`/`test`/`build` scripts + `publishConfig.access:public`; Apache-2.0 LICENSE in `files`; root `package-lock.json` committed
+- [x] All jobs `tags: [kubernetes, cluster]`
+- [x] Setup prereqs recorded: npmjs trusted-publisher for `@quantum-hub/relay`; verify `node:lts` npm >= 11.5 for OIDC
+
+`lint` aliases `typecheck` (`tsc --noEmit`) — the repo carries no linter, and adding ESLint was outside this ticket.
+`node:lts` verified as Node v24.18.0 / npm 11.16.0, so OIDC works without an image override.
+Pipeline and the one-time npmjs trusted-publisher step are documented in `docs/release.md`.

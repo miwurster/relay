@@ -11,12 +11,14 @@
     "node": ">=20"
   },
   "files": [
-    "dist"
+    "dist",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsup",
     "postbuild": "rm -rf dist/resources && cp -r src/resources dist/resources",
     "typecheck": "tsc --noEmit",
+    "lint": "npm run typecheck",
     "test": "vitest run"
   },
   "dependencies": {
