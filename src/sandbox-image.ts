@@ -138,6 +138,73 @@ export async function detectDockerSocketGid({
   return Number(gid);
 }
 
+/** Where a prebuilt image ref was proven to be real. */
+export type ImageSource = "host" | "registry";
+
+/**
+ * Prove a prebuilt image ref is real, on the host or in its registry.
+ *
+ * `resolveSandboxImage` takes a configured ref on trust, which is right for a
+ * run — docker pulls it when the sandbox starts — but a preflight that reports
+ * an image nobody can pull as resolvable is worth nothing.
+ */
+export async function verifyPrebuiltImage({
+  image,
+  docker = runDocker,
+}: {
+  image: string;
+  docker?: DockerRunner;
+}): Promise<ImageSource> {
+  try {
+    await docker(["image", "inspect", "--format", "{{.Id}}", image]);
+    return "host";
+  } catch {
+    // Not pulled yet, so ask the registry — without pulling the whole image.
+    await docker(["manifest", "inspect", image]);
+    return "registry";
+  }
+}
+
+/**
+ * The daemon's version as read from inside the sandbox image **by the image's
+ * own non-root user**, with the socket's group added the way a pass adds it.
+ *
+ * A socket that merely exists proves nothing: the sandbox user is non-root, so
+ * only a real round trip to the daemon under that user shows the green gate's
+ * Testcontainers tier will reach it.
+ */
+export async function dockerDaemonVersionInSandbox({
+  image,
+  docker = runDocker,
+}: {
+  image: string;
+  docker?: DockerRunner;
+}): Promise<string> {
+  const socketGid = await detectDockerSocketGid({ image, docker });
+  const version = await docker([
+    "run",
+    "--rm",
+    "--group-add",
+    String(socketGid),
+    "--volume",
+    `${DOCKER_SOCKET_PATH}:${DOCKER_SOCKET_PATH}`,
+    "--entrypoint",
+    "docker",
+    image,
+    "version",
+    "--format",
+    "{{.Server.Version}}",
+  ]);
+
+  if (!version) {
+    throw new SandboxError(
+      "The docker daemon answered with no version, so the sandbox user cannot be " +
+        `shown to reach it through ${DOCKER_SOCKET_PATH}.`,
+    );
+  }
+  return version;
+}
+
 /**
  * The host address Testcontainers must dial from inside the sandbox.
  *

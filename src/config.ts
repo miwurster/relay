@@ -20,6 +20,8 @@ const modelsSchema = z
     inDepthCodeReview: z.string().default("claude-fable-5"),
     inDepthSpecReview: z.string().default("claude-fable-5"),
     fixer: z.string().default("claude-sonnet-5"),
+    /** What the fixer escalates to when its first attempt at a red gate failed. */
+    fixerEscalated: z.string().default("claude-opus-4-8"),
     qualityGate: z.string().default("claude-sonnet-5"),
     handover: z.string().default("claude-sonnet-5"),
   })

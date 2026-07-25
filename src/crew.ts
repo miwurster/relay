@@ -1,5 +1,6 @@
 import type { Sandbox } from "@ai-hero/sandcastle";
 import type { RelayConfig } from "./config.js";
+import { createFixer } from "./fixer.js";
 import { createImplementer } from "./implementer.js";
 import type { JiraIssue } from "./jira.js";
 import { createPlanner } from "./planner.js";
@@ -62,6 +63,16 @@ export type ReviewScope =
   | { kind: "branch"; workItem: string };
 
 /**
+ * What one fixer leg is fixing: a ticket's own lenses, the whole-branch lenses,
+ * or a red gate. A gate fix carries which attempt of the loop it is, because
+ * the gate is the pass's one leg that runs more than once.
+ */
+export type FixTarget =
+  | { kind: "ticket"; ticket: TicketRef }
+  | { kind: "branch" }
+  | { kind: "gate"; attempt: number };
+
+/**
  * How the pass ended, and therefore which handover it gets.
  *
  * `early-bail` is the planner refusing an under-specified item before any work
@@ -81,7 +92,7 @@ export interface Crew {
   plan(issue: JiraIssue): Promise<PlanResult>;
   implement(ticket: TicketRef): Promise<ImplementResult>;
   review(lens: ReviewLens, scope: ReviewScope): Promise<Finding[]>;
-  fix(findings: readonly Finding[]): Promise<void>;
+  fix(findings: readonly Finding[], target: FixTarget): Promise<void>;
   qualityGate(): Promise<GateResult>;
   handover(outcome: Outcome): Promise<void>;
 }
@@ -104,6 +115,7 @@ export function createCrew({
     plan: createPlanner({ sandbox, config }),
     implement: createImplementer({ sandbox, config }),
     review: createReviewer({ sandbox, config, outputDir }),
+    fix: createFixer({ sandbox, config }),
   };
 }
 
@@ -130,9 +142,9 @@ export function createStubCrew(): Crew {
       return [];
     },
 
-    async fix(findings) {
+    async fix(findings, target) {
       const deduped = dedupeFindings(findings);
-      log("fixer", `would fix ${deduped.length} of ${findings.length} findings`);
+      log("fixer", `would fix ${deduped.length} of ${findings.length} findings in ${target.kind}`);
     },
 
     async qualityGate() {

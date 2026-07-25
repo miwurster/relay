@@ -1,4 +1,12 @@
-import type { Crew, Finding, Outcome, ReviewLens, ReviewScope, TicketRef } from "./crew.js";
+import type {
+  Crew,
+  Finding,
+  FixTarget,
+  Outcome,
+  ReviewLens,
+  ReviewScope,
+  TicketRef,
+} from "./crew.js";
 import { ExitCode } from "./exit-codes.js";
 import type { JiraIssue } from "./jira.js";
 
@@ -78,14 +86,18 @@ async function reviewAndFix(
 ): Promise<void> {
   const lensFindings = await Promise.all(lenses.map((lens) => crew.review(lens, scope)));
   const findings = lensFindings.flat();
-  if (findings.length > 0) await crew.fix(findings);
+  if (findings.length > 0) await crew.fix(findings, fixTargetFor(scope));
+}
+
+function fixTargetFor(scope: ReviewScope): FixTarget {
+  return scope.kind === "ticket" ? { kind: "ticket", ticket: scope.ticket } : { kind: "branch" };
 }
 
 /** Run the gate, handing each red verdict to the fixer until green or capped. */
 async function driveGate(crew: Crew): Promise<Outcome> {
   let gate = await crew.qualityGate();
-  for (let attempt = 0; !gate.green && attempt < MAX_GATE_FIX_ATTEMPTS; attempt++) {
-    await crew.fix([gateFinding(gate.detail)]);
+  for (let attempt = 1; !gate.green && attempt <= MAX_GATE_FIX_ATTEMPTS; attempt++) {
+    await crew.fix([gateFinding(gate.detail)], { kind: "gate", attempt });
     gate = await crew.qualityGate();
   }
   return gate.green ? { kind: "success" } : { kind: "mid-block", reason: gate.detail };

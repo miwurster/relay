@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type {
   Crew,
   Finding,
+  FixTarget,
   GateResult,
   ImplementResult,
   Outcome,
@@ -35,6 +36,7 @@ const finding = (source: Finding["source"], summary: string, ticket?: string): F
 function recordingCrew(overrides: Partial<Crew> = {}) {
   const calls: string[] = [];
   const fixed: Finding[][] = [];
+  const fixTargets: FixTarget[] = [];
   let handedOver: Outcome | undefined;
 
   const crew: Crew = {
@@ -50,9 +52,10 @@ function recordingCrew(overrides: Partial<Crew> = {}) {
       calls.push(`review:${lens}:${scope.kind === "ticket" ? scope.ticket.key : "branch"}`);
       return [];
     },
-    async fix(findings): Promise<void> {
+    async fix(findings, target): Promise<void> {
       calls.push("fix");
       fixed.push([...findings]);
+      fixTargets.push(target);
     },
     async qualityGate(): Promise<GateResult> {
       calls.push("gate");
@@ -65,7 +68,7 @@ function recordingCrew(overrides: Partial<Crew> = {}) {
     ...overrides,
   };
 
-  return { crew, calls, fixed, handover: () => handedOver };
+  return { crew, calls, fixed, fixTargets, handover: () => handedOver };
 }
 
 describe("runHarness", () => {
@@ -136,6 +139,27 @@ describe("runHarness", () => {
     expect(fixed[0]).toEqual([
       finding("fastCodeReview", "same problem", "PSD-1"),
       finding("fastSpecReview", "same problem", "PSD-1"),
+    ]);
+  });
+
+  it("tells each fixer leg what it is fixing", async () => {
+    const { crew, fixTargets } = recordingCrew({
+      async review(lens, scope) {
+        const ticketKey = scope.kind === "ticket" ? scope.ticket.key : undefined;
+        return [finding(lens, "same problem", ticketKey)];
+      },
+      async qualityGate() {
+        return { green: false, detail: "still red" };
+      },
+    });
+
+    await runHarness(crew, issue);
+
+    expect(fixTargets).toEqual([
+      { kind: "ticket", ticket: ticket("PSD-1") },
+      { kind: "branch" },
+      { kind: "gate", attempt: 1 },
+      { kind: "gate", attempt: 2 },
     ]);
   });
 

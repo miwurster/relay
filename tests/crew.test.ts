@@ -5,6 +5,7 @@ import type { Sandbox, SandboxRunOptions, SandboxRunResult } from "@ai-hero/sand
 import { beforeEach, describe, expect, it } from "vitest";
 import { relayConfigSchema } from "../src/config.js";
 import { createCrew } from "../src/crew.js";
+import { FIX_TAG } from "../src/fixer.js";
 import { IMPLEMENT_TAG } from "../src/implementer.js";
 import type { JiraIssue } from "../src/jira.js";
 import { PLAN_TAG } from "../src/planner.js";
@@ -72,6 +73,28 @@ describe("createCrew", () => {
 
     expect(result).toEqual({ kind: "done", base: "9e4d1a0" });
     expect(runs.map((run) => run.name)).toEqual(["implementer-PSD-8", "implementer-PSD-9"]);
+  });
+
+  it("fixes a scope's merged findings in one fixer run", async () => {
+    const runs: SandboxRunOptions[] = [];
+    const sandbox = {
+      async run(options: SandboxRunOptions): Promise<SandboxRunResult> {
+        runs.push(options);
+        return {
+          iterations: [],
+          commits: [{ sha: "c0ffee" }],
+          stdout: `<${FIX_TAG}>{"kind":"fixed"}</${FIX_TAG}>`,
+        };
+      },
+    } as unknown as Sandbox;
+    const crew = createCrew({ sandbox, config, outputDir });
+
+    await crew.fix([{ source: "fastCodeReview", ticket: "PSD-8", summary: "src/a.ts:3 dead" }], {
+      kind: "ticket",
+      ticket: { key: "PSD-8", summary: "the schema" },
+    });
+
+    expect(runs.map((run) => run.name)).toEqual(["fixer-PSD-8"]);
   });
 
   it("reviews each lens of a scope in its own review run", async () => {
