@@ -16,8 +16,11 @@ export type Selection = { kind: "work-item"; issue: JiraIssue } | { kind: "nothi
 
 /**
  * The frontier query: this repo's eligible items, most important and
- * longest-waiting first. Ordering is Jira's, so the first candidate whose
- * blockers are all done wins.
+ * longest-waiting first. Ordering is Jira's, so the first candidate that
+ * passes every gate wins.
+ *
+ * A prefilter only — `gateFailure` decides eligibility for both paths, so the
+ * two can never disagree about what relay is allowed to run.
  */
 export function frontierJql(scope: TrackerScope): string {
   return (
@@ -50,7 +53,7 @@ export async function selectWorkItem(
 
 async function autoPick(client: JiraClient, scope: TrackerScope): Promise<Selection> {
   const candidates = await client.search(frontierJql(scope));
-  const issue = candidates.find((candidate) => openBlockers(candidate).length === 0);
+  const issue = candidates.find((candidate) => gateFailure(candidate, scope) === undefined);
   return issue ? { kind: "work-item", issue } : { kind: "nothing-to-do" };
 }
 

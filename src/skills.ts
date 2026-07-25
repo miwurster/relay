@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { z } from "zod";
 import { ConfigError } from "./errors.js";
 
 /**
@@ -45,7 +46,9 @@ export async function resolveSkillPlugins(
   const missing: string[] = [];
   for (const key of SKILL_PLUGINS) {
     const name = key.split("@")[0] ?? key;
-    const hostPath = installPath(installed, key);
+    // A plugin may be installed at more than one scope; the first entry
+    // carrying an install path wins.
+    const hostPath = installed.plugins[key]?.find((entry) => entry.installPath)?.installPath;
     if (hostPath) {
       plugins.push({ name, hostPath, sandboxPath: `${SANDBOX_PLUGIN_ROOT}/${name}` });
     } else {
@@ -62,27 +65,24 @@ export async function resolveSkillPlugins(
   return plugins;
 }
 
-async function readInstalledPlugins(path: string): Promise<unknown> {
+/**
+ * Only what relay reads: a plugin key maps to its install entries, and an
+ * entry may carry the host directory Claude installed it in. Loose on purpose
+ * — the file is Claude's, and it may grow fields relay knows nothing about.
+ */
+const installedPluginsSchema = z.looseObject({
+  plugins: z
+    .record(z.string(), z.array(z.looseObject({ installPath: z.string().min(1).optional() })))
+    .default({}),
+});
+
+async function readInstalledPlugins(path: string): Promise<z.infer<typeof installedPluginsSchema>> {
   try {
-    return JSON.parse(await readFile(path, "utf8"));
+    return installedPluginsSchema.parse(JSON.parse(await readFile(path, "utf8")));
   } catch {
     throw new ConfigError(
       `Could not read Claude's installed plugins at ${path}. ` +
         "relay mounts plugin skills from the host's Claude installation.",
     );
   }
-}
-
-/**
- * The install path Claude recorded for a plugin key, from the first entry that
- * carries one — a plugin may be installed at more than one scope.
- */
-function installPath(installed: unknown, key: string): string | undefined {
-  const entries = (installed as { plugins?: Record<string, unknown> })?.plugins?.[key];
-  if (!Array.isArray(entries)) return undefined;
-  for (const entry of entries) {
-    const path = (entry as { installPath?: unknown })?.installPath;
-    if (typeof path === "string" && path) return path;
-  }
-  return undefined;
 }

@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { ConfigError } from "./errors.js";
+import { requireAll } from "./required.js";
 
 /** The Claude credential relay injects, under the variable name it was given. */
 export interface ClaudeCredential {
@@ -40,24 +40,23 @@ export async function loadSecrets(env: NodeJS.ProcessEnv = process.env): Promise
   const fromFile = await readEnvFile(secretsFilePath(env));
   const resolve = (name: string) => value(env[name], fromFile[name]);
 
-  const email = resolve("ATLASSIAN_SA_EMAIL");
-  const token = resolve("ATLASSIAN_SA_TOKEN");
-  const gitlabToken = resolve("GITLAB_TOKEN");
-  const claude = resolveClaudeCredential(env, fromFile);
-
-  const missing = [
-    email ? undefined : "ATLASSIAN_SA_EMAIL",
-    token ? undefined : "ATLASSIAN_SA_TOKEN",
-    gitlabToken ? undefined : "GITLAB_TOKEN",
-    claude ? undefined : "CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY",
-  ].filter((name) => name !== undefined);
-
-  if (!email || !token || !gitlabToken || !claude) {
-    throw new ConfigError(
+  const { email, token, gitlabToken, claude } = requireAll(
+    {
+      email: resolve("ATLASSIAN_SA_EMAIL"),
+      token: resolve("ATLASSIAN_SA_TOKEN"),
+      gitlabToken: resolve("GITLAB_TOKEN"),
+      claude: resolveClaudeCredential(env, fromFile),
+    },
+    {
+      email: "ATLASSIAN_SA_EMAIL",
+      token: "ATLASSIAN_SA_TOKEN",
+      gitlabToken: "GITLAB_TOKEN",
+      claude: "CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY",
+    },
+    (missing) =>
       `Missing secret(s): ${missing.join(", ")}. ` +
-        `Set them as environment variables or in ${secretsFilePath(env)}.`,
-    );
-  }
+      `Set them as environment variables or in ${secretsFilePath(env)}.`,
+  );
 
   return { atlassian: { email, token }, gitlabToken, claude };
 }

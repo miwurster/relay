@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ConfigError } from "./errors.js";
+import { requireAll } from "./required.js";
 
 /** The agent-facing tracker doc a target repo commits, relative to its root. */
 export const TRACKER_DOC_PATH = "docs/agents/issue-tracker.md";
@@ -24,22 +25,16 @@ export async function loadTrackerScope(repoRoot: string): Promise<TrackerScope> 
   const path = join(repoRoot, TRACKER_DOC_PATH);
   const doc = await read(path);
 
-  const projectKey = setupConstant(doc, "Jira project key");
-  const repoLabel = setupConstant(doc, "Repo label");
-
-  const missing = [
-    projectKey ? undefined : "Jira project key",
-    repoLabel ? undefined : "Repo label",
-  ].filter((label) => label !== undefined);
-
-  if (!projectKey || !repoLabel) {
-    throw new ConfigError(
+  return requireAll(
+    {
+      projectKey: setupConstant(doc, "Jira project key"),
+      repoLabel: setupConstant(doc, "Repo label"),
+    },
+    { projectKey: "Jira project key", repoLabel: "Repo label" },
+    (missing) =>
       `${path} is missing its setup constant(s): ${missing.join(", ")}. ` +
-        "Each must be a bullet with the value in backticks.",
-    );
-  }
-
-  return { projectKey, repoLabel };
+      "Each must be a bullet with the value in backticks.",
+  );
 }
 
 async function read(path: string): Promise<string> {
