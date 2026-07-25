@@ -27,9 +27,9 @@ export const MAX_GATE_FIX_ATTEMPTS = 2;
  * Run the pass's crew over one work item and return how it ended.
  *
  * The topology is fixed: plan once, then per ticket implement → both fast
- * lenses concurrently → fix, then both in-depth lenses over the whole branch
- * → fix, then the gate → fixer loop, then handover. Every exit path ends at
- * the same handover call, so no outcome can skip it.
+ * lenses → fix, then both in-depth lenses over the whole branch → fix, then
+ * the gate → fixer loop, then handover. Every exit path ends at the same
+ * handover call, so no outcome can skip it.
  */
 export async function runHarness(crew: Crew, issue: JiraIssue): Promise<Outcome> {
   const outcome = await runLegs(crew, issue);
@@ -75,17 +75,23 @@ async function implementTickets(
 }
 
 /**
- * Run every lens of a scope concurrently and hand the merged findings to the
- * fixer. The merge is a blind concatenation — overlapping findings are the
- * fixer's to dedup, since only it can tell two phrasings of one problem apart.
+ * Run every lens of a scope and hand the merged findings to the fixer. The
+ * merge is a blind concatenation — overlapping findings are the fixer's to
+ * dedup, since only it can tell two phrasings of one problem apart.
+ *
+ * The lenses run one after another, not together. They are independent reads
+ * and would happily run in parallel, but the whole crew shares one sandbox and
+ * therefore one git worktree: each leg takes a HEAD baseline before it starts
+ * and detaches, merges and deletes its branch afterwards, so two legs at once
+ * race on the same refs and misattribute each other's commits.
  */
 async function reviewAndFix(
   crew: Crew,
   lenses: readonly ReviewLens[],
   scope: ReviewScope,
 ): Promise<void> {
-  const lensFindings = await Promise.all(lenses.map((lens) => crew.review(lens, scope)));
-  const findings = lensFindings.flat();
+  const findings: Finding[] = [];
+  for (const lens of lenses) findings.push(...(await crew.review(lens, scope)));
   if (findings.length > 0) await crew.fix(findings, fixTargetFor(scope));
 }
 

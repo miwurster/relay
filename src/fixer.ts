@@ -2,10 +2,7 @@ import type { Sandbox } from "@ai-hero/sandcastle";
 import { z } from "zod";
 import type { RelayConfig } from "./config.js";
 import type { Crew, Finding, FixTarget } from "./crew.js";
-import { RoleError } from "./errors.js";
-import { readResource } from "./resources.js";
-import { roleAgent } from "./role-agent.js";
-import { readTaggedOutput } from "./tagged-output.js";
+import { runRole } from "./run-role.js";
 
 /** The block the fixer ends its run with, and the prompt it runs from. */
 export const FIX_TAG = "relay-fix";
@@ -50,29 +47,27 @@ export function createFixer({
   return async function fix(findings: readonly Finding[], target: FixTarget): Promise<void> {
     const leg = describeLeg(target, config);
 
-    const { stdout, commits } = await sandbox.run({
+    const result = await runRole({
+      sandbox,
+      config,
       name: `fixer-${leg.name}`,
-      agent: roleAgent(leg.model),
-      prompt: await readResource(FIXER_PROMPT),
+      model: leg.model,
+      prompt: FIXER_PROMPT,
       promptArgs: {
         SCOPE: leg.scope,
         // The harness's merge, verbatim: the fixer is the only role that can
         // tell two phrasings of one problem apart, so it dedups them itself.
         FINDINGS: JSON.stringify(findings, undefined, 2),
       },
-      signal: AbortSignal.timeout(config.roleTimeoutMs),
+      tag: FIX_TAG,
+      schema: fixSchema,
+      // The commit is what carries the fix to the lenses and the gate that read
+      // the branch next, so a fix nobody committed is a fix that did not happen.
+      branchRule: (answer) => (answer.kind === "fixed" ? "must-commit" : "any"),
     });
-
-    const result = readTaggedOutput({ stdout, tag: FIX_TAG, schema: fixSchema, role: "fixer" });
 
     if (result.kind === "nothing-to-fix") {
       console.log(`relay: [fixer] left ${leg.scope} unchanged: ${result.reason}`);
-      return;
-    }
-    // The commit is what carries the fix to the lenses and the gate that read
-    // the branch next, so a fix nobody committed is a fix that did not happen.
-    if (commits.length === 0) {
-      throw new RoleError(`The fixer reported fixes for ${leg.scope} but committed nothing.`);
     }
   };
 }

@@ -28,20 +28,26 @@ beforeEach(async () => {
   outputDir = await mkdtemp(join(tmpdir(), "relay-findings-"));
 });
 
-/** A sandbox whose only real behaviour is the stdout one review run returns. */
-function fakeSandbox(stdout: string, commits: { sha: string }[]) {
+/**
+ * A sandbox whose only real behaviour is the stdout one review run returns and
+ * what `git status --porcelain` says the worktree looks like afterwards.
+ */
+function fakeSandbox(stdout: string, commits: { sha: string }[], worktree: string) {
   const runs: SandboxRunOptions[] = [];
   const sandbox = {
     async run(options: SandboxRunOptions): Promise<SandboxRunResult> {
       runs.push(options);
       return { iterations: [], stdout, commits };
     },
+    async exec() {
+      return { stdout: worktree, stderr: "", exitCode: 0 };
+    },
   } as unknown as Sandbox;
   return { sandbox, runs };
 }
 
-const reviewing = (stdout: string, commits: { sha: string }[] = []) => {
-  const { sandbox, runs } = fakeSandbox(stdout, commits);
+const reviewing = (stdout: string, commits: { sha: string }[] = [], worktree = "") => {
+  const { sandbox, runs } = fakeSandbox(stdout, commits, worktree);
   return { review: createReviewer({ sandbox, config, outputDir }), runs };
 };
 
@@ -96,6 +102,12 @@ describe("createReviewer", () => {
     const { review } = reviewing(taggedFindings("[]"), [{ sha: "beef" }]);
 
     await expect(review("fastCodeReview", ticketScope)).rejects.toThrow(RoleError);
+  });
+
+  it("refuses a lens that edited without committing, which the next leg would inherit", async () => {
+    const { review } = reviewing(taggedFindings("[]"), [], " M src/a.ts\n?? notes.md");
+
+    await expect(review("fastCodeReview", ticketScope)).rejects.toThrow(/left the worktree changed/);
   });
 
   it("writes each lens's findings to its own file for the harness to merge", async () => {

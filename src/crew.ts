@@ -100,6 +100,11 @@ export interface Crew {
 /**
  * The crew a real pass runs: each role that has been built runs in the pass's
  * sandbox, and the rest are still stubs. A later ticket replaces one more.
+ *
+ * Every stub is named here rather than spread in from `createStubCrew`, so a
+ * role that is still fake cannot hide. **A pass therefore still reports green
+ * from a gate that never ran** — the two below are what is left to build, and
+ * a seventh role added to `Crew` will not compile until it is wired.
  */
 export function createCrew({
   sandbox,
@@ -110,12 +115,14 @@ export function createCrew({
   config: RelayConfig;
   outputDir: string;
 }): Crew {
+  const stub = createStubCrew();
   return {
-    ...createStubCrew(),
     plan: createPlanner({ sandbox, config }),
     implement: createImplementer({ sandbox, config }),
     review: createReviewer({ sandbox, config, outputDir }),
     fix: createFixer({ sandbox, config }),
+    qualityGate: stub.qualityGate,
+    handover: stub.handover,
   };
 }
 

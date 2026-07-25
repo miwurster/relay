@@ -3,9 +3,7 @@ import { z } from "zod";
 import type { RelayConfig } from "./config.js";
 import type { Crew, PlanResult } from "./crew.js";
 import type { JiraIssue } from "./jira.js";
-import { readResource } from "./resources.js";
-import { roleAgent } from "./role-agent.js";
-import { readTaggedOutput } from "./tagged-output.js";
+import { runRole } from "./run-role.js";
 import { TRACKER_DOC_PATH } from "./tracker-doc.js";
 
 /** The block the planner ends its run with, and the prompt it runs from. */
@@ -42,15 +40,15 @@ export function createPlanner({
   config: RelayConfig;
 }): Crew["plan"] {
   return async function plan(issue: JiraIssue): Promise<PlanResult> {
-    const { stdout } = await sandbox.run({
+    return await runRole({
+      sandbox,
+      config,
       name: "planner",
-      agent: roleAgent(config.models.planner),
-      maxIterations: 1,
-      prompt: await readResource(PLANNER_PROMPT),
+      model: config.models.planner,
+      prompt: PLANNER_PROMPT,
       promptArgs: { WORK_ITEM_KEY: issue.key, TRACKER_DOC: TRACKER_DOC_PATH },
-      signal: AbortSignal.timeout(config.roleTimeoutMs),
+      tag: PLAN_TAG,
+      schema: planSchema,
     });
-
-    return readTaggedOutput({ stdout, tag: PLAN_TAG, schema: planSchema, role: "planner" });
   };
 }

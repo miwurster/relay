@@ -98,31 +98,29 @@ describe("runHarness", () => {
     ]);
   });
 
-  it("runs both lenses of a scope concurrently", async () => {
-    const started: ReviewLens[] = [];
-    let releaseFirst: (() => void) | undefined;
-    const first = new Promise<void>((resolve) => {
-      releaseFirst = resolve;
-    });
+  it("runs the lenses of a scope one at a time, since they share one worktree", async () => {
+    const events: string[] = [];
 
     const { crew } = recordingCrew({
-      async review(lens) {
-        started.push(lens);
-        // The first lens only finishes once the second one has started, so the
-        // pass deadlocks unless the harness runs them concurrently.
-        if (started.length === 1) await first;
-        else releaseFirst?.();
+      async review(lens: ReviewLens) {
+        events.push(`start:${lens}`);
+        await Promise.resolve();
+        events.push(`end:${lens}`);
         return [];
       },
     });
 
     await runHarness(crew, issue);
 
-    expect(started).toEqual([
-      "fastCodeReview",
-      "fastSpecReview",
-      "inDepthCodeReview",
-      "inDepthSpecReview",
+    expect(events).toEqual([
+      "start:fastCodeReview",
+      "end:fastCodeReview",
+      "start:fastSpecReview",
+      "end:fastSpecReview",
+      "start:inDepthCodeReview",
+      "end:inDepthCodeReview",
+      "start:inDepthSpecReview",
+      "end:inDepthSpecReview",
     ]);
   });
 

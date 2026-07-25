@@ -108,6 +108,10 @@ describe("createCrew", () => {
           stdout: `<${FINDINGS_TAG}>["src/a.ts:3 duplicated parsing"]</${FINDINGS_TAG}>`,
         };
       },
+      // The lens is read-only, so its run is followed by a clean-worktree check.
+      async exec() {
+        return { stdout: "", stderr: "", exitCode: 0 };
+      },
     } as unknown as Sandbox;
     const crew = createCrew({ sandbox, config, outputDir });
 

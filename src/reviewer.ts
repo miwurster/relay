@@ -2,11 +2,8 @@ import type { Sandbox } from "@ai-hero/sandcastle";
 import { z } from "zod";
 import type { RelayConfig } from "./config.js";
 import type { Crew, Finding, ReviewLens, ReviewScope } from "./crew.js";
-import { RoleError } from "./errors.js";
 import { writeFindingsFile } from "./findings-file.js";
-import { readResource } from "./resources.js";
-import { roleAgent } from "./role-agent.js";
-import { readTaggedOutput } from "./tagged-output.js";
+import { runRole } from "./run-role.js";
 import { TRACKER_DOC_PATH } from "./tracker-doc.js";
 
 /** The block every review lens ends its run with. */
@@ -50,8 +47,8 @@ interface ReviewTarget {
  * The real reviewers: one cold read-only agent run per lens, on that lens's
  * model, reporting the findings the fixer will act on.
  *
- * Concurrency is the harness's — it runs a scope's lenses together and merges
- * what they return — so a lens here knows nothing about the other three.
+ * Ordering is the harness's — it runs a scope's lenses and merges what they
+ * return — so a lens here knows nothing about the other three.
  */
 export function createReviewer({
   sandbox,
@@ -66,28 +63,18 @@ export function createReviewer({
     const lensRun = LENSES[lens];
     const target = describeScope(scope, config);
 
-    const { stdout, commits } = await sandbox.run({
+    const summaries = await runRole({
+      sandbox,
+      config,
       name: `${lens}-${target.name}`,
-      agent: roleAgent(config.models[lens]),
-      maxIterations: 1,
-      prompt: await readResource(lensRun.prompt),
+      model: config.models[lens],
+      prompt: lensRun.prompt,
       promptArgs: { SCOPE: scope.kind, KEY: target.key, BASE: target.base, ...lensRun.args },
-      signal: AbortSignal.timeout(config.roleTimeoutMs),
-    });
-
-    // A lens that changed the branch broke the one rule every lens runs under,
-    // and its commit would reach the human as nobody's work.
-    if (commits.length > 0) {
-      throw new RoleError(
-        `The ${lens} lens is read-only but committed ${commits.length} commit(s).`,
-      );
-    }
-
-    const summaries = readTaggedOutput({
-      stdout,
       tag: FINDINGS_TAG,
       schema: findingsSchema,
-      role: lens,
+      // A lens that changed the branch broke the one rule every lens runs
+      // under, and its change would reach the human as nobody's work.
+      branchRule: () => "read-only",
     });
 
     const findings = summaries.map((summary) => toFinding(lens, target, summary));

@@ -17,16 +17,17 @@ export function readTaggedOutput<Schema extends z.ZodType>({
   stdout: string;
   tag: string;
   schema: Schema;
+  /** The run's name, which is what every error calls the role that failed. */
   role: string;
 }): z.infer<Schema> {
   const block = lastBlock(stdout, tag);
   if (block === undefined) {
-    throw new RoleError(`The ${role} emitted no <${tag}> block.`);
+    throw new RoleError(`${role} emitted no <${tag}> block.`);
   }
 
   const result = schema.safeParse(parseJson(block, tag, role));
   if (!result.success) {
-    throw new RoleError(`The ${role}'s <${tag}> block does not fit: ${result.error.message}`);
+    throw new RoleError(`${role}'s <${tag}> block does not fit: ${result.error.message}`);
   }
   return result.data;
 }
@@ -40,7 +41,7 @@ function parseJson(block: string, tag: string, role: string): unknown {
   try {
     return JSON.parse(unwrapFence(block.trim()));
   } catch {
-    throw new RoleError(`The ${role}'s <${tag}> block is not JSON.`);
+    throw new RoleError(`${role}'s <${tag}> block is not JSON.`);
   }
 }
 

@@ -3,9 +3,7 @@ import { z } from "zod";
 import type { RelayConfig } from "./config.js";
 import type { Crew, ImplementResult, TicketRef } from "./crew.js";
 import { RoleError } from "./errors.js";
-import { readResource } from "./resources.js";
-import { roleAgent } from "./role-agent.js";
-import { readTaggedOutput } from "./tagged-output.js";
+import { runRole } from "./run-role.js";
 import { TRACKER_DOC_PATH } from "./tracker-doc.js";
 
 /** The block the implementer ends its run with, and the prompt it runs from. */
@@ -51,31 +49,24 @@ export function createImplementer({
     // and this is what the reviewers diff the ticket's change from.
     const base = await headSha(sandbox);
 
-    const { stdout, commits } = await sandbox.run({
+    const result = await runRole({
+      sandbox,
+      config,
       name: `implementer-${ticket.key}`,
-      agent: roleAgent(config.models.implementer),
-      prompt: await readResource(IMPLEMENTER_PROMPT),
+      model: config.models.implementer,
+      prompt: IMPLEMENTER_PROMPT,
       promptArgs: {
         TICKET_KEY: ticket.key,
         TICKET_SUMMARY: ticket.summary,
         TRACKER_DOC: TRACKER_DOC_PATH,
       },
-      signal: AbortSignal.timeout(config.roleTimeoutMs),
-    });
-
-    const result = readTaggedOutput({
-      stdout,
       tag: IMPLEMENT_TAG,
       schema: implementSchema,
-      role: "implementer",
+      // The implementer's own commit is what hands the ticket on: the reviewers
+      // read it, and nothing else in the pass would commit the work for it.
+      branchRule: (answer) => (answer.kind === "done" ? "must-commit" : "any"),
     });
 
-    // The implementer's own commit is what hands the ticket on: the reviewers
-    // read it, and nothing else in the pass would commit the work for it.
-    if (result.kind === "needs-input") return result;
-    if (commits.length === 0) {
-      throw new RoleError(`The implementer reported ${ticket.key} done but committed nothing.`);
-    }
-    return { ...result, base };
+    return result.kind === "done" ? { ...result, base } : result;
   };
 }
