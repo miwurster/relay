@@ -17,6 +17,17 @@ export const SKILL_PLUGINS = ["kipu-all@kipu", "caveman@caveman"] as const;
 /** Where the mounted plugin directories appear inside the sandbox. */
 export const SANDBOX_PLUGIN_ROOT = "/opt/relay/plugins";
 
+/** The mount points a role loads its skills from, in the sandbox's filesystem. */
+export const SANDBOX_PLUGIN_DIRS = SKILL_PLUGINS.map((key) => sandboxPluginPath(pluginName(key)));
+
+function pluginName(key: string): string {
+  return key.split("@")[0] ?? key;
+}
+
+function sandboxPluginPath(name: string): string {
+  return `${SANDBOX_PLUGIN_ROOT}/${name}`;
+}
+
 /** One host plugin directory and the sandbox path it is mounted at. */
 export interface SkillPlugin {
   name: string;
@@ -45,12 +56,12 @@ export async function resolveSkillPlugins(
   const plugins: SkillPlugin[] = [];
   const missing: string[] = [];
   for (const key of SKILL_PLUGINS) {
-    const name = key.split("@")[0] ?? key;
+    const name = pluginName(key);
     // A plugin may be installed at more than one scope; the first entry
     // carrying an install path wins.
     const hostPath = installed.plugins[key]?.find((entry) => entry.installPath)?.installPath;
     if (hostPath) {
-      plugins.push({ name, hostPath, sandboxPath: `${SANDBOX_PLUGIN_ROOT}/${name}` });
+      plugins.push({ name, hostPath, sandboxPath: sandboxPluginPath(name) });
     } else {
       missing.push(key);
     }

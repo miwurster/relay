@@ -1,4 +1,7 @@
+import type { Sandbox } from "@ai-hero/sandcastle";
+import type { RelayConfig } from "./config.js";
 import type { JiraIssue } from "./jira.js";
+import { createPlanner } from "./planner.js";
 
 /** One ticket of the pass's plan: the unit an implementer leg runs over. */
 export interface TicketRef {
@@ -67,6 +70,20 @@ export interface Crew {
   fix(findings: readonly Finding[]): Promise<void>;
   qualityGate(): Promise<GateResult>;
   handover(outcome: Outcome): Promise<void>;
+}
+
+/**
+ * The crew a real pass runs: each role that has been built runs in the pass's
+ * sandbox, and the rest are still stubs. A later ticket replaces one more.
+ */
+export function createCrew({
+  sandbox,
+  config,
+}: {
+  sandbox: Sandbox;
+  config: RelayConfig;
+}): Crew {
+  return { ...createStubCrew(), plan: createPlanner({ sandbox, config }) };
 }
 
 /**

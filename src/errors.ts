@@ -28,6 +28,12 @@ export class JiraError extends RelayError {}
 export class SandboxError extends RelayError {}
 
 /**
+ * A role ran but did not deliver a usable answer: no tagged block, or one that
+ * does not fit the shape the harness reads.
+ */
+export class RoleError extends RelayError {}
+
+/**
  * No pass can start: the work item relay was pointed at fails an eligibility
  * gate, or is of a type relay never runs.
  */

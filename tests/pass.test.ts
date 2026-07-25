@@ -171,6 +171,7 @@ async function runOnePass(overrides: Partial<PassRun> & { jira: JiraClient }) {
     secrets: passSecrets,
     issue,
     open: fakeSandbox().open,
+    createCrew: () => createStubCrew(),
     ...overrides,
   });
 }

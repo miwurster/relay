@@ -1,5 +1,5 @@
 import { loadConfig, type RelayConfig } from "./config.js";
-import { type Crew, createStubCrew } from "./crew.js";
+import { createCrew as createRelayCrew, type Crew } from "./crew.js";
 import { SandboxError } from "./errors.js";
 import { ExitCode } from "./exit-codes.js";
 import { exitCodeFor, runHarness } from "./harness.js";
@@ -62,7 +62,7 @@ export async function runPassOnItem({
   issue,
   jira,
   open = openSandbox,
-  createCrew = () => createStubCrew(),
+  createCrew = (opened) => createRelayCrew({ sandbox: opened.sandbox, config }),
 }: PassRun): Promise<ExitCode> {
   const branch = passBranch(config, issue.key);
   await refuseOnBranchCollision(repoRoot, branch);
