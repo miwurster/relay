@@ -11,3 +11,5 @@
 - [ ] Secrets resolved from `~/.config/relay/.env` with env-var override; none read from the package
 - [ ] Malformed config or missing secret → exit 2 (cheap fail-fast)
 - [ ] Non-secret ids stay out of config (live in `issue-tracker.md`)
+
+**From spike 01** (`.scratch/relay-build/spike-01/FINDINGS.md`): the spike hit a GCP ADC dependency in qc-catalog's test context (`serviceExecutionMetricsProvider`). Decision: **no gate-side secret injection** — qc-catalog will be fixed to run its tests without GCP, so the green gate needs no ADC provisioning.

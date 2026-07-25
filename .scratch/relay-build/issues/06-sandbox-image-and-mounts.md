@@ -9,4 +9,9 @@
 - [ ] Prebuilt `image` ref used when set; else build from `dockerfile` path (default `docker/relay.Dockerfile`, never repo-root)
 - [ ] Image bakes JDK21+Maven, Node, claude, glab, docker CLI; UID/GID aligned
 - [ ] Runtime mounts: skills, Atlassian MCP config (SA bearer), docker socket
+- [ ] Docker socket usable by the non-root sandbox user: pass `groups: [<socket gid as seen inside the container>]` (`--group-add`); detect the gid at runtime, don't hardcode
+- [ ] Set `TESTCONTAINERS_HOST_OVERRIDE` so Testcontainers reaches sibling ports on the host daemon (macOS Docker Desktop: `host.docker.internal`; Linux daemon differs — verify per host)
+- [ ] Worktree runs `git submodule update --init --recursive` before the build (a fresh git worktree does not populate submodules; target repos keeping generated resources in submodules fail to load otherwise)
 - [ ] Sandbox opens on a fresh branch + worktree
+
+**From spike 01** (`.scratch/relay-build/spike-01/FINDINGS.md`): socket + Testcontainers + docker-outside-of-Docker proven green with UID/GID-aligned image (`USER $host_uid`, `checkImageUid`-clean), `groups:[0]` for socket access, `TESTCONTAINERS_HOST_OVERRIDE`, and worktree submodule init.

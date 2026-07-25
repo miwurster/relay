@@ -9,5 +9,5 @@
 - [ ] Validates config parse + zod
 - [ ] Checks required secrets are present
 - [ ] Checks image resolvable (prebuilt ref or buildable dockerfile)
-- [ ] Docker-socket check
+- [ ] Docker-socket check: assert the daemon is reachable **as the non-root sandbox user** (not just that the socket path exists) — validated by spike 01
 - [ ] Reports each check; exit 2 on any failure
