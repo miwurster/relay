@@ -1,6 +1,7 @@
 import { loadConfig } from "./config.js";
 import { ExitCode } from "./exit-codes.js";
 import { createJiraClient } from "./jira.js";
+import { openSandbox, passBranch } from "./sandbox.js";
 import { loadSecrets } from "./secrets.js";
 import { loadTrackerScope } from "./tracker-doc.js";
 import { selectWorkItem } from "./work-item.js";
@@ -32,6 +33,15 @@ export async function runPass(workItem: string | undefined): Promise<ExitCode> {
     return ExitCode.Success;
   }
 
-  console.log(`relay: would run a pass over ${selection.issue.key} (gate: ${config.greenGate})`);
-  return ExitCode.Success;
+  const branch = passBranch(config, selection.issue.key);
+  const opened = await openSandbox({ repoRoot, config, secrets, branch });
+  try {
+    console.log(
+      `relay: would run a pass over ${selection.issue.key} on ${opened.sandbox.branch} ` +
+        `(gate: ${config.greenGate})`,
+    );
+    return ExitCode.Success;
+  } finally {
+    await opened.close();
+  }
 }

@@ -22,6 +22,12 @@ export class ConfigError extends RelayError {}
 export class JiraError extends RelayError {}
 
 /**
+ * The sandbox could not be prepared or opened: an image that will not build, a
+ * docker daemon that will not answer, or a worktree relay cannot create.
+ */
+export class SandboxError extends RelayError {}
+
+/**
  * No pass can start: the work item relay was pointed at fails an eligibility
  * gate, or is of a type relay never runs.
  */
