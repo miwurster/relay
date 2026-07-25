@@ -1,4 +1,4 @@
-import { ConfigError } from "./errors.js";
+import { RelayError } from "./errors.js";
 import { ExitCode } from "./exit-codes.js";
 
 /** A single flagless invocation, resolved from the positional argument. */
@@ -43,7 +43,7 @@ export async function runCli(
         return await handlers.runPass(command.workItem);
     }
   } catch (error) {
-    console.error(error instanceof ConfigError ? error.message : error);
+    console.error(error instanceof RelayError ? error.message : error);
     return ExitCode.Error;
   }
 }

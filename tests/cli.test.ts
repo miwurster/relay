@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { parseArgs, runCli, type CliHandlers } from "../src/cli.js";
+import { SelectionError } from "../src/errors.js";
 import { ExitCode } from "../src/exit-codes.js";
 
 describe("parseArgs", () => {
@@ -49,6 +50,14 @@ describe("runCli", () => {
     const h = handlers();
     h.runPass = vi.fn(async () => ExitCode.Blocked);
     expect(await runCli([], h)).toBe(ExitCode.Blocked);
+  });
+
+  it("maps an ineligible work item to the error exit code", async () => {
+    const h = handlers();
+    h.runPass = vi.fn(async () => {
+      throw new SelectionError("PROJ-123 is a Task — relay only runs Story, Bug, Vulnerability.");
+    });
+    expect(await runCli(["PROJ-123"], h)).toBe(ExitCode.Error);
   });
 
   it("maps an unexpected handler crash to the error exit code", async () => {
