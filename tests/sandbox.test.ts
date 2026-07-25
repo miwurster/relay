@@ -95,11 +95,13 @@ describe("sandboxOptions", () => {
       config: config(defaultBranch),
       secrets,
       branch: "agent/PSD-123",
-      image: "relay-sandbox:repo",
-      socketGid: 0,
-      testcontainersHost: "host.docker.internal",
-      plugins: [{ ...plugins[0]!, hostPath: hostDir }],
-      mcpConfigDir: await writeMcpConfigDir(),
+      host: {
+        image: "relay-sandbox:repo",
+        socketGid: 0,
+        testcontainersHost: "host.docker.internal",
+        plugins: [{ ...plugins[0]!, hostPath: hostDir }],
+        mcpConfigDir: await writeMcpConfigDir(),
+      },
     });
   }
 

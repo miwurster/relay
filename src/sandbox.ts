@@ -1,6 +1,8 @@
+import { execFile } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { promisify } from "node:util";
 import { createSandbox, type CreateSandboxOptions, type Sandbox } from "@ai-hero/sandcastle";
 import { docker as dockerSandbox } from "@ai-hero/sandcastle/sandboxes/docker";
 import type { RelayConfig } from "./config.js";
@@ -25,10 +27,24 @@ export const SANDBOX_MCP_CONFIG_PATH = "/opt/relay/mcp/atlassian.json";
  */
 const SUBMODULE_INIT = "git submodule update --init --recursive";
 
+const execFileAsync = promisify(execFile);
+
 /** An open sandbox and the teardown that also removes its host-side MCP config. */
 export interface RelaySandbox {
   readonly sandbox: Sandbox;
   close(): Promise<void>;
+}
+
+/**
+ * What only the host can answer, resolved once per pass: which image to run,
+ * how to reach the host daemon, and what to mount.
+ */
+export interface HostFacts {
+  image: string;
+  socketGid: number;
+  testcontainersHost: string;
+  plugins: readonly SkillPlugin[];
+  mcpConfigDir: string;
 }
 
 /**
@@ -108,6 +124,22 @@ export function passBranch(config: RelayConfig, workItemKey: string): string {
 }
 
 /**
+ * Whether the pass's branch is already there. A pass never reuses, resets or
+ * deletes one: an existing branch may carry someone else's commits, and losing
+ * those is worse than refusing to run.
+ */
+export async function branchExists(repoRoot: string, branch: string): Promise<boolean> {
+  try {
+    await execFileAsync("git", ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`], {
+      cwd: repoRoot,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * The sandbox one pass runs in: a fresh worktree on its own branch, cut from
  * the repo's default branch, with the runtime mounts wired.
  *
@@ -119,21 +151,13 @@ export function sandboxOptions({
   config,
   secrets,
   branch,
-  image,
-  socketGid,
-  testcontainersHost,
-  plugins,
-  mcpConfigDir,
+  host,
 }: {
   repoRoot: string;
   config: RelayConfig;
   secrets: Secrets;
   branch: string;
-  image: string;
-  socketGid: number;
-  testcontainersHost: string;
-  plugins: readonly SkillPlugin[];
-  mcpConfigDir: string;
+  host: HostFacts;
 }): CreateSandboxOptions {
   return {
     cwd: repoRoot,
@@ -141,10 +165,10 @@ export function sandboxOptions({
     baseBranch: config.defaultBranch,
     hooks: { host: { onWorktreeReady: [{ command: SUBMODULE_INIT }] } },
     sandbox: dockerSandbox({
-      imageName: image,
-      groups: [socketGid],
-      mounts: sandboxMounts({ plugins, mcpConfigDir }),
-      env: sandboxEnv({ secrets, testcontainersHost }),
+      imageName: host.image,
+      groups: [host.socketGid],
+      mounts: sandboxMounts({ plugins: host.plugins, mcpConfigDir: host.mcpConfigDir }),
+      env: sandboxEnv({ secrets, testcontainersHost: host.testcontainersHost }),
     }),
   };
 }
@@ -165,33 +189,37 @@ export async function openSandbox({
   secrets: Secrets;
   branch: string;
 }): Promise<RelaySandbox> {
-  const image = await resolveSandboxImage({ repoRoot, config });
-  const socketGid = await detectDockerSocketGid({ image });
-  const testcontainersHost = await resolveTestcontainersHost();
+  // Operator setup first: a plugin the host has not installed must not cost a
+  // whole image build before it is reported.
   const plugins = await resolveSkillPlugins();
   const mcpConfigDir = await writeMcpConfigDir();
   const removeMcpConfig = () => rm(mcpConfigDir, { recursive: true, force: true });
 
   try {
+    const [image, testcontainersHost] = await Promise.all([
+      resolveSandboxImage({ repoRoot, config }),
+      resolveTestcontainersHost(),
+    ]);
+    const socketGid = await detectDockerSocketGid({ image });
+
     const sandbox = await createSandbox(
       sandboxOptions({
         repoRoot,
         config,
         secrets,
         branch,
-        image,
-        socketGid,
-        testcontainersHost,
-        plugins,
-        mcpConfigDir,
+        host: { image, socketGid, testcontainersHost, plugins, mcpConfigDir },
       }),
     );
 
     return {
       sandbox,
       close: async () => {
-        await sandbox.close();
-        await removeMcpConfig();
+        try {
+          await sandbox.close();
+        } finally {
+          await removeMcpConfig();
+        }
       },
     };
   } catch (error) {

@@ -26,6 +26,8 @@ export interface JiraClient {
   search(jql: string): Promise<JiraIssue[]>;
   /** One issue by key, or `undefined` when no such issue is visible. */
   getIssue(key: string): Promise<JiraIssue | undefined>;
+  /** Leave a plain-text comment on an issue. */
+  addComment(key: string, text: string): Promise<void>;
 }
 
 /** The single service-account identity every Jira call runs as. */
@@ -54,43 +56,85 @@ export function createJiraClient(credentials: JiraCredentials): JiraClient {
     },
 
     async getIssue(key) {
-      const path = `/rest/api/3/issue/${encodeURIComponent(key)}?fields=${FIELDS}`;
-      const body = await getJson(credentials, path, { missingIsUndefined: true });
-      return body === undefined ? undefined : toIssue(parse(issueSchema, body));
+      const url = apiUrl(credentials, `/rest/api/3/issue/${encodeURIComponent(key)}`, {
+        fields: FIELDS,
+      });
+      const response = await request(credentials, url);
+      // "No such issue" is an answer, not a failure.
+      if (response.status === 404) return undefined;
+      return toIssue(parse(issueSchema, await jsonBody(response, url)));
+    },
+
+    async addComment(key, text) {
+      const url = apiUrl(credentials, `/rest/api/3/issue/${encodeURIComponent(key)}/comment`);
+      const response = await request(credentials, url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ body: adfParagraph(text) }),
+      });
+      requireOk(response, url);
     },
   };
 }
 
+/** A comment body in the document format the Jira Cloud API expects. */
+function adfParagraph(text: string) {
+  return {
+    type: "doc",
+    version: 1,
+    content: [{ type: "paragraph", content: [{ type: "text", text }] }],
+  };
+}
+
 async function searchPage(credentials: JiraCredentials, jql: string, pageToken?: string) {
-  const query = new URLSearchParams({ jql, fields: FIELDS });
-  if (pageToken) query.set("nextPageToken", pageToken);
-  const body = await getJson(credentials, `/rest/api/3/search/jql?${query}`);
+  const query: Record<string, string> = { jql, fields: FIELDS };
+  if (pageToken) query["nextPageToken"] = pageToken;
+  const url = apiUrl(credentials, "/rest/api/3/search/jql", query);
+  const body = await jsonBody(await request(credentials, url), url);
   return parse(searchResponseSchema, body);
 }
 
-/**
- * A GET as the service account. Any error status is a `JiraError`, except a
- * 404 where the caller asked for one — "no such issue" is an answer, not a
- * failure.
- */
-async function getJson(
+function apiUrl(
   credentials: JiraCredentials,
   path: string,
-  options: { missingIsUndefined?: boolean } = {},
-): Promise<unknown> {
+  query?: Record<string, string>,
+): URL {
   const url = new URL(path, credentials.baseUrl);
+  if (query) url.search = new URLSearchParams(query).toString();
+  return url;
+}
+
+/**
+ * A call as the service account. What a status means is the caller's, since
+ * only the caller knows whether a 404 is a failure or an answer.
+ */
+async function request(
+  credentials: JiraCredentials,
+  url: URL,
+  init: RequestInit = {},
+): Promise<Response> {
   const authorization = Buffer.from(`${credentials.email}:${credentials.token}`).toString(
     "base64",
   );
-
-  const response = await fetch(url, {
-    headers: { authorization: `Basic ${authorization}`, accept: "application/json" },
+  return await fetch(url, {
+    ...init,
+    headers: {
+      authorization: `Basic ${authorization}`,
+      accept: "application/json",
+      ...init.headers,
+    },
   });
+}
 
-  if (options.missingIsUndefined && response.status === 404) return undefined;
+/** Any error status is a `JiraError`. */
+function requireOk(response: Response, url: URL): void {
   if (!response.ok) {
     throw new JiraError(`Jira ${response.status} ${response.statusText} for ${url.pathname}`);
   }
+}
+
+async function jsonBody(response: Response, url: URL): Promise<unknown> {
+  requireOk(response, url);
   return await response.json();
 }
 
