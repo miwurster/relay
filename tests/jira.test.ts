@@ -8,7 +8,7 @@ const credentials = {
   token: "sa-token",
 };
 
-const blocks = { inward: "is blocked by", outward: "blocks" };
+const blocks = { name: "Blocks" };
 
 function status(category: string) {
   return { statusCategory: { key: category } };
@@ -95,6 +95,44 @@ describe("search", () => {
         { key: "PSD-3", isDone: false },
       ],
     });
+  });
+
+  it("ignores links of any other type, however they are phrased", async () => {
+    const relates = { name: "Relates", inward: "relates to" };
+    stubFetch({
+      body: {
+        issues: [
+          rawIssue("PSD-1", {
+            issuelinks: [
+              { type: relates, inwardIssue: { key: "PSD-9", fields: { status: status("new") } } },
+            ],
+          }),
+        ],
+      },
+    });
+
+    const [issue] = await createJiraClient(credentials).search("project = PSD");
+
+    expect(issue?.blockedBy).toEqual([]);
+  });
+
+  it("reads a blocker from the link type name, not its phrasing", async () => {
+    const renamed = { name: "Blocks", inward: "wird blockiert von" };
+    stubFetch({
+      body: {
+        issues: [
+          rawIssue("PSD-1", {
+            issuelinks: [
+              { type: renamed, inwardIssue: { key: "PSD-2", fields: { status: status("new") } } },
+            ],
+          }),
+        ],
+      },
+    });
+
+    const [issue] = await createJiraClient(credentials).search("project = PSD");
+
+    expect(issue?.blockedBy).toEqual([{ key: "PSD-2", isDone: false }]);
   });
 
   it("reads a Done status category as done", async () => {

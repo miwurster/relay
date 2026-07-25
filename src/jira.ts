@@ -39,6 +39,14 @@ export interface JiraCredentials {
 
 const FIELDS = "issuetype,labels,status,issuelinks";
 
+/**
+ * The one link type relay waits on. A link type's `name` is its stable
+ * identifier, the same one JQL matches on; its `inward` and `outward` phrasings
+ * are display text, renameable per instance and localised per site language, so
+ * they are never what blocker detection reads.
+ */
+const BLOCKS_LINK_TYPE = "Blocks";
+
 /** A Jira Cloud REST client authenticating as the service account. */
 export function createJiraClient(credentials: JiraCredentials): JiraClient {
   return {
@@ -143,12 +151,12 @@ const statusSchema = z.object({ statusCategory: z.object({ key: z.string() }) })
 const linkedIssueSchema = z.object({ key: z.string(), fields: z.object({ status: statusSchema }) });
 
 /**
- * A link record is read from the current issue's side: `inwardIssue` is the
- * other end of the type's inward phrasing, so "is blocked by" plus an
- * `inwardIssue` is a blocker of this issue.
+ * A link record is read from the current issue's side: on a `Blocks` link, the
+ * `inwardIssue` is the end the type's inward phrasing points at, so it is a
+ * blocker of this issue and an `outwardIssue` is not.
  */
 const issueLinkSchema = z.object({
-  type: z.object({ inward: z.string() }),
+  type: z.object({ name: z.string() }),
   inwardIssue: linkedIssueSchema.optional(),
 });
 
@@ -176,7 +184,7 @@ function toIssue(raw: RawIssue): JiraIssue {
     labels: raw.fields.labels,
     isDone: isDone(raw.fields.status),
     blockedBy: raw.fields.issuelinks.flatMap((link) =>
-      link.inwardIssue && link.type.inward === "is blocked by"
+      link.inwardIssue && link.type.name === BLOCKS_LINK_TYPE
         ? [{ key: link.inwardIssue.key, isDone: isDone(link.inwardIssue.fields.status) }]
         : [],
     ),
