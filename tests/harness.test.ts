@@ -188,6 +188,20 @@ describe("runHarness", () => {
     expect(fixed.at(-1)).toEqual([finding("greenGate", "one test red")]);
   });
 
+  it("numbers each gate run, so the loop's legs stay apart", async () => {
+    const attempts: number[] = [];
+    const { crew } = recordingCrew({
+      async greenGate(attempt) {
+        attempts.push(attempt);
+        return { green: false, detail: "still red" };
+      },
+    });
+
+    await runHarness(crew, issue);
+
+    expect(attempts).toEqual([1, 2, 3]);
+  });
+
   it("gives up after two fixer attempts and mid-blocks on a red gate", async () => {
     const { crew, calls } = recordingCrew({
       async greenGate() {

@@ -101,10 +101,10 @@ function fixTargetFor(scope: ReviewScope): FixTarget {
 
 /** Run the gate, handing each red verdict to the fixer until green or capped. */
 async function driveGate(crew: Crew): Promise<Outcome> {
-  let gate = await crew.greenGate();
+  let gate = await crew.greenGate(1);
   for (let attempt = 1; !gate.green && attempt <= MAX_GATE_FIX_ATTEMPTS; attempt++) {
     await crew.fix([gateFinding(gate.detail)], { kind: "gate", attempt });
-    gate = await crew.greenGate();
+    gate = await crew.greenGate(attempt + 1);
   }
   return gate.green ? { kind: "success" } : { kind: "mid-block", reason: gate.detail };
 }

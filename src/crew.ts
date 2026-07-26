@@ -1,6 +1,7 @@
 import type { Sandbox } from "@ai-hero/sandcastle";
 import type { RelayConfig } from "./config.js";
 import { createFixer } from "./fixer.js";
+import { createGreenGate } from "./green-gate.js";
 import { createImplementer } from "./implementer.js";
 import type { JiraIssue } from "./jira.js";
 import { createPlanner } from "./planner.js";
@@ -94,7 +95,11 @@ export interface Crew {
   implement(ticket: TicketRef): Promise<ImplementResult>;
   review(lens: ReviewLens, scope: ReviewScope): Promise<Finding[]>;
   fix(findings: readonly Finding[], target: FixTarget): Promise<void>;
-  greenGate(): Promise<GateResult>;
+  /**
+   * Run the gate once. `attempt` is which run of the harness's gate loop this
+   * is, so the pass's repeated gate legs stay apart in its logs.
+   */
+  greenGate(attempt: number): Promise<GateResult>;
   handover(outcome: Outcome): Promise<void>;
 }
 
@@ -103,9 +108,9 @@ export interface Crew {
  * sandbox, and the rest are still stubs. A later ticket replaces one more.
  *
  * Every stub is named here rather than spread in from `createStubCrew`, so a
- * role that is still fake cannot hide. **A pass therefore still reports green
- * from a gate that never ran** — the two below are what is left to build, and
- * a seventh role added to `Crew` will not compile until it is wired.
+ * role that is still fake cannot hide. **A pass therefore still hands over to
+ * nobody** — the handover below is what is left to build, and a seventh role
+ * added to `Crew` will not compile until it is wired.
  */
 export function createCrew({
   sandbox,
@@ -122,7 +127,7 @@ export function createCrew({
     implement: createImplementer({ sandbox, config }),
     review: createReviewer({ sandbox, config, outputDir }),
     fix: createFixer({ sandbox, config }),
-    greenGate: stub.greenGate,
+    greenGate: createGreenGate({ sandbox, config }),
     handover: stub.handover,
   };
 }

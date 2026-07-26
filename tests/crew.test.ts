@@ -97,6 +97,21 @@ describe("createCrew", () => {
     expect(runs.map((run) => run.name)).toEqual(["fixer-PSD-8"]);
   });
 
+  it("gates by running the repo's own command in the pass's sandbox", async () => {
+    const commands: string[] = [];
+    const sandbox = {
+      async exec(command: string) {
+        commands.push(command);
+        return { stdout: "", stderr: "", exitCode: 0 };
+      },
+    } as unknown as Sandbox;
+
+    const result = await createCrew({ sandbox, config, outputDir }).greenGate(1);
+
+    expect(result.green).toBe(true);
+    expect(commands).toEqual([config.greenGate]);
+  });
+
   it("reviews each lens of a scope in its own review run", async () => {
     const runs: SandboxRunOptions[] = [];
     const sandbox = {

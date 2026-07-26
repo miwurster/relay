@@ -36,7 +36,13 @@ const modelsSchema = z
  * key is a mistake worth failing on.
  */
 export const relayConfigSchema = z.strictObject({
-  /** The command whose exit code is the green gate. relay never parses it. */
+  /**
+   * The command whose exit code is the green gate. relay never parses it.
+   *
+   * It must cover every test tier the branch is judged on except e2e —
+   * migration and integration included — because it is the only thing relay
+   * runs before it calls a branch green.
+   */
   greenGate: z.string().min(1),
   /** The branch a pass branches from. */
   defaultBranch: z.string().min(1),

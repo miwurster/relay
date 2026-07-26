@@ -11,8 +11,11 @@ import { readTaggedOutput } from "./tagged-output.js";
  *
  * `read-only` is the reviewers' rule and `must-commit` is the builders'; a leg
  * that reported it did nothing leaves `any`, since there is nothing to commit.
+ * `no-commits` is for a leg that judges rather than changes but runs the repo's
+ * build while it does: its artefacts leave the worktree dirty through no fault
+ * of its own, so only a commit is worth failing on.
  */
-export type BranchRule = "read-only" | "must-commit" | "any";
+export type BranchRule = "read-only" | "no-commits" | "must-commit" | "any";
 
 export interface RunRoleOptions<Schema extends z.ZodType> {
   sandbox: Sandbox;
@@ -82,11 +85,13 @@ async function enforceBranchRule(
   if (rule === "must-commit" && commitCount === 0) {
     throw new RoleError(`${name} reported the work done but committed nothing.`);
   }
-  if (rule !== "read-only") return;
+  if (rule !== "read-only" && rule !== "no-commits") return;
 
   if (commitCount > 0) {
-    throw new RoleError(`${name} is read-only but committed ${commitCount} commit(s).`);
+    throw new RoleError(`${name} may not commit but committed ${commitCount} commit(s).`);
   }
+  if (rule === "no-commits") return;
+
   const dirt = await worktreeChanges(sandbox, name);
   if (dirt) {
     throw new RoleError(`${name} is read-only but left the worktree changed:\n${dirt}`);
