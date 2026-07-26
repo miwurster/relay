@@ -8,9 +8,6 @@ const RUNNABLE_TYPES = ["Story", "Bug", "Vulnerability"] as const;
 /** The label that marks an item as agent-grabbable. Never bypassed. */
 const READY_LABEL = "ready-for-agent";
 
-/** The label a run holds an item with, so two runs never share one item. */
-const RUNNING_LABEL = "agent-running";
-
 /** Either the one item this pass runs, or an empty frontier. */
 export type Selection = { kind: "work-item"; issue: JiraIssue } | { kind: "nothing-to-do" };
 
@@ -28,7 +25,6 @@ export function frontierJql(scope: TrackerScope): string {
     ` AND labels = "${scope.repoLabel}"` +
     ` AND labels = "${READY_LABEL}"` +
     " AND statusCategory != Done" +
-    ` AND labels not in ("${RUNNING_LABEL}")` +
     ` AND issuetype in (${RUNNABLE_TYPES.join(", ")})` +
     " ORDER BY priority DESC, created ASC"
   );
@@ -76,9 +72,6 @@ function eligibilityFailure(issue: JiraIssue, scope: TrackerScope): string | und
   }
   if (!issue.labels.includes(READY_LABEL)) {
     return `is not labelled ${READY_LABEL}.`;
-  }
-  if (issue.labels.includes(RUNNING_LABEL)) {
-    return `is labelled ${RUNNING_LABEL} — another run holds it.`;
   }
   if (issue.isDone) {
     return "is already done.";

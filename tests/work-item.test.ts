@@ -39,7 +39,7 @@ describe("frontierJql", () => {
   it("narrows to the runnable types, ordered priority DESC then created ASC", () => {
     expect(frontierJql(scope)).toBe(
       'project = PSD AND labels = "repo:qc-catalog" AND labels = "ready-for-agent"' +
-        ' AND statusCategory != Done AND labels not in ("agent-running")' +
+        " AND statusCategory != Done" +
         " AND issuetype in (Story, Bug, Vulnerability)" +
         " ORDER BY priority DESC, created ASC",
     );
@@ -113,7 +113,6 @@ describe("explicit key", () => {
   it.each([
     ["another repo's item", { labels: ["repo:other", "ready-for-agent"] }, /not labelled repo:qc-catalog/],
     ["an untriaged item", { labels: ["repo:qc-catalog"] }, /not labelled ready-for-agent/],
-    ["an item another run holds", { labels: ["repo:qc-catalog", "ready-for-agent", "agent-running"] }, /another run holds it/],
     ["a done item", { isDone: true }, /already done/],
     ["a blocked item", { blockedBy: [{ key: "PSD-3", isDone: false }] }, /blocked by PSD-3/],
   ])("breaks the pass on %s", async (_name, overrides, reason) => {
