@@ -57,7 +57,7 @@ function recordingCrew(overrides: Partial<Crew> = {}) {
       fixed.push([...findings]);
       fixTargets.push(target);
     },
-    async qualityGate(): Promise<GateResult> {
+    async greenGate(): Promise<GateResult> {
       calls.push("gate");
       return { green: true, detail: "green" };
     },
@@ -146,7 +146,7 @@ describe("runHarness", () => {
         const ticketKey = scope.kind === "ticket" ? scope.ticket.key : undefined;
         return [finding(lens, "same problem", ticketKey)];
       },
-      async qualityGate() {
+      async greenGate() {
         return { green: false, detail: "still red" };
       },
     });
@@ -175,7 +175,7 @@ describe("runHarness", () => {
       { green: true, detail: "green" },
     ];
     const { crew, calls, fixed } = recordingCrew({
-      async qualityGate() {
+      async greenGate() {
         calls.push("gate");
         return verdicts.shift() ?? { green: true, detail: "green" };
       },
@@ -185,12 +185,12 @@ describe("runHarness", () => {
 
     expect(outcome).toEqual({ kind: "success" });
     expect(calls.filter((call) => call === "gate")).toHaveLength(2);
-    expect(fixed.at(-1)).toEqual([finding("qualityGate", "one test red")]);
+    expect(fixed.at(-1)).toEqual([finding("greenGate", "one test red")]);
   });
 
   it("gives up after two fixer attempts and mid-blocks on a red gate", async () => {
     const { crew, calls } = recordingCrew({
-      async qualityGate() {
+      async greenGate() {
         calls.push("gate");
         return { green: false, detail: "still red" };
       },

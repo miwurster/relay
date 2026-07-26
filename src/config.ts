@@ -22,7 +22,7 @@ const modelsSchema = z
     fixer: z.string().default("claude-sonnet-5"),
     /** What the fixer escalates to when its first attempt at a red gate failed. */
     fixerEscalated: z.string().default("claude-opus-4-8"),
-    qualityGate: z.string().default("claude-sonnet-5"),
+    greenGate: z.string().default("claude-sonnet-5"),
     handover: z.string().default("claude-sonnet-5"),
   })
   .prefault({});
@@ -36,7 +36,7 @@ const modelsSchema = z
  * key is a mistake worth failing on.
  */
 export const relayConfigSchema = z.strictObject({
-  /** The command whose exit code is the quality gate. relay never parses it. */
+  /** The command whose exit code is the green gate. relay never parses it. */
   greenGate: z.string().min(1),
   /** The branch a pass branches from. */
   defaultBranch: z.string().min(1),

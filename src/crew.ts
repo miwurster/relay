@@ -35,7 +35,7 @@ export type ReviewLens =
   | "inDepthSpecReview";
 
 /** Whatever produced a finding the fixer has to act on. */
-export type FindingSource = ReviewLens | "qualityGate";
+export type FindingSource = ReviewLens | "greenGate";
 
 /** One thing a reviewer or the gate wants changed. */
 export interface Finding {
@@ -94,7 +94,7 @@ export interface Crew {
   implement(ticket: TicketRef): Promise<ImplementResult>;
   review(lens: ReviewLens, scope: ReviewScope): Promise<Finding[]>;
   fix(findings: readonly Finding[], target: FixTarget): Promise<void>;
-  qualityGate(): Promise<GateResult>;
+  greenGate(): Promise<GateResult>;
   handover(outcome: Outcome): Promise<void>;
 }
 
@@ -122,7 +122,7 @@ export function createCrew({
     implement: createImplementer({ sandbox, config }),
     review: createReviewer({ sandbox, config, outputDir }),
     fix: createFixer({ sandbox, config }),
-    qualityGate: stub.qualityGate,
+    greenGate: stub.greenGate,
     handover: stub.handover,
   };
 }

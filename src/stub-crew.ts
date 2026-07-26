@@ -27,8 +27,8 @@ export function createStubCrew(): Crew {
       log("fixer", `would fix ${findings.length} findings in ${target.kind}`);
     },
 
-    async qualityGate() {
-      log("qualityGate", "would run the green gate");
+    async greenGate() {
+      log("greenGate", "would run the green gate");
       return { green: true, detail: "stub gate is always green" };
     },
 

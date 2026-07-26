@@ -36,7 +36,7 @@ describe("loadConfig", () => {
     expect(config.models.planner).toBe("claude-opus-4-8");
     expect(config.models.implementer).toBe("claude-sonnet-5");
     expect(config.models.inDepthCodeReview).toBe("claude-fable-5");
-    expect(config.models.qualityGate).toBe("claude-sonnet-5");
+    expect(config.models.greenGate).toBe("claude-sonnet-5");
   });
 
   it("lets a repo override a default without dropping the others", async () => {

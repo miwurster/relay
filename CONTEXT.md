@@ -65,7 +65,6 @@ _Avoid_: issue, comment, remark
 **Green gate**:
 The repo's own command whose exit code decides whether the branch is green, and the **role** that runs it and triages a red result.
 relay never parses the command's output.
-Known drift: the code still calls this `qualityGate` in `Crew` and in the model map; the rename is pending.
 _Avoid_: quality gate, CI check, test gate
 
 **Handover**:

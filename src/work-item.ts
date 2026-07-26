@@ -19,7 +19,7 @@ export type Selection = { kind: "work-item"; issue: JiraIssue } | { kind: "nothi
  * longest-waiting first. Ordering is Jira's, so the first candidate that
  * passes every gate wins.
  *
- * A prefilter only — `gateFailure` decides eligibility for both paths, so the
+ * A prefilter only — `eligibilityFailure` decides eligibility for both paths, so the
  * two can never disagree about what relay is allowed to run.
  */
 export function frontierJql(scope: TrackerScope): string {
@@ -53,7 +53,7 @@ export async function selectWorkItem(
 
 async function autoPick(client: JiraClient, scope: TrackerScope): Promise<Selection> {
   const candidates = await client.search(frontierJql(scope));
-  const issue = candidates.find((candidate) => gateFailure(candidate, scope) === undefined);
+  const issue = candidates.find((candidate) => eligibilityFailure(candidate, scope) === undefined);
   return issue ? { kind: "work-item", issue } : { kind: "nothing-to-do" };
 }
 
@@ -64,17 +64,17 @@ async function pickByKey(
 ): Promise<JiraIssue> {
   const issue = await client.getIssue(key);
   if (!issue) throw new SelectionError(`${key} does not exist or is not visible.`);
-  const failure = gateFailure(issue, scope);
+  const failure = eligibilityFailure(issue, scope);
   if (failure) throw new SelectionError(`${issue.key} ${failure}`);
   return issue;
 }
 
 /**
- * The first gate the item fails, phrased as a reason, or `undefined` when it
+ * The first check the item fails, phrased as a reason, or `undefined` when it
  * passes them all. Types come first: running the wrong type of work is the one
  * failure relay must never get close to.
  */
-function gateFailure(issue: JiraIssue, scope: TrackerScope): string | undefined {
+function eligibilityFailure(issue: JiraIssue, scope: TrackerScope): string | undefined {
   if (!isRunnableType(issue)) {
     return `is a ${issue.issueType} — relay only runs ${RUNNABLE_TYPES.join(", ")}.`;
   }
