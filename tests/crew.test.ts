@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { relayConfigSchema } from "../src/config.js";
 import { createCrew } from "../src/crew.js";
 import { FIX_TAG } from "../src/fixer.js";
+import { HANDOVER_TAG } from "../src/handover.js";
 import { IMPLEMENT_TAG } from "../src/implementer.js";
 import type { JiraIssue } from "../src/jira.js";
 import { PLAN_TAG } from "../src/planner.js";
@@ -24,6 +25,8 @@ const issue: JiraIssue = {
   isDone: false,
   blockedBy: [],
 };
+
+const branch = "agent/PSD-7";
 
 let outputDir: string;
 
@@ -45,7 +48,8 @@ describe("createCrew", () => {
       },
     } as unknown as Sandbox;
 
-    const plan = await createCrew({ sandbox, config, outputDir }).plan(issue);
+    const crew = createCrew({ sandbox, config, outputDir, workItem: issue.key, branch });
+    const plan = await crew.plan(issue);
 
     expect(plan).toEqual({ kind: "plan", tickets: [{ key: "PSD-8", summary: "it" }] });
     expect(runs.map((run) => run.name)).toEqual(["planner"]);
@@ -66,7 +70,7 @@ describe("createCrew", () => {
         return { stdout: "9e4d1a0\n", stderr: "", exitCode: 0 };
       },
     } as unknown as Sandbox;
-    const crew = createCrew({ sandbox, config, outputDir });
+    const crew = createCrew({ sandbox, config, outputDir, workItem: issue.key, branch });
 
     await crew.implement({ key: "PSD-8", summary: "the schema" });
     const result = await crew.implement({ key: "PSD-9", summary: "the endpoint" });
@@ -87,7 +91,7 @@ describe("createCrew", () => {
         };
       },
     } as unknown as Sandbox;
-    const crew = createCrew({ sandbox, config, outputDir });
+    const crew = createCrew({ sandbox, config, outputDir, workItem: issue.key, branch });
 
     await crew.fix([{ source: "fastCodeReview", ticket: "PSD-8", summary: "src/a.ts:3 dead" }], {
       kind: "ticket",
@@ -106,7 +110,7 @@ describe("createCrew", () => {
       },
     } as unknown as Sandbox;
 
-    const result = await createCrew({ sandbox, config, outputDir }).greenGate(1);
+    const result = await createCrew({ sandbox, config, outputDir, workItem: issue.key, branch }).greenGate(1);
 
     expect(result.green).toBe(true);
     expect(commands).toEqual([config.greenGate]);
@@ -128,7 +132,7 @@ describe("createCrew", () => {
         return { stdout: "", stderr: "", exitCode: 0 };
       },
     } as unknown as Sandbox;
-    const crew = createCrew({ sandbox, config, outputDir });
+    const crew = createCrew({ sandbox, config, outputDir, workItem: issue.key, branch });
 
     const findings = await crew.review("fastCodeReview", {
       kind: "ticket",
@@ -139,5 +143,25 @@ describe("createCrew", () => {
       { source: "fastCodeReview", ticket: "PSD-8", summary: "src/a.ts:3 duplicated parsing" },
     ]);
     expect(runs.map((run) => run.name)).toEqual(["fastCodeReview-PSD-8"]);
+  });
+
+  it("hands the pass over on the item and branch it ran on", async () => {
+    const runs: SandboxRunOptions[] = [];
+    const sandbox = {
+      async run(options: SandboxRunOptions): Promise<SandboxRunResult> {
+        runs.push(options);
+        return {
+          iterations: [],
+          commits: [],
+          stdout: `<${HANDOVER_TAG}>{"mrUrl":"https://gitlab.example.com/g/r/-/merge_requests/1","report":"done"}</${HANDOVER_TAG}>`,
+        };
+      },
+    } as unknown as Sandbox;
+    const crew = createCrew({ sandbox, config, outputDir, workItem: issue.key, branch });
+
+    await crew.handover({ kind: "success" });
+
+    expect(runs.map((run) => run.name)).toEqual(["handover"]);
+    expect(runs[0]?.promptArgs).toMatchObject({ WORK_ITEM_KEY: issue.key, BRANCH: branch });
   });
 });

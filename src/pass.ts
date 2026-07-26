@@ -18,7 +18,7 @@ export interface PassRun {
   issue: JiraIssue;
   jira: JiraClient;
   open?: typeof openSandbox;
-  createCrew?: (sandbox: RelaySandbox) => Crew;
+  createCrew?: (sandbox: RelaySandbox, branch: string) => Crew;
 }
 
 /**
@@ -63,11 +63,13 @@ export async function runPassOnItem({
   issue,
   jira,
   open = openSandbox,
-  createCrew = (opened) =>
+  createCrew = (opened, branch) =>
     createRelayCrew({
       sandbox: opened.sandbox,
       config,
       outputDir: passOutputDir(repoRoot, issue.key),
+      workItem: issue.key,
+      branch,
     }),
 }: PassRun): Promise<ExitCode> {
   const branch = passBranch(config, issue.key);
@@ -78,7 +80,7 @@ export async function runPassOnItem({
     // Inside the try: a sandbox that will not open is the likeliest crash of
     // all, and it deserves the same note on the item as one that dies later.
     opened = await open({ repoRoot, config, secrets, branch });
-    const outcome = await runHarness(createCrew(opened), issue);
+    const outcome = await runHarness(createCrew(opened, branch), issue);
     return exitCodeFor(outcome);
   } catch (error) {
     await reportCrash(jira, issue, branch, error);

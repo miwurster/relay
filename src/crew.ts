@@ -2,11 +2,11 @@ import type { Sandbox } from "@ai-hero/sandcastle";
 import type { RelayConfig } from "./config.js";
 import { createFixer } from "./fixer.js";
 import { createGreenGate } from "./green-gate.js";
+import { createHandover } from "./handover.js";
 import { createImplementer } from "./implementer.js";
 import type { JiraIssue } from "./jira.js";
 import { createPlanner } from "./planner.js";
 import { createReviewer } from "./reviewer.js";
-import { createStubCrew } from "./stub-crew.js";
 
 /** One ticket of the pass's plan: the unit an implementer leg runs over. */
 export interface TicketRef {
@@ -104,30 +104,30 @@ export interface Crew {
 }
 
 /**
- * The crew a real pass runs: each role that has been built runs in the pass's
- * sandbox, and the rest are still stubs. A later ticket replaces one more.
- *
- * Every stub is named here rather than spread in from `createStubCrew`, so a
- * role that is still fake cannot hide. **A pass therefore still hands over to
- * nobody** — the handover below is what is left to build, and a seventh role
- * added to `Crew` will not compile until it is wired.
+ * The crew a real pass runs: every role in the pass's own sandbox, from the
+ * plan to the handover that gives the human the baton.
  */
 export function createCrew({
   sandbox,
   config,
   outputDir,
+  workItem,
+  branch,
 }: {
   sandbox: Sandbox;
   config: RelayConfig;
   outputDir: string;
+  /** The key of the work item this pass runs over. */
+  workItem: string;
+  /** The branch the pass commits to, and the handover publishes. */
+  branch: string;
 }): Crew {
-  const stub = createStubCrew();
   return {
     plan: createPlanner({ sandbox, config }),
     implement: createImplementer({ sandbox, config }),
     review: createReviewer({ sandbox, config, outputDir }),
     fix: createFixer({ sandbox, config }),
     greenGate: createGreenGate({ sandbox, config }),
-    handover: stub.handover,
+    handover: createHandover({ sandbox, config, workItem, branch }),
   };
 }
