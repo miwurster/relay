@@ -1,7 +1,7 @@
-import { mkdtemp, readFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { docker as dockerSandbox } from "@ai-hero/sandcastle/sandboxes/docker";
 import { relayConfigSchema } from "../src/config.js";
 import { DOCKER_SOCKET_PATH } from "../src/docker-host.js";
 import {
@@ -14,6 +14,10 @@ import {
   writeMcpConfigDir,
 } from "../src/sandbox.js";
 import type { Secrets } from "../src/secrets.js";
+
+// The real provider resolves mounts against the host filesystem, which a unit
+// test of the wiring has no business needing.
+vi.mock("@ai-hero/sandcastle/sandboxes/docker", () => ({ docker: vi.fn() }));
 
 const secrets: Secrets = {
   atlassian: { email: "sa@example.com", token: "ATSTT-token" },
@@ -87,9 +91,7 @@ describe("passBranch", () => {
 });
 
 describe("sandboxOptions", () => {
-  /** The provider validates mount paths eagerly, so these must really exist. */
-  async function optionsFor(defaultBranch: string) {
-    const hostDir = await mkdtemp(join(tmpdir(), "relay-plugin-"));
+  function optionsFor(defaultBranch: string) {
     return sandboxOptions({
       repoRoot: "/repo",
       config: config(defaultBranch),
@@ -99,24 +101,34 @@ describe("sandboxOptions", () => {
         image: "relay-sandbox:repo",
         socketGid: 0,
         testcontainersHost: "host.docker.internal",
-        plugins: [{ ...plugins[0]!, hostPath: hostDir }],
-        mcpConfigDir: await writeMcpConfigDir(),
+        plugins,
+        mcpConfigDir: "/tmp/relay-mcp",
       },
     });
   }
 
-  it("opens a fresh worktree on its own branch, cut from the default branch", async () => {
-    const options = await optionsFor("trunk");
+  it("opens a fresh worktree on its own branch, cut from the default branch", () => {
+    const options = optionsFor("trunk");
     expect(options.cwd).toBe("/repo");
     expect(options.branch).toBe("agent/PSD-123");
     expect(options.baseBranch).toBe("trunk");
   });
 
-  it("initialises submodules in the worktree before anything builds", async () => {
-    const options = await optionsFor("main");
+  it("initialises submodules in the worktree before anything builds", () => {
+    const options = optionsFor("main");
     expect(options.hooks?.host?.onWorktreeReady).toEqual([
       { command: "git submodule update --init --recursive" },
     ]);
+  });
+
+  it("runs the resolved image with the socket group, mounts and env", () => {
+    optionsFor("main");
+    expect(dockerSandbox).toHaveBeenCalledWith({
+      imageName: "relay-sandbox:repo",
+      groups: [0],
+      mounts: sandboxMounts({ plugins, mcpConfigDir: "/tmp/relay-mcp" }),
+      env: sandboxEnv({ secrets, testcontainersHost: "host.docker.internal" }),
+    });
   });
 });
 
