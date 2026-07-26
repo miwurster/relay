@@ -45,8 +45,6 @@ describe("loadTrackerScope", () => {
   it("names every missing constant at once", async () => {
     const repoRoot = await repoWithTrackerDoc("# Issue tracker: Local Markdown\n");
 
-    await expect(loadTrackerScope(repoRoot)).rejects.toThrow(
-      /Jira project key.*Repo label/s,
-    );
+    await expect(loadTrackerScope(repoRoot)).rejects.toThrow(/Jira project key.*Repo label/s);
   });
 });

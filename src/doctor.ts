@@ -47,11 +47,9 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<ExitCode> 
  * Every check, in dependency order: a failing one is reported and the run
  * carries on, so a missing secret and an unreachable daemon are found together.
  */
-export async function runDoctorChecks({
-  repoRoot = process.cwd(),
-  env = process.env,
-  docker = runDocker,
-}: DoctorOptions = {}): Promise<DoctorCheck[]> {
+export async function runDoctorChecks({ repoRoot = process.cwd(), env = process.env, docker = runDocker }: DoctorOptions = {}): Promise<
+  DoctorCheck[]
+> {
   const checks: DoctorCheck[] = [];
 
   const config = await record(
@@ -125,12 +123,7 @@ async function resolvableImage({
  * Run one check and record its verdict, handing back its value for the checks
  * that build on it — or `undefined` when it failed.
  */
-async function record<T>(
-  checks: DoctorCheck[],
-  name: string,
-  run: () => Promise<T>,
-  describe: (value: T) => string,
-): Promise<T | undefined> {
+async function record<T>(checks: DoctorCheck[], name: string, run: () => Promise<T>, describe: (value: T) => string): Promise<T | undefined> {
   try {
     const value = await run();
     checks.push({ name, status: "ok", detail: describe(value) });

@@ -50,8 +50,8 @@ async function repoWithValidConfig(): Promise<string> {
 async function withSecrets(): Promise<void> {
   vi.stubEnv("XDG_CONFIG_HOME", await mkdtemp(join(tmpdir(), "relay-home-")));
   for (const secret of secrets) {
-    const [key, value] = secret.split("=");
-    vi.stubEnv(key!, value!);
+    const [key = "", value = ""] = secret.split("=");
+    vi.stubEnv(key, value);
   }
 }
 
@@ -87,7 +87,10 @@ describe("runPass", () => {
     await writeFile(join(root, TRACKER_DOC_PATH), trackerDoc, "utf8");
     await withSecrets();
     // No network in tests: the pass gets as far as its first Jira call.
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 401 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(null, { status: 401 })),
+    );
 
     await expect(runPass("PSD-1")).rejects.toThrow(/Jira 401/);
   });
@@ -222,9 +225,7 @@ describe("runPassOnItem", () => {
     const { jira, comments } = fakeJira();
     const sandbox = fakeSandbox();
 
-    await expect(
-      runOnePass({ jira, open: sandbox.open, createCrew: crashingCrew }),
-    ).rejects.toThrow("the sandbox died");
+    await expect(runOnePass({ jira, open: sandbox.open, createCrew: crashingCrew })).rejects.toThrow("the sandbox died");
 
     expect(sandbox.wasClosed()).toBe(true);
     expect(comments).toHaveLength(1);
@@ -253,9 +254,7 @@ describe("runPassOnItem", () => {
     };
     vi.spyOn(console, "error").mockImplementation(() => {});
 
-    await expect(runOnePass({ jira, createCrew: crashingCrew })).rejects.toThrow(
-      "the sandbox died",
-    );
+    await expect(runOnePass({ jira, createCrew: crashingCrew })).rejects.toThrow("the sandbox died");
   });
 
   it("refuses to run when the pass branch already exists, without opening a sandbox", async () => {
@@ -265,9 +264,7 @@ describe("runPassOnItem", () => {
     const { jira } = fakeJira();
     const open = vi.fn();
 
-    await expect(runOnePass({ jira, repoRoot: root, open })).rejects.toThrow(
-      /agent\/PSD-1 already exists/,
-    );
+    await expect(runOnePass({ jira, repoRoot: root, open })).rejects.toThrow(/agent\/PSD-1 already exists/);
 
     expect(open).not.toHaveBeenCalled();
     // The refusal never touches the branch it refused over.

@@ -93,8 +93,7 @@ export async function runPassOnItem({
 async function refuseOnBranchCollision(repoRoot: string, branch: string): Promise<void> {
   if (await branchExists(repoRoot, branch)) {
     throw new SandboxError(
-      `Branch ${branch} already exists. relay never reuses or deletes a branch — ` +
-        "review it and remove it yourself, then run again.",
+      `Branch ${branch} already exists. relay never reuses or deletes a branch — ` + "review it and remove it yourself, then run again.",
     );
   }
 }
@@ -103,18 +102,12 @@ async function refuseOnBranchCollision(repoRoot: string, branch: string): Promis
  * Best-effort: a crashed pass is still worth a note on the item, but a Jira
  * that will not take the comment must not replace the original failure.
  */
-async function reportCrash(
-  jira: JiraClient,
-  issue: JiraIssue,
-  branch: string,
-  error: unknown,
-): Promise<void> {
+async function reportCrash(jira: JiraClient, issue: JiraIssue, branch: string, error: unknown): Promise<void> {
   const reason = error instanceof Error ? error.message : String(error);
   try {
     await jira.addComment(
       issue.key,
-      `relay crashed during its pass on ${branch}: ${reason}\n\n` +
-        "The item is left In Progress and the sandbox was disposed of.",
+      `relay crashed during its pass on ${branch}: ${reason}\n\n` + "The item is left In Progress and the sandbox was disposed of.",
     );
   } catch (commentError) {
     console.error(`relay: could not comment the crash on ${issue.key}:`, commentError);

@@ -53,18 +53,13 @@ export async function loadSecrets(env: NodeJS.ProcessEnv = process.env): Promise
       gitlabToken: "GITLAB_TOKEN",
       claude: "CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY",
     },
-    (missing) =>
-      `Missing secret(s): ${missing.join(", ")}. ` +
-      `Set them as environment variables or in ${secretsFilePath(env)}.`,
+    (missing) => `Missing secret(s): ${missing.join(", ")}. ` + `Set them as environment variables or in ${secretsFilePath(env)}.`,
   );
 
   return { atlassian: { email, token }, gitlabToken, claude };
 }
 
-function resolveClaudeCredential(
-  env: NodeJS.ProcessEnv,
-  fromFile: Record<string, string>,
-): ClaudeCredential | undefined {
+function resolveClaudeCredential(env: NodeJS.ProcessEnv, fromFile: Record<string, string>): ClaudeCredential | undefined {
   const variables = ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"] as const;
   for (const variable of variables) {
     const token = value(env[variable], fromFile[variable]);

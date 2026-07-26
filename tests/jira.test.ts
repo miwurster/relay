@@ -38,8 +38,8 @@ const rawStory = rawIssue("PSD-1", {
 /** Stub `fetch`, answering each call with the next queued response. */
 function stubFetch(...responses: { status?: number; body?: unknown }[]) {
   let call = 0;
-  const fetchMock = vi.fn(async (url: URL) => {
-    const response = responses[Math.min(call++, responses.length - 1)]!;
+  const fetchMock = vi.fn<typeof fetch>(async () => {
+    const response = responses.at(Math.min(call++, responses.length - 1)) ?? {};
     return new Response(response.body === undefined ? null : JSON.stringify(response.body), {
       status: response.status ?? 200,
       headers: { "content-type": "application/json" },
@@ -51,15 +51,21 @@ function stubFetch(...responses: { status?: number; body?: unknown }[]) {
 
 type FetchMock = ReturnType<typeof stubFetch>;
 
-function requestedUrl(fetchMock: FetchMock, call = 0): URL {
-  return fetchMock.mock.calls[call]![0] as unknown as URL;
+/** The arguments of one `fetch` call, or a failure naming the call that never happened. */
+function nthCall(fetchMock: FetchMock, call: number): Parameters<typeof fetch> {
+  const args = fetchMock.mock.calls.at(call);
+  if (!args) {
+    throw new Error(`fetch was called ${fetchMock.mock.calls.length} time(s), wanted ${call + 1}`);
+  }
+  return args;
 }
 
-function requestHeaders(fetchMock: FetchMock): Record<string, string> {
-  return (fetchMock.mock.calls[0]![1] as unknown as RequestInit).headers as Record<
-    string,
-    string
-  >;
+function requestedUrl(fetchMock: FetchMock, call = 0): URL {
+  return nthCall(fetchMock, call)[0] as URL;
+}
+
+function requestHeaders(fetchMock: FetchMock): Headers {
+  return new Headers(nthCall(fetchMock, 0)[1]?.headers);
 }
 
 afterEach(() => {
@@ -75,9 +81,7 @@ describe("search", () => {
     const url = requestedUrl(fetchMock);
     expect(url.pathname).toBe("/rest/api/3/search/jql");
     expect(url.searchParams.get("jql")).toBe("project = PSD");
-    expect(requestHeaders(fetchMock)["authorization"]).toBe(
-      `Basic ${Buffer.from("relay@kipu-quantum.com:sa-token").toString("base64")}`,
-    );
+    expect(requestHeaders(fetchMock).get("authorization")).toBe(`Basic ${Buffer.from("relay@kipu-quantum.com:sa-token").toString("base64")}`);
   });
 
   it("maps the fields selection gates on, keeping only real blockers", async () => {
@@ -103,9 +107,7 @@ describe("search", () => {
       body: {
         issues: [
           rawIssue("PSD-1", {
-            issuelinks: [
-              { type: relates, inwardIssue: { key: "PSD-9", fields: { status: status("new") } } },
-            ],
+            issuelinks: [{ type: relates, inwardIssue: { key: "PSD-9", fields: { status: status("new") } } }],
           }),
         ],
       },
@@ -122,9 +124,7 @@ describe("search", () => {
       body: {
         issues: [
           rawIssue("PSD-1", {
-            issuelinks: [
-              { type: renamed, inwardIssue: { key: "PSD-2", fields: { status: status("new") } } },
-            ],
+            issuelinks: [{ type: renamed, inwardIssue: { key: "PSD-2", fields: { status: status("new") } } }],
           }),
         ],
       },
@@ -144,10 +144,7 @@ describe("search", () => {
   });
 
   it("follows every page, so a long frontier is never truncated", async () => {
-    const fetchMock = stubFetch(
-      { body: { issues: [rawIssue("PSD-1")], nextPageToken: "page-2" } },
-      { body: { issues: [rawIssue("PSD-2")] } },
-    );
+    const fetchMock = stubFetch({ body: { issues: [rawIssue("PSD-1")], nextPageToken: "page-2" } }, { body: { issues: [rawIssue("PSD-2")] } });
 
     const issues = await createJiraClient(credentials).search("project = PSD");
 
@@ -158,17 +155,13 @@ describe("search", () => {
   it("surfaces an auth failure as a JiraError", async () => {
     stubFetch({ status: 401, body: {} });
 
-    await expect(createJiraClient(credentials).search("project = PSD")).rejects.toThrow(
-      JiraError,
-    );
+    await expect(createJiraClient(credentials).search("project = PSD")).rejects.toThrow(JiraError);
   });
 
   it("surfaces an unexpected response shape as a JiraError", async () => {
     stubFetch({ body: { issues: [{ nope: true }] } });
 
-    await expect(createJiraClient(credentials).search("project = PSD")).rejects.toThrow(
-      /Unexpected Jira response/,
-    );
+    await expect(createJiraClient(credentials).search("project = PSD")).rejects.toThrow(/Unexpected Jira response/);
   });
 });
 

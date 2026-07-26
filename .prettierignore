@@ -1,0 +1,7 @@
+dist
+node_modules
+coverage
+.scratch
+.fossa.yml
+package-lock.json
+**/*.md

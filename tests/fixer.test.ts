@@ -38,8 +38,7 @@ const fixing = (stdout: string, commits: { sha: string }[] = [{ sha: "c0ffee" }]
 
 const taggedFix = (json: string) => `Fixed them.\n<${FIX_TAG}>${json}</${FIX_TAG}>`;
 
-const commandOf = (run: SandboxRunOptions | undefined) =>
-  run?.agent.buildPrintCommand({ prompt: "", dangerouslySkipPermissions: true }).command;
+const commandOf = (run: SandboxRunOptions | undefined) => run?.agent.buildPrintCommand({ prompt: "", dangerouslySkipPermissions: true }).command;
 
 describe("createFixer", () => {
   it("hands the merged findings to the run that fixes them", async () => {

@@ -2,9 +2,7 @@ import { RelayError } from "./errors.js";
 import { ExitCode } from "./exit-codes.js";
 
 /** A single flagless invocation, resolved from the positional argument. */
-export type Command =
-  | { kind: "pass"; workItem: string | undefined }
-  | { kind: "doctor" };
+export type Command = { kind: "pass"; workItem: string | undefined } | { kind: "doctor" };
 
 /** The side-effecting entry points the CLI dispatches to. Injectable for tests. */
 export interface CliHandlers {
@@ -30,10 +28,7 @@ export function parseArgs(argv: readonly string[]): Command {
  * Any unexpected throw collapses to the error exit code so the contract holds
  * end to end even when a handler crashes.
  */
-export async function runCli(
-  argv: readonly string[],
-  handlers: CliHandlers,
-): Promise<ExitCode> {
+export async function runCli(argv: readonly string[], handlers: CliHandlers): Promise<ExitCode> {
   const command = parseArgs(argv);
   try {
     switch (command.kind) {

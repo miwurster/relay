@@ -8,7 +8,8 @@ Everything is a single package at the repo root, so every component keeps its de
 **Branch / MR pipeline**
 
 1. `commit-test` — `compile-typescript`: `npm ci`, then `npm run lint`, `npm run test`, `npm run build`.
-   The repo carries no linter, so `lint` aliases `typecheck` (`tsc --noEmit`) to satisfy the component's fixed step.
+   The component's steps are fixed, so `lint` is the one door: it runs `typecheck`, `lint:code` (ESLint) and `lint:format` (Prettier).
+   `npm run verify` is `lint` plus `test` — the same thing CI checks, in one command.
 2. `compliance` — `oss-compliance-check`: FOSSA `analyze` + `test`.
 
 **`main` pipeline** — the two jobs above, plus:

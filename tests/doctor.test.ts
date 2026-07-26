@@ -29,9 +29,7 @@ async function repoWith(configSource: string | undefined): Promise<string> {
 }
 
 /** An env carrying every secret, and no home-dir file to fall back to. */
-async function envWithSecrets(
-  overrides: Record<string, string> = {},
-): Promise<NodeJS.ProcessEnv> {
+async function envWithSecrets(overrides: Record<string, string> = {}): Promise<NodeJS.ProcessEnv> {
   const configHome = await mkdtemp(join(tmpdir(), "relay-doctor-home-"));
   return { XDG_CONFIG_HOME: configHome, ...completeSecrets, ...overrides };
 }
@@ -63,12 +61,7 @@ describe("runDoctorChecks", () => {
       docker: healthyDocker().docker,
     });
 
-    expect(checks.map((c) => c.name)).toEqual([
-      "config",
-      "secrets",
-      "sandbox image",
-      "docker daemon",
-    ]);
+    expect(checks.map((c) => c.name)).toEqual(["config", "secrets", "sandbox image", "docker daemon"]);
     expect(checks.every((c) => c.status === "ok")).toBe(true);
   });
 

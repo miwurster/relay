@@ -39,8 +39,7 @@ const implementing = (stdout: string, commits = [{ sha: "c0ffee" }]) => {
   return { implement: createImplementer({ sandbox, config }), runs, execs };
 };
 
-const taggedResult = (json: string) =>
-  `Wrote the test first.\n<${IMPLEMENT_TAG}>${json}</${IMPLEMENT_TAG}>`;
+const taggedResult = (json: string) => `Wrote the test first.\n<${IMPLEMENT_TAG}>${json}</${IMPLEMENT_TAG}>`;
 
 describe("createImplementer", () => {
   it("reports a committed ticket as done, from the base its change starts at", async () => {
@@ -57,10 +56,7 @@ describe("createImplementer", () => {
   });
 
   it("lets a needs-input end with no commit of its own", async () => {
-    const { implement } = implementing(
-      taggedResult('{"kind":"needs-input","reason":"no queue named"}'),
-      [],
-    );
+    const { implement } = implementing(taggedResult('{"kind":"needs-input","reason":"no queue named"}'), []);
 
     await expect(implement(ticket)).resolves.toEqual({
       kind: "needs-input",
@@ -69,9 +65,7 @@ describe("createImplementer", () => {
   });
 
   it("passes a request for human input straight through", async () => {
-    const { implement } = implementing(
-      taggedResult('{"kind":"needs-input","reason":"PSD-8 does not say which queue to use"}'),
-    );
+    const { implement } = implementing(taggedResult('{"kind":"needs-input","reason":"PSD-8 does not say which queue to use"}'));
 
     await expect(implement(ticket)).resolves.toEqual({
       kind: "needs-input",
@@ -98,8 +92,9 @@ describe("createImplementer", () => {
 
     expect(runs).toHaveLength(1);
     const [run] = runs;
-    expect(run?.agent.buildPrintCommand({ prompt: "", dangerouslySkipPermissions: true }).command)
-      .toContain(`--model '${config.models.implementer}'`);
+    expect(run?.agent.buildPrintCommand({ prompt: "", dangerouslySkipPermissions: true }).command).toContain(
+      `--model '${config.models.implementer}'`,
+    );
     expect(run?.promptArgs).toEqual({
       TICKET_KEY: ticket.key,
       TICKET_SUMMARY: ticket.summary,

@@ -29,13 +29,7 @@ export const runDocker: DockerRunner = async (args) => {
  * gid is what `--group-add` needs. Detected per host, never hardcoded — Docker
  * Desktop and a Linux daemon disagree.
  */
-export async function detectDockerSocketGid({
-  image,
-  docker = runDocker,
-}: {
-  image: string;
-  docker?: DockerRunner;
-}): Promise<number> {
+export async function detectDockerSocketGid({ image, docker = runDocker }: { image: string; docker?: DockerRunner }): Promise<number> {
   const output = await docker([
     "run",
     "--rm",
@@ -55,9 +49,7 @@ export async function detectDockerSocketGid({
 
   const gid = output.trim();
   if (!/^\d+$/.test(gid)) {
-    throw new SandboxError(
-      `Could not read the group of ${DOCKER_SOCKET_PATH} inside a container: ${output}`,
-    );
+    throw new SandboxError(`Could not read the group of ${DOCKER_SOCKET_PATH} inside a container: ${output}`);
   }
   return Number(gid);
 }
@@ -70,13 +62,7 @@ export async function detectDockerSocketGid({
  * only a real round trip to the daemon under that user shows the green gate's
  * Testcontainers tier will reach it.
  */
-export async function dockerDaemonVersionInSandbox({
-  image,
-  docker = runDocker,
-}: {
-  image: string;
-  docker?: DockerRunner;
-}): Promise<string> {
+export async function dockerDaemonVersionInSandbox({ image, docker = runDocker }: { image: string; docker?: DockerRunner }): Promise<string> {
   const socketGid = await detectDockerSocketGid({ image, docker });
   const version = await docker([
     "run",
@@ -95,8 +81,7 @@ export async function dockerDaemonVersionInSandbox({
 
   if (!version) {
     throw new SandboxError(
-      "The docker daemon answered with no version, so the sandbox user cannot be " +
-        `shown to reach it through ${DOCKER_SOCKET_PATH}.`,
+      "The docker daemon answered with no version, so the sandbox user cannot be " + `shown to reach it through ${DOCKER_SOCKET_PATH}.`,
     );
   }
   return version;
@@ -120,17 +105,10 @@ export async function resolveTestcontainersHost({
 } = {}): Promise<string> {
   if (platform === "darwin") return "host.docker.internal";
 
-  const gateway = await docker([
-    "network",
-    "inspect",
-    "bridge",
-    "--format",
-    "{{(index .IPAM.Config 0).Gateway}}",
-  ]);
+  const gateway = await docker(["network", "inspect", "bridge", "--format", "{{(index .IPAM.Config 0).Gateway}}"]);
   if (!gateway.trim()) {
     throw new SandboxError(
-      "Could not resolve the docker bridge gateway, so Testcontainers inside the " +
-        "sandbox would not reach ports published on the host daemon.",
+      "Could not resolve the docker bridge gateway, so Testcontainers inside the " + "sandbox would not reach ports published on the host daemon.",
     );
   }
   return gateway.trim();

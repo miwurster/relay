@@ -137,11 +137,10 @@ describe("createCrew", () => {
     const findings = await crew.review("fastCodeReview", {
       kind: "ticket",
       ticket: { key: "PSD-8", summary: "the schema" },
+      base: "abc1234",
     });
 
-    expect(findings).toEqual([
-      { source: "fastCodeReview", ticket: "PSD-8", summary: "src/a.ts:3 duplicated parsing" },
-    ]);
+    expect(findings).toEqual([{ source: "fastCodeReview", ticket: "PSD-8", summary: "src/a.ts:3 duplicated parsing" }]);
     expect(runs.map((run) => run.name)).toEqual(["fastCodeReview-PSD-8"]);
   });
 

@@ -50,15 +50,7 @@ interface ReviewTarget {
  * Ordering is the harness's — it runs a scope's lenses and merges what they
  * return — so a lens here knows nothing about the other three.
  */
-export function createReviewer({
-  sandbox,
-  config,
-  outputDir,
-}: {
-  sandbox: Sandbox;
-  config: RelayConfig;
-  outputDir: string;
-}): Crew["review"] {
+export function createReviewer({ sandbox, config, outputDir }: { sandbox: Sandbox; config: RelayConfig; outputDir: string }): Crew["review"] {
   return async function review(lens: ReviewLens, scope: ReviewScope): Promise<Finding[]> {
     const lensRun = LENSES[lens];
     const target = describeScope(scope, config);

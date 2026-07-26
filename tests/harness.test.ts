@@ -1,16 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type {
-  Crew,
-  Finding,
-  FixTarget,
-  GateResult,
-  ImplementResult,
-  Outcome,
-  PlanResult,
-  ReviewLens,
-  ReviewScope,
-  TicketRef,
-} from "../src/crew.js";
+import type { Crew, Finding, FixTarget, GateResult, ImplementResult, Outcome, PlanResult, ReviewLens, ReviewScope, TicketRef } from "../src/crew.js";
 import { ExitCode } from "../src/exit-codes.js";
 import { exitCodeFor, MAX_GATE_FIX_ATTEMPTS, runHarness } from "../src/harness.js";
 import type { JiraIssue } from "../src/jira.js";
@@ -134,10 +123,7 @@ describe("runHarness", () => {
 
     await runHarness(crew, issue);
 
-    expect(fixed[0]).toEqual([
-      finding("fastCodeReview", "same problem", "PSD-1"),
-      finding("fastSpecReview", "same problem", "PSD-1"),
-    ]);
+    expect(fixed[0]).toEqual([finding("fastCodeReview", "same problem", "PSD-1"), finding("fastSpecReview", "same problem", "PSD-1")]);
   });
 
   it("tells each fixer leg what it is fixing", async () => {

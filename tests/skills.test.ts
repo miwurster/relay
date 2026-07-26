@@ -9,11 +9,7 @@ async function configDirWith(installed: unknown): Promise<NodeJS.ProcessEnv> {
   const configDir = await mkdtemp(join(tmpdir(), "relay-claude-"));
   await mkdir(join(configDir, "plugins"), { recursive: true });
   if (installed !== undefined) {
-    await writeFile(
-      join(configDir, "plugins", "installed_plugins.json"),
-      JSON.stringify(installed),
-      "utf8",
-    );
+    await writeFile(join(configDir, "plugins", "installed_plugins.json"), JSON.stringify(installed), "utf8");
   }
   return { CLAUDE_CONFIG_DIR: configDir };
 }
@@ -28,15 +24,11 @@ const bothPlugins = {
 
 describe("pluginsFilePath", () => {
   it("honours CLAUDE_CONFIG_DIR over the default home-dir location", () => {
-    expect(pluginsFilePath({ CLAUDE_CONFIG_DIR: "/elsewhere/.claude" })).toBe(
-      "/elsewhere/.claude/plugins/installed_plugins.json",
-    );
+    expect(pluginsFilePath({ CLAUDE_CONFIG_DIR: "/elsewhere/.claude" })).toBe("/elsewhere/.claude/plugins/installed_plugins.json");
   });
 
   it("falls back to the Claude config dir under HOME", () => {
-    expect(pluginsFilePath({ HOME: "/home/dev" })).toBe(
-      "/home/dev/.claude/plugins/installed_plugins.json",
-    );
+    expect(pluginsFilePath({ HOME: "/home/dev" })).toBe("/home/dev/.claude/plugins/installed_plugins.json");
   });
 });
 

@@ -64,6 +64,7 @@ _Avoid_: issue, comment, remark
 
 **Green gate**:
 The repo's own command whose exit code decides whether the branch is green, and the **role** that runs it and triages a red result.
+Green means every check the repo judges a branch on — static analysis as much as tests — not tests alone.
 relay never parses the command's output.
 _Avoid_: quality gate, CI check, test gate
 

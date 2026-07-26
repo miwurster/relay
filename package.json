@@ -17,9 +17,14 @@
   "scripts": {
     "build": "tsup",
     "postbuild": "rm -rf dist/resources && cp -r src/resources dist/resources",
-    "typecheck": "tsc --noEmit",
-    "lint": "npm run typecheck",
-    "test": "vitest run"
+    "typecheck": "tsc -p tsconfig.lint.json",
+    "lint:code": "eslint .",
+    "lint:code:fix": "eslint . --fix",
+    "lint:format": "prettier --check .",
+    "format": "prettier --write .",
+    "lint": "npm run typecheck && npm run lint:code && npm run lint:format",
+    "test": "vitest run",
+    "verify": "npm run lint && npm run test"
   },
   "dependencies": {
     "@ai-hero/sandcastle": "0.12.0",
@@ -28,8 +33,13 @@
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
+    "@vitest/eslint-plugin": "^1.6.24",
+    "eslint": "^10.8.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.9.6",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.65.0",
     "vitest": "^4.1.10"
   },
   "publishConfig": {

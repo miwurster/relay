@@ -29,6 +29,9 @@ function fakeJira(issues: JiraIssue[]): JiraClient & { queries: string[] } {
     async getIssue(key) {
       return issues.find((candidate) => candidate.key === key);
     },
+    async addComment() {
+      // The frontier never comments; the handover does.
+    },
   };
 }
 
@@ -104,23 +107,13 @@ describe("explicit key", () => {
   it("refuses a Task", async () => {
     const jira = fakeJira([issue({ key: "PSD-7", issueType: "Task" })]);
 
-    await expect(selectWorkItem(jira, scope, "PSD-7")).rejects.toThrow(
-      /PSD-7 is a Task — relay only runs Story, Bug, Vulnerability\./,
-    );
+    await expect(selectWorkItem(jira, scope, "PSD-7")).rejects.toThrow(/PSD-7 is a Task — relay only runs Story, Bug, Vulnerability\./);
   });
 
   it.each([
-    [
-      "another repo's item",
-      { labels: ["repo:other", "ready-for-agent"] },
-      /not labelled repo:qc-catalog/,
-    ],
+    ["another repo's item", { labels: ["repo:other", "ready-for-agent"] }, /not labelled repo:qc-catalog/],
     ["an untriaged item", { labels: ["repo:qc-catalog"] }, /not labelled ready-for-agent/],
-    [
-      "an item another run holds",
-      { labels: ["repo:qc-catalog", "ready-for-agent", "agent-running"] },
-      /another run holds it/,
-    ],
+    ["an item another run holds", { labels: ["repo:qc-catalog", "ready-for-agent", "agent-running"] }, /another run holds it/],
     ["a done item", { isDone: true }, /already done/],
     ["a blocked item", { blockedBy: [{ key: "PSD-3", isDone: false }] }, /blocked by PSD-3/],
   ])("breaks the pass on %s", async (_name, overrides, reason) => {
@@ -142,8 +135,6 @@ describe("explicit key", () => {
   });
 
   it("breaks the pass on an unknown key", async () => {
-    await expect(selectWorkItem(fakeJira([]), scope, "PSD-404")).rejects.toThrow(
-      /PSD-404 does not exist/,
-    );
+    await expect(selectWorkItem(fakeJira([]), scope, "PSD-404")).rejects.toThrow(/PSD-404 does not exist/);
   });
 });

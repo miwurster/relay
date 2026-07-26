@@ -102,11 +102,7 @@ async function searchPage(credentials: JiraCredentials, jql: string, pageToken?:
   return parse(searchResponseSchema, body);
 }
 
-function apiUrl(
-  credentials: JiraCredentials,
-  path: string,
-  query?: Record<string, string>,
-): URL {
+function apiUrl(credentials: JiraCredentials, path: string, query?: Record<string, string>): URL {
   const url = new URL(path, credentials.baseUrl);
   if (query) url.search = new URLSearchParams(query).toString();
   return url;
@@ -116,22 +112,16 @@ function apiUrl(
  * A call as the service account. What a status means is the caller's, since
  * only the caller knows whether a 404 is a failure or an answer.
  */
-async function request(
-  credentials: JiraCredentials,
-  url: URL,
-  init: RequestInit = {},
-): Promise<Response> {
-  const authorization = Buffer.from(`${credentials.email}:${credentials.token}`).toString(
-    "base64",
-  );
-  return await fetch(url, {
-    ...init,
-    headers: {
-      authorization: `Basic ${authorization}`,
-      accept: "application/json",
-      ...init.headers,
-    },
+async function request(credentials: JiraCredentials, url: URL, init: RequestInit = {}): Promise<Response> {
+  const authorization = Buffer.from(`${credentials.email}:${credentials.token}`).toString("base64");
+  const headers = new Headers({
+    authorization: `Basic ${authorization}`,
+    accept: "application/json",
   });
+  for (const [name, value] of new Headers(init.headers)) {
+    headers.set(name, value);
+  }
+  return await fetch(url, { ...init, headers });
 }
 
 /** Any error status is a `JiraError`. */
@@ -184,9 +174,7 @@ function toIssue(raw: RawIssue): JiraIssue {
     labels: raw.fields.labels,
     isDone: isDone(raw.fields.status),
     blockedBy: raw.fields.issuelinks.flatMap((link) =>
-      link.inwardIssue && link.type.name === BLOCKS_LINK_TYPE
-        ? [{ key: link.inwardIssue.key, isDone: isDone(link.inwardIssue.fields.status) }]
-        : [],
+      link.inwardIssue && link.type.name === BLOCKS_LINK_TYPE ? [{ key: link.inwardIssue.key, isDone: isDone(link.inwardIssue.fields.status) }] : [],
     ),
   };
 }

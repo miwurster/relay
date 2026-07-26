@@ -6,11 +6,7 @@ import { promisify } from "node:util";
 import { createSandbox, type CreateSandboxOptions, type Sandbox } from "@ai-hero/sandcastle";
 import { docker as dockerSandbox } from "@ai-hero/sandcastle/sandboxes/docker";
 import type { RelayConfig } from "./config.js";
-import {
-  detectDockerSocketGid,
-  DOCKER_SOCKET_PATH,
-  resolveTestcontainersHost,
-} from "./docker-host.js";
+import { detectDockerSocketGid, DOCKER_SOCKET_PATH, resolveTestcontainersHost } from "./docker-host.js";
 import { resolveSandboxImage } from "./sandbox-image.js";
 import type { Secrets } from "./secrets.js";
 import { resolveSkillPlugins, type SkillPlugin } from "./skills.js";
@@ -80,13 +76,7 @@ export async function writeMcpConfigDir(): Promise<string> {
  * image, so skills stay at the operator's installed version and credentials
  * stay out of the image.
  */
-export function sandboxMounts({
-  plugins,
-  mcpConfigDir,
-}: {
-  plugins: readonly SkillPlugin[];
-  mcpConfigDir: string;
-}) {
+export function sandboxMounts({ plugins, mcpConfigDir }: { plugins: readonly SkillPlugin[]; mcpConfigDir: string }) {
   return [
     { hostPath: DOCKER_SOCKET_PATH, sandboxPath: DOCKER_SOCKET_PATH },
     ...plugins.map((plugin) => ({
@@ -103,13 +93,7 @@ export function sandboxMounts({
  * credentials the in-sandbox tools authenticate with (MCP bearer, `glab`,
  * `claude`).
  */
-export function sandboxEnv({
-  secrets,
-  testcontainersHost,
-}: {
-  secrets: Secrets;
-  testcontainersHost: string;
-}): Record<string, string> {
+export function sandboxEnv({ secrets, testcontainersHost }: { secrets: Secrets; testcontainersHost: string }): Record<string, string> {
   return {
     TESTCONTAINERS_HOST_OVERRIDE: testcontainersHost,
     ATLASSIAN_SA_TOKEN: secrets.atlassian.token,
@@ -196,10 +180,7 @@ export async function openSandbox({
   const removeMcpConfig = () => rm(mcpConfigDir, { recursive: true, force: true });
 
   try {
-    const [image, testcontainersHost] = await Promise.all([
-      resolveSandboxImage({ repoRoot, config }),
-      resolveTestcontainersHost(),
-    ]);
+    const [image, testcontainersHost] = await Promise.all([resolveSandboxImage({ repoRoot, config }), resolveTestcontainersHost()]);
     const socketGid = await detectDockerSocketGid({ image });
 
     const sandbox = await createSandbox(

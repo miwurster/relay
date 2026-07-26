@@ -51,20 +51,15 @@ const reviewing = (stdout: string, commits: { sha: string }[] = [], worktree = "
   return { review: createReviewer({ sandbox, config, outputDir }), runs };
 };
 
-const taggedFindings = (json: string) =>
-  `Read the diff.\n<${FINDINGS_TAG}>${json}</${FINDINGS_TAG}>`;
+const taggedFindings = (json: string) => `Read the diff.\n<${FINDINGS_TAG}>${json}</${FINDINGS_TAG}>`;
 
-const commandOf = (run: SandboxRunOptions | undefined) =>
-  run?.agent.buildPrintCommand({ prompt: "", dangerouslySkipPermissions: true }).command;
+const commandOf = (run: SandboxRunOptions | undefined) => run?.agent.buildPrintCommand({ prompt: "", dangerouslySkipPermissions: true }).command;
 
-const findingsFile = (name: string) =>
-  readFile(join(outputDir, name), "utf8").then((text) => JSON.parse(text) as unknown);
+const findingsFile = (name: string) => readFile(join(outputDir, name), "utf8").then((text) => JSON.parse(text) as unknown);
 
 describe("createReviewer", () => {
   it("stamps each finding with its lens and the ticket it is about", async () => {
-    const { review } = reviewing(
-      taggedFindings('["src/a.ts:3 duplicated parsing","src/b.ts:9 dead branch"]'),
-    );
+    const { review } = reviewing(taggedFindings('["src/a.ts:3 duplicated parsing","src/b.ts:9 dead branch"]'));
 
     await expect(review("fastCodeReview", ticketScope)).resolves.toEqual([
       { source: "fastCodeReview", ticket: "PSD-8", summary: "src/a.ts:3 duplicated parsing" },

@@ -41,14 +41,8 @@ export function frontierJql(scope: TrackerScope): string {
  * nothing-to-do. With a key, that item is held to the same gates with no
  * override — any failure breaks the pass loudly rather than skipping on.
  */
-export async function selectWorkItem(
-  client: JiraClient,
-  scope: TrackerScope,
-  workItem?: string,
-): Promise<Selection> {
-  return workItem === undefined
-    ? await autoPick(client, scope)
-    : { kind: "work-item", issue: await pickByKey(client, scope, workItem) };
+export async function selectWorkItem(client: JiraClient, scope: TrackerScope, workItem?: string): Promise<Selection> {
+  return workItem === undefined ? await autoPick(client, scope) : { kind: "work-item", issue: await pickByKey(client, scope, workItem) };
 }
 
 async function autoPick(client: JiraClient, scope: TrackerScope): Promise<Selection> {
@@ -57,11 +51,7 @@ async function autoPick(client: JiraClient, scope: TrackerScope): Promise<Select
   return issue ? { kind: "work-item", issue } : { kind: "nothing-to-do" };
 }
 
-async function pickByKey(
-  client: JiraClient,
-  scope: TrackerScope,
-  key: string,
-): Promise<JiraIssue> {
+async function pickByKey(client: JiraClient, scope: TrackerScope, key: string): Promise<JiraIssue> {
   const issue = await client.getIssue(key);
   if (!issue) throw new SelectionError(`${key} does not exist or is not visible.`);
   const failure = eligibilityFailure(issue, scope);
