@@ -4,6 +4,7 @@ import type { RelayConfig } from "./config.js";
 import { RoleError } from "./errors.js";
 import { readResource } from "./resources.js";
 import { roleAgent } from "./role-agent.js";
+import { writeStatusFile } from "./status-file.js";
 import { readTaggedOutput } from "./tagged-output.js";
 
 /**
@@ -23,6 +24,8 @@ export interface RunRoleOptions<Schema extends z.ZodType> {
   /** Names the run, its log file, and the role in every error it raises. */
   name: string;
   model: string;
+  /** Where on the host the leg's status file lands. */
+  outputDir: string;
   /** The prompt resource this role runs from. */
   prompt: string;
   promptArgs: Record<string, string>;
@@ -46,6 +49,7 @@ export async function runRole<Schema extends z.ZodType>({
   config,
   name,
   model,
+  outputDir,
   prompt,
   promptArgs,
   tag,
@@ -65,6 +69,9 @@ export async function runRole<Schema extends z.ZodType>({
   });
 
   const answer = readTaggedOutput({ stdout, tag, schema, role: name });
+  // Written before the leg is judged: a leg that broke its branch rule is
+  // exactly the one whose answer a human needs to read.
+  await writeStatusFile({ dir: outputDir, status: { role: name, model, answer } });
   if (branchRule) await enforceBranchRule(sandbox, name, branchRule(answer), commits.length);
   return answer;
 }

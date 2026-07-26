@@ -1,5 +1,8 @@
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Sandbox, SandboxRunOptions, SandboxRunResult } from "@ai-hero/sandcastle";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { relayConfigSchema } from "../src/config.js";
 import type { Finding, FixTarget } from "../src/crew.js";
 import { RoleError } from "../src/errors.js";
@@ -33,12 +36,18 @@ function fakeSandbox(stdout: string, commits: { sha: string }[]) {
 
 const fixing = (stdout: string, commits: { sha: string }[] = [{ sha: "c0ffee" }]) => {
   const { sandbox, runs } = fakeSandbox(stdout, commits);
-  return { fix: createFixer({ sandbox, config }), runs };
+  return { fix: createFixer({ sandbox, config, outputDir }), runs };
 };
 
 const taggedFix = (json: string) => `Fixed them.\n<${FIX_TAG}>${json}</${FIX_TAG}>`;
 
 const commandOf = (run: SandboxRunOptions | undefined) => run?.agent.buildPrintCommand({ prompt: "", dangerouslySkipPermissions: true }).command;
+
+let outputDir: string;
+
+beforeEach(async () => {
+  outputDir = await mkdtemp(join(tmpdir(), "relay-fixer-"));
+});
 
 describe("createFixer", () => {
   it("hands the merged findings to the run that fixes them", async () => {

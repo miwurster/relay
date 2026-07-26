@@ -1,5 +1,8 @@
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Sandbox, SandboxRunOptions, SandboxRunResult } from "@ai-hero/sandcastle";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { relayConfigSchema } from "../src/config.js";
 import type { Outcome } from "../src/crew.js";
 import { RoleError } from "../src/errors.js";
@@ -25,7 +28,7 @@ function handing({ stdout = "", commits = [] as { sha: string }[] } = {}) {
     },
   } as unknown as Sandbox;
 
-  return { handover: createHandover({ sandbox, config, workItem, branch }), runs };
+  return { handover: createHandover({ sandbox, config, outputDir, workItem, branch }), runs };
 }
 
 const tagged = (json: string) => `Handed over.\n<${HANDOVER_TAG}>${json}</${HANDOVER_TAG}>`;
@@ -36,6 +39,12 @@ const success: Outcome = { kind: "success" };
 const midBlock: Outcome = { kind: "mid-block", reason: "the gate is still red", hasWork: true };
 const midBlockWithoutWork: Outcome = { kind: "mid-block", reason: "blocked on the first ticket", hasWork: false };
 const earlyBail: Outcome = { kind: "early-bail", reason: "PSD-7 has no acceptance criteria" };
+
+let outputDir: string;
+
+beforeEach(async () => {
+  outputDir = await mkdtemp(join(tmpdir(), "relay-handover-"));
+});
 
 describe("createHandover", () => {
   it("hands over in one leg, on the handover model", async () => {
@@ -146,6 +155,19 @@ describe("createHandover", () => {
     const { handover } = handing({ stdout: published, commits: [{ sha: "c0ffee" }] });
 
     await expect(handover(success)).rejects.toThrow(RoleError);
+  });
+
+  it("leaves the leg's answer on the host, even when the leg broke its own rule", async () => {
+    const { handover } = handing({ stdout: tagged('{"report":"PSD-7 is In Review."}') });
+
+    await expect(handover(success)).rejects.toThrow(RoleError);
+
+    const written = await readFile(join(outputDir, "handover.status.json"), "utf8");
+    expect(JSON.parse(written)).toEqual({
+      role: "handover",
+      model: config.models.handover,
+      answer: { report: "PSD-7 is In Review." },
+    });
   });
 
   it("refuses a handover that reported nothing", async () => {

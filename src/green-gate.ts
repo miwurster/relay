@@ -27,7 +27,7 @@ const gateSchema = z.object({ detail: z.string().min(1) });
  * the one line the fixer will act on. Green needs no judgement and costs no
  * run, which is what keeps the common case cheap.
  */
-export function createGreenGate({ sandbox, config }: { sandbox: Sandbox; config: RelayConfig }): Crew["greenGate"] {
+export function createGreenGate({ sandbox, config, outputDir }: { sandbox: Sandbox; config: RelayConfig; outputDir: string }): Crew["greenGate"] {
   return async function greenGate(attempt: number): Promise<GateResult> {
     const { stdout, stderr, exitCode } = await sandbox.exec(config.greenGate);
     if (exitCode === 0) {
@@ -38,6 +38,7 @@ export function createGreenGate({ sandbox, config }: { sandbox: Sandbox; config:
       sandbox,
       config,
       name: `green-gate-${attempt}`,
+      outputDir,
       model: config.models.greenGate,
       prompt: GATE_PROMPT,
       promptArgs: {

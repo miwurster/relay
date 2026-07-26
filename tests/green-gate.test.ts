@@ -1,5 +1,8 @@
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Sandbox, SandboxRunOptions, SandboxRunResult } from "@ai-hero/sandcastle";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { relayConfigSchema } from "../src/config.js";
 import { RoleError } from "../src/errors.js";
 import { createGreenGate, GATE_OUTPUT_TAIL, GATE_TAG } from "../src/green-gate.js";
@@ -39,7 +42,7 @@ function gating({ stdout = "", stderr = "", exitCode, triage = "", commits = [],
     },
   } as unknown as Sandbox;
 
-  return { greenGate: createGreenGate({ sandbox, config }), commands, runs };
+  return { greenGate: createGreenGate({ sandbox, config, outputDir }), commands, runs };
 }
 
 const taggedTriage = (json: string) => `Had a look.\n<${GATE_TAG}>${json}</${GATE_TAG}>`;
@@ -47,6 +50,12 @@ const taggedTriage = (json: string) => `Had a look.\n<${GATE_TAG}>${json}</${GAT
 const redTriage = taggedTriage('{"detail":"OrderTest.rejectsEmptyCart fails: cart is never null"}');
 
 const commandOf = (run: SandboxRunOptions | undefined) => run?.agent.buildPrintCommand({ prompt: "", dangerouslySkipPermissions: true }).command;
+
+let outputDir: string;
+
+beforeEach(async () => {
+  outputDir = await mkdtemp(join(tmpdir(), "relay-green-gate-"));
+});
 
 describe("createGreenGate", () => {
   it("runs the repo's configured command", async () => {

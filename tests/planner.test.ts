@@ -1,5 +1,8 @@
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Sandbox, SandboxRunOptions, SandboxRunResult } from "@ai-hero/sandcastle";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { relayConfigSchema } from "../src/config.js";
 import { RoleError } from "../src/errors.js";
 import type { JiraIssue } from "../src/jira.js";
@@ -34,10 +37,16 @@ function fakeSandbox(stdout: string) {
 
 const planning = (stdout: string) => {
   const { sandbox, runs } = fakeSandbox(stdout);
-  return { plan: createPlanner({ sandbox, config }), runs };
+  return { plan: createPlanner({ sandbox, config, outputDir }), runs };
 };
 
 const taggedPlan = (json: string) => `Had a look.\n<${PLAN_TAG}>${json}</${PLAN_TAG}>`;
+
+let outputDir: string;
+
+beforeEach(async () => {
+  outputDir = await mkdtemp(join(tmpdir(), "relay-planner-"));
+});
 
 describe("createPlanner", () => {
   it("returns the tickets the planner ordered", async () => {

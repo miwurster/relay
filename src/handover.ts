@@ -30,11 +30,13 @@ const handoverSchema = z.object({
 export function createHandover({
   sandbox,
   config,
+  outputDir,
   workItem,
   branch,
 }: {
   sandbox: Sandbox;
   config: RelayConfig;
+  outputDir: string;
   workItem: string;
   branch: string;
 }): Crew["handover"] {
@@ -45,6 +47,7 @@ export function createHandover({
       sandbox,
       config,
       name: "handover",
+      outputDir,
       model: config.models.handover,
       prompt: HANDOVER_PROMPT,
       promptArgs: {

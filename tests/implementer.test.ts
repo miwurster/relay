@@ -1,5 +1,8 @@
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Sandbox, SandboxRunOptions, SandboxRunResult } from "@ai-hero/sandcastle";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { relayConfigSchema } from "../src/config.js";
 import type { TicketRef } from "../src/crew.js";
 import { RoleError } from "../src/errors.js";
@@ -36,10 +39,16 @@ function fakeSandbox(stdout: string, commits: { sha: string }[]) {
 
 const implementing = (stdout: string, commits = [{ sha: "c0ffee" }]) => {
   const { sandbox, runs, execs } = fakeSandbox(stdout, commits);
-  return { implement: createImplementer({ sandbox, config }), runs, execs };
+  return { implement: createImplementer({ sandbox, config, outputDir }), runs, execs };
 };
 
 const taggedResult = (json: string) => `Wrote the test first.\n<${IMPLEMENT_TAG}>${json}</${IMPLEMENT_TAG}>`;
+
+let outputDir: string;
+
+beforeEach(async () => {
+  outputDir = await mkdtemp(join(tmpdir(), "relay-implementer-"));
+});
 
 describe("createImplementer", () => {
   it("reports a committed ticket as done, from the base its change starts at", async () => {
@@ -47,6 +56,15 @@ describe("createImplementer", () => {
 
     await expect(implement(ticket)).resolves.toEqual({ kind: "done", base: HEAD_SHA });
     expect(execs).toEqual(["git rev-parse HEAD"]);
+  });
+
+  it("names its status file after the run, so the pass's legs stay apart", async () => {
+    const { implement } = implementing(taggedResult('{"kind":"done"}'));
+
+    await implement(ticket);
+
+    const written = await readFile(join(outputDir, `implementer-${ticket.key}.status.json`), "utf8");
+    expect(JSON.parse(written)).toMatchObject({ role: `implementer-${ticket.key}`, answer: { kind: "done" } });
   });
 
   it("refuses a done that committed nothing", async () => {

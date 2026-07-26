@@ -32,12 +32,13 @@ const planSchema = z.discriminatedUnion("kind", [
  * comes from the repo's own `docs/agents/issue-tracker.md`, which the prompt
  * sends the planner to read first, so relay hardcodes no tracker assumptions.
  */
-export function createPlanner({ sandbox, config }: { sandbox: Sandbox; config: RelayConfig }): Crew["plan"] {
+export function createPlanner({ sandbox, config, outputDir }: { sandbox: Sandbox; config: RelayConfig; outputDir: string }): Crew["plan"] {
   return async function plan(issue: JiraIssue): Promise<PlanResult> {
     return await runRole({
       sandbox,
       config,
       name: "planner",
+      outputDir,
       model: config.models.planner,
       prompt: PLANNER_PROMPT,
       promptArgs: { WORK_ITEM_KEY: issue.key, TRACKER_DOC: TRACKER_DOC_PATH },

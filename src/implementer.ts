@@ -37,7 +37,7 @@ async function headSha(sandbox: Sandbox): Promise<string> {
  * only the agent that wrote the change knows what the commit says, and a
  * separate cold session would have to rediscover it from the diff.
  */
-export function createImplementer({ sandbox, config }: { sandbox: Sandbox; config: RelayConfig }): Crew["implement"] {
+export function createImplementer({ sandbox, config, outputDir }: { sandbox: Sandbox; config: RelayConfig; outputDir: string }): Crew["implement"] {
   return async function implement(ticket: TicketRef): Promise<ImplementResult> {
     // Read before the run: afterwards the ticket's own commits are in the way,
     // and this is what the reviewers diff the ticket's change from.
@@ -47,6 +47,7 @@ export function createImplementer({ sandbox, config }: { sandbox: Sandbox; confi
       sandbox,
       config,
       name: `implementer-${ticket.key}`,
+      outputDir,
       model: config.models.implementer,
       prompt: IMPLEMENTER_PROMPT,
       promptArgs: {

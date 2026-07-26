@@ -59,6 +59,7 @@ export function createReviewer({ sandbox, config, outputDir }: { sandbox: Sandbo
       sandbox,
       config,
       name: `${lens}-${target.name}`,
+      outputDir,
       model: config.models[lens],
       prompt: lensRun.prompt,
       promptArgs: { SCOPE: scope.kind, KEY: target.key, BASE: target.base, ...lensRun.args },

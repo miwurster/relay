@@ -110,11 +110,11 @@ export function createCrew({
   branch: string;
 }): Crew {
   return {
-    plan: createPlanner({ sandbox, config }),
-    implement: createImplementer({ sandbox, config }),
+    plan: createPlanner({ sandbox, config, outputDir }),
+    implement: createImplementer({ sandbox, config, outputDir }),
     review: createReviewer({ sandbox, config, outputDir }),
-    fix: createFixer({ sandbox, config }),
-    greenGate: createGreenGate({ sandbox, config }),
-    handover: createHandover({ sandbox, config, workItem, branch }),
+    fix: createFixer({ sandbox, config, outputDir }),
+    greenGate: createGreenGate({ sandbox, config, outputDir }),
+    handover: createHandover({ sandbox, config, outputDir, workItem, branch }),
   };
 }
