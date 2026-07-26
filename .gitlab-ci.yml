@@ -6,22 +6,6 @@ stages:
 
 include:
   - component: gitlab.com/kipu-all/commons/pipeline-components/compile-typescript@main
-    inputs:
-      tags:
-        - kubernetes
-        - cluster
   - component: gitlab.com/kipu-all/commons/oss-compliance/oss-compliance-check@v1.6.3
-    inputs:
-      tags:
-        - kubernetes
-        - cluster
   - component: gitlab.com/kipu-all/commons/pipeline-components/semantic-release@main
-    inputs:
-      tags:
-        - kubernetes
-        - cluster
   - component: gitlab.com/kipu-all/commons/pipeline-components/publish-npm@main
-    inputs:
-      tags:
-        - kubernetes
-        - cluster
