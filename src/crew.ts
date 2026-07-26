@@ -66,9 +66,11 @@ export type FixTarget = { kind: "ticket"; ticket: TicketRef } | { kind: "branch"
  * How the pass ended, and therefore which handover it gets.
  *
  * `early-bail` is the planner refusing an under-specified item before any work
- * happened; `mid-block` is work that started but could not be finished.
+ * happened; `mid-block` is work that started but could not be finished. A
+ * mid-block carries whether any ticket was implemented before it blocked,
+ * because that is what decides whether there is anything to publish.
  */
-export type Outcome = { kind: "success" } | { kind: "mid-block"; reason: string } | { kind: "early-bail"; reason: string };
+export type Outcome = { kind: "success" } | { kind: "mid-block"; reason: string; hasWork: boolean } | { kind: "early-bail"; reason: string };
 
 /**
  * The crew of roles one pass runs. Every role is its own cold agent session

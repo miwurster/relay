@@ -33,7 +33,8 @@ const tagged = (json: string) => `Handed over.\n<${HANDOVER_TAG}>${json}</${HAND
 const published = tagged('{"mrUrl":"https://gitlab.com/kipu/qc/-/merge_requests/12","report":"PSD-7 is In Review."}');
 
 const success: Outcome = { kind: "success" };
-const midBlock: Outcome = { kind: "mid-block", reason: "the gate is still red" };
+const midBlock: Outcome = { kind: "mid-block", reason: "the gate is still red", hasWork: true };
+const midBlockWithoutWork: Outcome = { kind: "mid-block", reason: "blocked on the first ticket", hasWork: false };
 const earlyBail: Outcome = { kind: "early-bail", reason: "PSD-7 has no acceptance criteria" };
 
 describe("createHandover", () => {
@@ -118,7 +119,21 @@ describe("createHandover", () => {
       stdout: tagged('{"report":"PSD-7 blocked on its first ticket; nothing was committed."}'),
     });
 
-    await expect(handover(midBlock)).resolves.toBeUndefined();
+    await expect(handover(midBlockWithoutWork)).resolves.toBeUndefined();
+  });
+
+  it("refuses a mid-block that left committed tickets unpublished", async () => {
+    const { handover } = handing({
+      stdout: tagged('{"report":"PSD-7 blocked after two tickets; the branch was not pushed."}'),
+    });
+
+    await expect(handover(midBlock)).rejects.toThrow(RoleError);
+  });
+
+  it("refuses a mid-block that opened a merge request on an empty branch", async () => {
+    const { handover } = handing({ stdout: published });
+
+    await expect(handover(midBlockWithoutWork)).rejects.toThrow(RoleError);
   });
 
   it("refuses an early bail that opened a merge request on an empty branch", async () => {

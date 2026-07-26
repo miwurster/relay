@@ -44,7 +44,9 @@ async function runLegs(crew: Crew, issue: JiraIssue): Promise<Outcome> {
   if (blocked) return blocked;
 
   await reviewAndFix(crew, WHOLE_BRANCH_LENSES, { kind: "branch", workItem: issue.key });
-  return await driveGate(crew);
+  // Every ticket was implemented by now, so the branch carries work whenever
+  // the plan had a ticket at all.
+  return await driveGate(crew, plan.tickets.length > 0);
 }
 
 /**
@@ -53,10 +55,10 @@ async function runLegs(crew: Crew, issue: JiraIssue): Promise<Outcome> {
  * mid-block: relay hands the baton over rather than waiting for an answer.
  */
 async function implementTickets(crew: Crew, tickets: readonly TicketRef[]): Promise<Outcome | undefined> {
-  for (const ticket of tickets) {
+  for (const [index, ticket] of tickets.entries()) {
     const result = await crew.implement(ticket);
     if (result.kind === "needs-input") {
-      return { kind: "mid-block", reason: result.reason };
+      return { kind: "mid-block", reason: result.reason, hasWork: index > 0 };
     }
     await reviewAndFix(crew, PER_TICKET_LENSES, { kind: "ticket", ticket, base: result.base });
   }
@@ -85,13 +87,13 @@ function fixTargetFor(scope: ReviewScope): FixTarget {
 }
 
 /** Run the gate, handing each red verdict to the fixer until green or capped. */
-async function driveGate(crew: Crew): Promise<Outcome> {
+async function driveGate(crew: Crew, hasWork: boolean): Promise<Outcome> {
   let gate = await crew.greenGate(1);
   for (let attempt = 1; !gate.green && attempt <= MAX_GATE_FIX_ATTEMPTS; attempt++) {
     await crew.fix([gateFinding(gate.detail)], { kind: "gate", attempt });
     gate = await crew.greenGate(attempt + 1);
   }
-  return gate.green ? { kind: "success" } : { kind: "mid-block", reason: gate.detail };
+  return gate.green ? { kind: "success" } : { kind: "mid-block", reason: gate.detail, hasWork };
 }
 
 function gateFinding(detail: string): Finding {

@@ -198,7 +198,7 @@ describe("runHarness", () => {
 
     const outcome = await runHarness(crew, issue);
 
-    expect(outcome).toEqual({ kind: "mid-block", reason: "still red" });
+    expect(outcome).toEqual({ kind: "mid-block", reason: "still red", hasWork: true });
     expect(calls.filter((call) => call === "fix")).toHaveLength(MAX_GATE_FIX_ATTEMPTS);
     expect(calls.at(-1)).toBe("handover:mid-block");
   });
@@ -231,8 +231,23 @@ describe("runHarness", () => {
 
     const outcome = await runHarness(crew, issue);
 
-    expect(outcome).toEqual({ kind: "mid-block", reason: "which queue does this drain?" });
+    expect(outcome).toEqual({ kind: "mid-block", reason: "which queue does this drain?", hasWork: false });
     expect(calls).toEqual(["plan", "implement:PSD-1", "handover:mid-block"]);
+  });
+
+  it("reports a block after an implemented ticket as work the handover has to publish", async () => {
+    const { crew } = recordingCrew({
+      async plan() {
+        return { kind: "plan", tickets: [ticket("PSD-1"), ticket("PSD-2")] };
+      },
+      async implement(ref) {
+        return ref.key === "PSD-2" ? { kind: "needs-input", reason: "which queue does this drain?" } : { kind: "done", base: "c0ffee" };
+      },
+    });
+
+    const outcome = await runHarness(crew, issue);
+
+    expect(outcome).toEqual({ kind: "mid-block", reason: "which queue does this drain?", hasWork: true });
   });
 
   it("runs end to end on the stub crew", async () => {
@@ -248,7 +263,7 @@ describe("exitCodeFor", () => {
   });
 
   it("maps both blocked outcomes to the blocked code", () => {
-    expect(exitCodeFor({ kind: "mid-block", reason: "red" })).toBe(ExitCode.Blocked);
+    expect(exitCodeFor({ kind: "mid-block", reason: "red", hasWork: true })).toBe(ExitCode.Blocked);
     expect(exitCodeFor({ kind: "early-bail", reason: "thin" })).toBe(ExitCode.Blocked);
   });
 });

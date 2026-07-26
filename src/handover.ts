@@ -65,7 +65,7 @@ export function createHandover({
     // Printed before the leg is judged: by now it has already pushed, labelled
     // and commented, and the report is how the human finds out what it did.
     console.log(`relay: [handover] ${outcome.kind} on ${branch}\n${report}`);
-    enforceMergeRequestRule(leg, mrUrl);
+    enforceMergeRequestRule(leg, outcome.kind, mrUrl);
   };
 }
 
@@ -75,11 +75,12 @@ interface HandoverLeg {
   cause: string;
   /**
    * Whether the outcome gets a merge request. A success always has commits to
-   * publish; an early bail never does. A mid-block is neither: work that
-   * blocked on its first ticket has an empty branch, and pushing that would
-   * open the same empty merge request an early bail is spared.
+   * publish; an early bail never does. A mid-block goes either way on the work
+   * it got done: a branch carrying committed tickets owes the human a draft
+   * merge request, while a block on the first ticket has an empty branch and
+   * pushing that would open the same empty merge request an early bail is spared.
    */
-  mergeRequest: "required" | "forbidden" | "if-there-is-work";
+  mergeRequest: "required" | "forbidden";
 }
 
 function describeLeg(outcome: Outcome): HandoverLeg {
@@ -87,17 +88,17 @@ function describeLeg(outcome: Outcome): HandoverLeg {
     case "success":
       return { cause: "The green gate is green.", mergeRequest: "required" };
     case "mid-block":
-      return { cause: outcome.reason, mergeRequest: "if-there-is-work" };
+      return { cause: outcome.reason, mergeRequest: outcome.hasWork ? "required" : "forbidden" };
     case "early-bail":
       return { cause: outcome.reason, mergeRequest: "forbidden" };
   }
 }
 
-function enforceMergeRequestRule(leg: HandoverLeg, mrUrl: string | undefined): void {
+function enforceMergeRequestRule(leg: HandoverLeg, kind: Outcome["kind"], mrUrl: string | undefined): void {
   if (leg.mergeRequest === "required" && !mrUrl) {
-    throw new RoleError("handover reported a green pass but no merge request.");
+    throw new RoleError(`handover reported a ${kind} pass with committed work but no merge request.`);
   }
   if (leg.mergeRequest === "forbidden" && mrUrl) {
-    throw new RoleError(`handover opened ${mrUrl} for an early bail, which gets no merge request.`);
+    throw new RoleError(`handover opened ${mrUrl} for a ${kind} pass on an empty branch, which gets no merge request.`);
   }
 }
