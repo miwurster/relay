@@ -1,0 +1,19 @@
+## fossa-cli configuration file.
+##
+## All fields are optional except 'version' field.
+##
+##  To learn more:
+##   - https://github.com/fossas/fossa-cli/blob/master/docs/references/files/fossa-yml.md
+##
+##  If you need assistance, or would like to file a defect, contact support at:
+##   - https://support.fossa.com/
+##
+## -----
+version: 3
+
+## Configures settings for the project you are interacting with through the FOSSA API.
+project:
+ id: https://gitlab.com/kipu-all/commons/relay.git
+ url: https://gitlab.com/kipu-all/commons/relay
+ labels:
+  - "Platform"
