@@ -51,7 +51,10 @@ beforeEach(async () => {
 describe("createPlanner", () => {
   it("returns the tickets the planner ordered", async () => {
     const { plan } = planning(
-      taggedPlan('{"kind":"plan","tickets":[{"key":"PSD-8","summary":"the schema"},' + '{"key":"PSD-9","summary":"the endpoint"}]}'),
+      taggedPlan(
+        '{"kind":"plan","tickets":[{"key":"PSD-8","summary":"the schema"},' +
+          '{"key":"PSD-9","summary":"the endpoint"}]}',
+      ),
     );
 
     await expect(plan(issue)).resolves.toEqual({
@@ -64,7 +67,9 @@ describe("createPlanner", () => {
   });
 
   it("passes a bail to a human straight through", async () => {
-    const { plan } = planning(taggedPlan('{"kind":"under-specified","reason":"PSD-8 says nothing about the change"}'));
+    const { plan } = planning(
+      taggedPlan('{"kind":"under-specified","reason":"PSD-8 says nothing about the change"}'),
+    );
 
     await expect(plan(issue)).resolves.toEqual({
       kind: "under-specified",
@@ -85,14 +90,18 @@ describe("createPlanner", () => {
   });
 
   it("runs one-shot on the planner's model, over the work item and the tracker doc", async () => {
-    const { plan, runs } = planning(taggedPlan('{"kind":"plan","tickets":[{"key":"PSD-7","summary":"the item itself"}]}'));
+    const { plan, runs } = planning(
+      taggedPlan('{"kind":"plan","tickets":[{"key":"PSD-7","summary":"the item itself"}]}'),
+    );
 
     await plan(issue);
 
     expect(runs).toHaveLength(1);
     const [run] = runs;
     expect(run?.maxIterations).toBe(1);
-    expect(run?.agent.buildPrintCommand({ prompt: "", dangerouslySkipPermissions: true }).command).toContain(`--model '${config.models.planner}'`);
+    expect(
+      run?.agent.buildPrintCommand({ prompt: "", dangerouslySkipPermissions: true }).command,
+    ).toContain(`--model '${config.models.planner}'`);
     expect(run?.promptArgs).toEqual({ WORK_ITEM_KEY: issue.key, TRACKER_DOC: TRACKER_DOC_PATH });
     expect(run?.prompt).toContain("{{WORK_ITEM_KEY}}");
     expect(run?.prompt).toContain("{{TRACKER_DOC}}");

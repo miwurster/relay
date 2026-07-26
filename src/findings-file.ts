@@ -15,7 +15,15 @@ export function passOutputDir(repoRoot: string, workItemKey: string): string {
  * are what makes the hand-off inspectable, so they live on the host rather than
  * in the sandbox's worktree — that worktree is gone once the pass disposes of it.
  */
-export async function writeFindingsFile({ dir, name, findings }: { dir: string; name: string; findings: readonly Finding[] }): Promise<void> {
+export async function writeFindingsFile({
+  dir,
+  name,
+  findings,
+}: {
+  dir: string;
+  name: string;
+  findings: readonly Finding[];
+}): Promise<void> {
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, `${name}.json`), `${JSON.stringify(findings, undefined, 2)}\n`, "utf8");
 }

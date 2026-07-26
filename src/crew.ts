@@ -15,7 +15,8 @@ export interface TicketRef {
 }
 
 /** What the planner resolved: tickets in dependency order, or a bail to a human. */
-export type PlanResult = { kind: "plan"; tickets: TicketRef[] } | { kind: "under-specified"; reason: string };
+export type PlanResult =
+  { kind: "plan"; tickets: TicketRef[] } | { kind: "under-specified"; reason: string };
 
 /**
  * How an implementer leg ended. A role that wants human input never pauses the
@@ -26,7 +27,8 @@ export type ImplementResult =
   { kind: "done"; base: string } | { kind: "needs-input"; reason: string };
 
 /** The four review lenses, named as the per-role model map names them. */
-export type ReviewLens = "fastCodeReview" | "fastSpecReview" | "inDepthCodeReview" | "inDepthSpecReview";
+export type ReviewLens =
+  "fastCodeReview" | "fastSpecReview" | "inDepthCodeReview" | "inDepthSpecReview";
 
 /** Whatever produced a finding the fixer has to act on. */
 export type FindingSource = ReviewLens | "greenGate";
@@ -53,14 +55,16 @@ export interface GateResult {
  * also carries the commit its own change starts at, since the branch already
  * holds every earlier ticket of the pass.
  */
-export type ReviewScope = { kind: "ticket"; ticket: TicketRef; base: string } | { kind: "branch"; workItem: string };
+export type ReviewScope =
+  { kind: "ticket"; ticket: TicketRef; base: string } | { kind: "branch"; workItem: string };
 
 /**
  * What one fixer leg is fixing: a ticket's own lenses, the whole-branch lenses,
  * or a red gate. A gate fix carries which attempt of the loop it is, because
  * the gate is the pass's one leg that runs more than once.
  */
-export type FixTarget = { kind: "ticket"; ticket: TicketRef } | { kind: "branch" } | { kind: "gate"; attempt: number };
+export type FixTarget =
+  { kind: "ticket"; ticket: TicketRef } | { kind: "branch" } | { kind: "gate"; attempt: number };
 
 /**
  * How the pass ended, and therefore which handover it gets.
@@ -70,7 +74,10 @@ export type FixTarget = { kind: "ticket"; ticket: TicketRef } | { kind: "branch"
  * mid-block carries whether any ticket was implemented before it blocked,
  * because that is what decides whether there is anything to publish.
  */
-export type Outcome = { kind: "success" } | { kind: "mid-block"; reason: string; hasWork: boolean } | { kind: "early-bail"; reason: string };
+export type Outcome =
+  | { kind: "success" }
+  | { kind: "mid-block"; reason: string; hasWork: boolean }
+  | { kind: "early-bail"; reason: string };
 
 /**
  * The crew of roles one pass runs. Every role is its own cold agent session

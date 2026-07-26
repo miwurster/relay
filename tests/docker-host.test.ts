@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { detectDockerSocketGid, dockerDaemonVersionInSandbox, resolveTestcontainersHost } from "../src/docker-host.js";
+import {
+  detectDockerSocketGid,
+  dockerDaemonVersionInSandbox,
+  resolveTestcontainersHost,
+} from "../src/docker-host.js";
 import { SandboxError } from "../src/errors.js";
 
 /** Records the docker invocations and answers each with a canned line. */
@@ -35,12 +39,16 @@ describe("detectDockerSocketGid", () => {
 
   it("fails when the daemon does not answer with a group id", async () => {
     const { docker } = fakeDocker(["no such file"]);
-    await expect(detectDockerSocketGid({ image: "relay:local", docker })).rejects.toThrow(SandboxError);
+    await expect(detectDockerSocketGid({ image: "relay:local", docker })).rejects.toThrow(
+      SandboxError,
+    );
   });
 
   it("fails on empty output rather than falling back to the root group", async () => {
     const { docker } = fakeDocker([""]);
-    await expect(detectDockerSocketGid({ image: "relay:local", docker })).rejects.toThrow(SandboxError);
+    await expect(detectDockerSocketGid({ image: "relay:local", docker })).rejects.toThrow(
+      SandboxError,
+    );
   });
 });
 
@@ -68,14 +76,18 @@ describe("dockerDaemonVersionInSandbox", () => {
 
   it("fails when the daemon answers with no version at all", async () => {
     const { docker } = fakeDocker(["0", ""]);
-    await expect(dockerDaemonVersionInSandbox({ image: "relay:local", docker })).rejects.toThrow(SandboxError);
+    await expect(dockerDaemonVersionInSandbox({ image: "relay:local", docker })).rejects.toThrow(
+      SandboxError,
+    );
   });
 });
 
 describe("resolveTestcontainersHost", () => {
   it("uses the Docker Desktop host alias on macOS", async () => {
     const { docker, calls } = fakeDocker();
-    expect(await resolveTestcontainersHost({ platform: "darwin", docker })).toBe("host.docker.internal");
+    expect(await resolveTestcontainersHost({ platform: "darwin", docker })).toBe(
+      "host.docker.internal",
+    );
     expect(calls).toEqual([]);
   });
 
@@ -86,6 +98,8 @@ describe("resolveTestcontainersHost", () => {
 
   it("fails when a Linux daemon reports no bridge gateway", async () => {
     const { docker } = fakeDocker([""]);
-    await expect(resolveTestcontainersHost({ platform: "linux", docker })).rejects.toThrow(SandboxError);
+    await expect(resolveTestcontainersHost({ platform: "linux", docker })).rejects.toThrow(
+      SandboxError,
+    );
   });
 });

@@ -225,7 +225,9 @@ describe("runPassOnItem", () => {
     const { jira, comments } = fakeJira();
     const sandbox = fakeSandbox();
 
-    await expect(runOnePass({ jira, open: sandbox.open, createCrew: crashingCrew })).rejects.toThrow("the sandbox died");
+    await expect(
+      runOnePass({ jira, open: sandbox.open, createCrew: crashingCrew }),
+    ).rejects.toThrow("the sandbox died");
 
     expect(sandbox.wasClosed()).toBe(true);
     expect(comments).toHaveLength(1);
@@ -254,7 +256,9 @@ describe("runPassOnItem", () => {
     };
     vi.spyOn(console, "error").mockImplementation(() => {});
 
-    await expect(runOnePass({ jira, createCrew: crashingCrew })).rejects.toThrow("the sandbox died");
+    await expect(runOnePass({ jira, createCrew: crashingCrew })).rejects.toThrow(
+      "the sandbox died",
+    );
   });
 
   it("refuses to run when the pass branch already exists, without opening a sandbox", async () => {
@@ -264,7 +268,9 @@ describe("runPassOnItem", () => {
     const { jira } = fakeJira();
     const open = vi.fn();
 
-    await expect(runOnePass({ jira, repoRoot: root, open })).rejects.toThrow(/agent\/PSD-1 already exists/);
+    await expect(runOnePass({ jira, repoRoot: root, open })).rejects.toThrow(
+      /agent\/PSD-1 already exists/,
+    );
 
     expect(open).not.toHaveBeenCalled();
     // The refusal never touches the branch it refused over.

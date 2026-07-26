@@ -5,7 +5,8 @@ import { readTaggedOutput } from "../src/tagged-output.js";
 
 const schema = z.object({ answer: z.number() });
 
-const read = (stdout: string) => readTaggedOutput({ stdout, tag: "result", schema, role: "tester" });
+const read = (stdout: string) =>
+  readTaggedOutput({ stdout, tag: "result", schema, role: "tester" });
 
 describe("readTaggedOutput", () => {
   it("reads the tagged JSON out of the surrounding prose", () => {

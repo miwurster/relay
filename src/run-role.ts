@@ -83,7 +83,12 @@ export async function runRole<Schema extends z.ZodType>({
  * legs share one worktree, so an edit a lens never committed is still there
  * for the next leg to read and for the fixer to commit as nobody's work.
  */
-async function enforceBranchRule(sandbox: Sandbox, name: string, rule: BranchRule, commitCount: number): Promise<void> {
+async function enforceBranchRule(
+  sandbox: Sandbox,
+  name: string,
+  rule: BranchRule,
+  commitCount: number,
+): Promise<void> {
   if (rule === "must-commit" && commitCount === 0) {
     throw new RoleError(`${name} reported the work done but committed nothing.`);
   }

@@ -107,11 +107,17 @@ describe("explicit key", () => {
   it("refuses a Task", async () => {
     const jira = fakeJira([issue({ key: "PSD-7", issueType: "Task" })]);
 
-    await expect(selectWorkItem(jira, scope, "PSD-7")).rejects.toThrow(/PSD-7 is a Task — relay only runs Story, Bug, Vulnerability\./);
+    await expect(selectWorkItem(jira, scope, "PSD-7")).rejects.toThrow(
+      /PSD-7 is a Task — relay only runs Story, Bug, Vulnerability\./,
+    );
   });
 
   it.each([
-    ["another repo's item", { labels: ["repo:other", "ready-for-agent"] }, /not labelled repo:qc-catalog/],
+    [
+      "another repo's item",
+      { labels: ["repo:other", "ready-for-agent"] },
+      /not labelled repo:qc-catalog/,
+    ],
     ["an untriaged item", { labels: ["repo:qc-catalog"] }, /not labelled ready-for-agent/],
     ["a done item", { isDone: true }, /already done/],
     ["a blocked item", { blockedBy: [{ key: "PSD-3", isDone: false }] }, /blocked by PSD-3/],
@@ -134,6 +140,8 @@ describe("explicit key", () => {
   });
 
   it("breaks the pass on an unknown key", async () => {
-    await expect(selectWorkItem(fakeJira([]), scope, "PSD-404")).rejects.toThrow(/PSD-404 does not exist/);
+    await expect(selectWorkItem(fakeJira([]), scope, "PSD-404")).rejects.toThrow(
+      /PSD-404 does not exist/,
+    );
   });
 });

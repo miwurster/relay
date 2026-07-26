@@ -98,5 +98,7 @@ async function importConfig(configPath: string): Promise<unknown> {
 }
 
 function formatIssues(error: z.ZodError): string {
-  return error.issues.map((issue) => `  ${issue.path.join(".") || "(root)"}: ${issue.message}`).join("\n");
+  return error.issues
+    .map((issue) => `  ${issue.path.join(".") || "(root)"}: ${issue.message}`)
+    .join("\n");
 }

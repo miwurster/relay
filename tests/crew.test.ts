@@ -110,7 +110,13 @@ describe("createCrew", () => {
       },
     } as unknown as Sandbox;
 
-    const result = await createCrew({ sandbox, config, outputDir, workItem: issue.key, branch }).greenGate(1);
+    const result = await createCrew({
+      sandbox,
+      config,
+      outputDir,
+      workItem: issue.key,
+      branch,
+    }).greenGate(1);
 
     expect(result.green).toBe(true);
     expect(commands).toEqual([config.greenGate]);
@@ -140,7 +146,9 @@ describe("createCrew", () => {
       base: "abc1234",
     });
 
-    expect(findings).toEqual([{ source: "fastCodeReview", ticket: "PSD-8", summary: "src/a.ts:3 duplicated parsing" }]);
+    expect(findings).toEqual([
+      { source: "fastCodeReview", ticket: "PSD-8", summary: "src/a.ts:3 duplicated parsing" },
+    ]);
     expect(runs.map((run) => run.name)).toEqual(["fastCodeReview-PSD-8"]);
   });
 

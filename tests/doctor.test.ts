@@ -61,7 +61,12 @@ describe("runDoctorChecks", () => {
       docker: healthyDocker().docker,
     });
 
-    expect(checks.map((c) => c.name)).toEqual(["config", "secrets", "sandbox image", "docker daemon"]);
+    expect(checks.map((c) => c.name)).toEqual([
+      "config",
+      "secrets",
+      "sandbox image",
+      "docker daemon",
+    ]);
     expect(checks.every((c) => c.status === "ok")).toBe(true);
   });
 

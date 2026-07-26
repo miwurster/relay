@@ -47,7 +47,9 @@ export function pluginsFilePath(env: NodeJS.ProcessEnv = process.env): string {
  * A plugin relay cannot find is an operator setup problem, so all of them are
  * reported in one `ConfigError` rather than one per run.
  */
-export async function resolveSkillPlugins(env: NodeJS.ProcessEnv = process.env): Promise<SkillPlugin[]> {
+export async function resolveSkillPlugins(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<SkillPlugin[]> {
   const path = pluginsFilePath(env);
   const installed = await readInstalledPlugins(path);
 
@@ -67,7 +69,8 @@ export async function resolveSkillPlugins(env: NodeJS.ProcessEnv = process.env):
 
   if (missing.length > 0) {
     throw new ConfigError(
-      `Plugin(s) not installed: ${missing.join(", ")}. ` + `relay mounts their skills into the sandbox; install them first (see ${path}).`,
+      `Plugin(s) not installed: ${missing.join(", ")}. ` +
+        `relay mounts their skills into the sandbox; install them first (see ${path}).`,
     );
   }
   return plugins;
@@ -79,7 +82,9 @@ export async function resolveSkillPlugins(env: NodeJS.ProcessEnv = process.env):
  * — the file is Claude's, and it may grow fields relay knows nothing about.
  */
 const installedPluginsSchema = z.looseObject({
-  plugins: z.record(z.string(), z.array(z.looseObject({ installPath: z.string().min(1).optional() }))).default({}),
+  plugins: z
+    .record(z.string(), z.array(z.looseObject({ installPath: z.string().min(1).optional() })))
+    .default({}),
 });
 
 async function readInstalledPlugins(path: string): Promise<z.infer<typeof installedPluginsSchema>> {
@@ -87,7 +92,8 @@ async function readInstalledPlugins(path: string): Promise<z.infer<typeof instal
     return installedPluginsSchema.parse(JSON.parse(await readFile(path, "utf8")));
   } catch {
     throw new ConfigError(
-      `Could not read Claude's installed plugins at ${path}. ` + "relay mounts plugin skills from the host's Claude installation.",
+      `Could not read Claude's installed plugins at ${path}. ` +
+        "relay mounts plugin skills from the host's Claude installation.",
     );
   }
 }

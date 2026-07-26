@@ -33,11 +33,17 @@ function handing({ stdout = "", commits = [] as { sha: string }[] } = {}) {
 
 const tagged = (json: string) => `Handed over.\n<${HANDOVER_TAG}>${json}</${HANDOVER_TAG}>`;
 
-const published = tagged('{"mrUrl":"https://gitlab.com/kipu/qc/-/merge_requests/12","report":"PSD-7 is In Review."}');
+const published = tagged(
+  '{"mrUrl":"https://gitlab.com/kipu/qc/-/merge_requests/12","report":"PSD-7 is In Review."}',
+);
 
 const success: Outcome = { kind: "success" };
 const midBlock: Outcome = { kind: "mid-block", reason: "the gate is still red", hasWork: true };
-const midBlockWithoutWork: Outcome = { kind: "mid-block", reason: "blocked on the first ticket", hasWork: false };
+const midBlockWithoutWork: Outcome = {
+  kind: "mid-block",
+  reason: "blocked on the first ticket",
+  hasWork: false,
+};
 const earlyBail: Outcome = { kind: "early-bail", reason: "PSD-7 has no acceptance criteria" };
 
 let outputDir: string;
@@ -53,9 +59,9 @@ describe("createHandover", () => {
     await handover(success);
 
     expect(runs.map((run) => run.name)).toEqual(["handover"]);
-    expect(runs[0]?.agent.buildPrintCommand({ prompt: "", dangerouslySkipPermissions: true }).command).toContain(
-      `--model '${config.models.handover}'`,
-    );
+    expect(
+      runs[0]?.agent.buildPrintCommand({ prompt: "", dangerouslySkipPermissions: true }).command,
+    ).toContain(`--model '${config.models.handover}'`);
   });
 
   it("tells the leg which outcome it is handing over, and on what", async () => {

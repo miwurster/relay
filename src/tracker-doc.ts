@@ -31,7 +31,9 @@ export async function loadTrackerScope(repoRoot: string): Promise<TrackerScope> 
       repoLabel: setupConstant(doc, "Repo label"),
     },
     { projectKey: "Jira project key", repoLabel: "Repo label" },
-    (missing) => `${path} is missing its setup constant(s): ${missing.join(", ")}. ` + "Each must be a bullet with the value in backticks.",
+    (missing) =>
+      `${path} is missing its setup constant(s): ${missing.join(", ")}. ` +
+      "Each must be a bullet with the value in backticks.",
   );
 }
 

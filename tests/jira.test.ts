@@ -81,7 +81,9 @@ describe("search", () => {
     const url = requestedUrl(fetchMock);
     expect(url.pathname).toBe("/rest/api/3/search/jql");
     expect(url.searchParams.get("jql")).toBe("project = PSD");
-    expect(requestHeaders(fetchMock).get("authorization")).toBe(`Basic ${Buffer.from("relay@kipu-quantum.com:sa-token").toString("base64")}`);
+    expect(requestHeaders(fetchMock).get("authorization")).toBe(
+      `Basic ${Buffer.from("relay@kipu-quantum.com:sa-token").toString("base64")}`,
+    );
   });
 
   it("maps the fields selection gates on, keeping only real blockers", async () => {
@@ -107,7 +109,9 @@ describe("search", () => {
       body: {
         issues: [
           rawIssue("PSD-1", {
-            issuelinks: [{ type: relates, inwardIssue: { key: "PSD-9", fields: { status: status("new") } } }],
+            issuelinks: [
+              { type: relates, inwardIssue: { key: "PSD-9", fields: { status: status("new") } } },
+            ],
           }),
         ],
       },
@@ -124,7 +128,9 @@ describe("search", () => {
       body: {
         issues: [
           rawIssue("PSD-1", {
-            issuelinks: [{ type: renamed, inwardIssue: { key: "PSD-2", fields: { status: status("new") } } }],
+            issuelinks: [
+              { type: renamed, inwardIssue: { key: "PSD-2", fields: { status: status("new") } } },
+            ],
           }),
         ],
       },
@@ -144,7 +150,10 @@ describe("search", () => {
   });
 
   it("follows every page, so a long frontier is never truncated", async () => {
-    const fetchMock = stubFetch({ body: { issues: [rawIssue("PSD-1")], nextPageToken: "page-2" } }, { body: { issues: [rawIssue("PSD-2")] } });
+    const fetchMock = stubFetch(
+      { body: { issues: [rawIssue("PSD-1")], nextPageToken: "page-2" } },
+      { body: { issues: [rawIssue("PSD-2")] } },
+    );
 
     const issues = await createJiraClient(credentials).search("project = PSD");
 
@@ -161,7 +170,9 @@ describe("search", () => {
   it("surfaces an unexpected response shape as a JiraError", async () => {
     stubFetch({ body: { issues: [{ nope: true }] } });
 
-    await expect(createJiraClient(credentials).search("project = PSD")).rejects.toThrow(/Unexpected Jira response/);
+    await expect(createJiraClient(credentials).search("project = PSD")).rejects.toThrow(
+      /Unexpected Jira response/,
+    );
   });
 });
 

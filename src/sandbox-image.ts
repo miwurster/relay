@@ -19,11 +19,14 @@ export function resolveDockerfile(repoRoot: string, configured: string): string 
   const root = resolve(repoRoot);
   const path = resolve(root, configured);
   if (!path.startsWith(`${root}/`)) {
-    throw new ConfigError(`The sandbox dockerfile must live inside the repo, but ${configured} resolves to ${path}.`);
+    throw new ConfigError(
+      `The sandbox dockerfile must live inside the repo, but ${configured} resolves to ${path}.`,
+    );
   }
   if (dirname(path) === root) {
     throw new ConfigError(
-      `The sandbox dockerfile may not sit at the repo root (${configured}); ` + "put it in a subdirectory, e.g. docker/relay.Dockerfile.",
+      `The sandbox dockerfile may not sit at the repo root (${configured}); ` +
+        "put it in a subdirectory, e.g. docker/relay.Dockerfile.",
     );
   }
   if (!existsSync(path)) {
@@ -59,7 +62,18 @@ export async function resolveSandboxImage({
 
   const dockerfile = resolveDockerfile(repoRoot, config.dockerfile);
   const imageName = sandboxImageName(repoRoot);
-  await docker(["build", "--build-arg", `AGENT_UID=${uid}`, "--build-arg", `AGENT_GID=${gid}`, "--tag", imageName, "--file", dockerfile, repoRoot]);
+  await docker([
+    "build",
+    "--build-arg",
+    `AGENT_UID=${uid}`,
+    "--build-arg",
+    `AGENT_GID=${gid}`,
+    "--tag",
+    imageName,
+    "--file",
+    dockerfile,
+    repoRoot,
+  ]);
   return imageName;
 }
 
@@ -73,7 +87,13 @@ export type ImageSource = "host" | "registry";
  * run — docker pulls it when the sandbox starts — but a preflight that reports
  * an image nobody can pull as resolvable is worth nothing.
  */
-export async function verifyPrebuiltImage({ image, docker = runDocker }: { image: string; docker?: DockerRunner }): Promise<ImageSource> {
+export async function verifyPrebuiltImage({
+  image,
+  docker = runDocker,
+}: {
+  image: string;
+  docker?: DockerRunner;
+}): Promise<ImageSource> {
   try {
     await docker(["image", "inspect", "--format", "{{.Id}}", image]);
     return "host";

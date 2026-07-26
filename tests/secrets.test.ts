@@ -73,13 +73,17 @@ ANTHROPIC_API_KEY=api-key
 
   it("prefers the OAuth token over an API key when both are present", async () => {
     const home = await mkdtemp(join(tmpdir(), "relay-secrets-"));
-    const secrets = await loadSecrets(envWith({ XDG_CONFIG_HOME: home, ...complete, ANTHROPIC_API_KEY: "api-key" }));
+    const secrets = await loadSecrets(
+      envWith({ XDG_CONFIG_HOME: home, ...complete, ANTHROPIC_API_KEY: "api-key" }),
+    );
     expect(secrets.claude.variable).toBe("CLAUDE_CODE_OAUTH_TOKEN");
   });
 
   it("reports every missing secret at once", async () => {
     const home = await mkdtemp(join(tmpdir(), "relay-secrets-"));
-    const failure = loadSecrets(envWith({ XDG_CONFIG_HOME: home, ATLASSIAN_SA_EMAIL: "relay@kipu-quantum.com" }));
+    const failure = loadSecrets(
+      envWith({ XDG_CONFIG_HOME: home, ATLASSIAN_SA_EMAIL: "relay@kipu-quantum.com" }),
+    );
     await expect(failure).rejects.toThrow(ConfigError);
     await expect(failure).rejects.toThrow(/ATLASSIAN_SA_TOKEN/);
     await expect(failure).rejects.toThrow(/GITLAB_TOKEN/);
@@ -89,6 +93,8 @@ ANTHROPIC_API_KEY=api-key
   it("treats a blank value as missing", async () => {
     const home = await configHomeWith("GITLAB_TOKEN=   ");
     const { GITLAB_TOKEN: _blank, ...rest } = complete;
-    await expect(loadSecrets(envWith({ XDG_CONFIG_HOME: home, ...rest }))).rejects.toThrow(/GITLAB_TOKEN/);
+    await expect(loadSecrets(envWith({ XDG_CONFIG_HOME: home, ...rest }))).rejects.toThrow(
+      /GITLAB_TOKEN/,
+    );
   });
 });

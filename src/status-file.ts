@@ -16,7 +16,17 @@ interface RoleStatus {
  * worktree is thrown away once the pass ends and stdout scrolls past, so a
  * leg's answer is only inspectable if it lands on the host.
  */
-export async function writeStatusFile({ dir, status }: { dir: string; status: RoleStatus }): Promise<void> {
+export async function writeStatusFile({
+  dir,
+  status,
+}: {
+  dir: string;
+  status: RoleStatus;
+}): Promise<void> {
   await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, `${status.role}.status.json`), `${JSON.stringify(status, undefined, 2)}\n`, "utf8");
+  await writeFile(
+    join(dir, `${status.role}.status.json`),
+    `${JSON.stringify(status, undefined, 2)}\n`,
+    "utf8",
+  );
 }

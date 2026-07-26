@@ -112,7 +112,11 @@ function apiUrl(credentials: JiraCredentials, path: string, query?: Record<strin
  * A call as the service account. What a status means is the caller's, since
  * only the caller knows whether a 404 is a failure or an answer.
  */
-async function request(credentials: JiraCredentials, url: URL, init: RequestInit = {}): Promise<Response> {
+async function request(
+  credentials: JiraCredentials,
+  url: URL,
+  init: RequestInit = {},
+): Promise<Response> {
   const authorization = Buffer.from(`${credentials.email}:${credentials.token}`).toString("base64");
   const headers = new Headers({
     authorization: `Basic ${authorization}`,
@@ -174,7 +178,9 @@ function toIssue(raw: RawIssue): JiraIssue {
     labels: raw.fields.labels,
     isDone: isDone(raw.fields.status),
     blockedBy: raw.fields.issuelinks.flatMap((link) =>
-      link.inwardIssue && link.type.name === BLOCKS_LINK_TYPE ? [{ key: link.inwardIssue.key, isDone: isDone(link.inwardIssue.fields.status) }] : [],
+      link.inwardIssue && link.type.name === BLOCKS_LINK_TYPE
+        ? [{ key: link.inwardIssue.key, isDone: isDone(link.inwardIssue.fields.status) }]
+        : [],
     ),
   };
 }

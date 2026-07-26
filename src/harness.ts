@@ -1,4 +1,12 @@
-import type { Crew, Finding, FixTarget, Outcome, ReviewLens, ReviewScope, TicketRef } from "./crew.js";
+import type {
+  Crew,
+  Finding,
+  FixTarget,
+  Outcome,
+  ReviewLens,
+  ReviewScope,
+  TicketRef,
+} from "./crew.js";
 import { ExitCode } from "./exit-codes.js";
 import type { JiraIssue } from "./jira.js";
 
@@ -54,7 +62,10 @@ async function runLegs(crew: Crew, issue: JiraIssue): Promise<Outcome> {
  * the next one starts. A role that wants human input stops the loop as a
  * mid-block: relay hands the baton over rather than waiting for an answer.
  */
-async function implementTickets(crew: Crew, tickets: readonly TicketRef[]): Promise<Outcome | undefined> {
+async function implementTickets(
+  crew: Crew,
+  tickets: readonly TicketRef[],
+): Promise<Outcome | undefined> {
   for (const [index, ticket] of tickets.entries()) {
     const result = await crew.implement(ticket);
     if (result.kind === "needs-input") {
@@ -76,7 +87,11 @@ async function implementTickets(crew: Crew, tickets: readonly TicketRef[]): Prom
  * and detaches, merges and deletes its branch afterwards, so two legs at once
  * race on the same refs and misattribute each other's commits.
  */
-async function reviewAndFix(crew: Crew, lenses: readonly ReviewLens[], scope: ReviewScope): Promise<void> {
+async function reviewAndFix(
+  crew: Crew,
+  lenses: readonly ReviewLens[],
+  scope: ReviewScope,
+): Promise<void> {
   const findings: Finding[] = [];
   for (const lens of lenses) findings.push(...(await crew.review(lens, scope)));
   if (findings.length > 0) await crew.fix(findings, fixTargetFor(scope));

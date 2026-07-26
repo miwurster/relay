@@ -4,7 +4,12 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { relayConfigSchema } from "../src/config.js";
 import { ConfigError, SandboxError } from "../src/errors.js";
-import { resolveDockerfile, resolveSandboxImage, sandboxImageName, verifyPrebuiltImage } from "../src/sandbox-image.js";
+import {
+  resolveDockerfile,
+  resolveSandboxImage,
+  sandboxImageName,
+  verifyPrebuiltImage,
+} from "../src/sandbox-image.js";
 
 const config = (overrides: Record<string, unknown> = {}) =>
   relayConfigSchema.parse({
@@ -37,7 +42,9 @@ function fakeDocker(answers: string[] = []) {
 describe("resolveDockerfile", () => {
   it("resolves the configured path against the repo root", async () => {
     const root = await repoWithDockerfile("docker/relay.Dockerfile");
-    expect(resolveDockerfile(root, "docker/relay.Dockerfile")).toBe(join(root, "docker/relay.Dockerfile"));
+    expect(resolveDockerfile(root, "docker/relay.Dockerfile")).toBe(
+      join(root, "docker/relay.Dockerfile"),
+    );
   });
 
   it("refuses a dockerfile at the repo root", async () => {
@@ -47,7 +54,9 @@ describe("resolveDockerfile", () => {
 
   it("refuses a dockerfile path that escapes the repo", async () => {
     const root = await repoWithDockerfile("docker/relay.Dockerfile");
-    expect(() => resolveDockerfile(root, "../elsewhere/relay.Dockerfile")).toThrow(/inside the repo/);
+    expect(() => resolveDockerfile(root, "../elsewhere/relay.Dockerfile")).toThrow(
+      /inside the repo/,
+    );
   });
 
   it("rejects a dockerfile that does not exist", async () => {

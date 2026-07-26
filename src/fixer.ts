@@ -37,7 +37,15 @@ interface FixLeg {
  * same job: a merged list of findings over the branch as it stands. Only the
  * leg's name, the scope it is told, and its model differ.
  */
-export function createFixer({ sandbox, config, outputDir }: { sandbox: Sandbox; config: RelayConfig; outputDir: string }): Crew["fix"] {
+export function createFixer({
+  sandbox,
+  config,
+  outputDir,
+}: {
+  sandbox: Sandbox;
+  config: RelayConfig;
+  outputDir: string;
+}): Crew["fix"] {
   return async function fix(findings: readonly Finding[], target: FixTarget): Promise<void> {
     const leg = describeLeg(target, config);
 

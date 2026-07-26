@@ -4,7 +4,15 @@ import { describe, expect, it, vi } from "vitest";
 import { docker as dockerSandbox } from "@ai-hero/sandcastle/sandboxes/docker";
 import { relayConfigSchema } from "../src/config.js";
 import { DOCKER_SOCKET_PATH } from "../src/docker-host.js";
-import { ATLASSIAN_MCP_URL, atlassianMcpConfig, passBranch, sandboxEnv, sandboxMounts, sandboxOptions, writeMcpConfigDir } from "../src/sandbox.js";
+import {
+  ATLASSIAN_MCP_URL,
+  atlassianMcpConfig,
+  passBranch,
+  sandboxEnv,
+  sandboxMounts,
+  sandboxOptions,
+  writeMcpConfigDir,
+} from "../src/sandbox.js";
 import type { Secrets } from "../src/secrets.js";
 
 // The real provider resolves mounts against the host filesystem, which a unit
@@ -17,7 +25,9 @@ const secrets: Secrets = {
   claude: { variable: "CLAUDE_CODE_OAUTH_TOKEN", token: "claude-token" },
 };
 
-const plugins = [{ name: "kipu-all", hostPath: "/host/kipu-all", sandboxPath: "/opt/relay/plugins/kipu-all" }];
+const plugins = [
+  { name: "kipu-all", hostPath: "/host/kipu-all", sandboxPath: "/opt/relay/plugins/kipu-all" },
+];
 
 const config = (defaultBranch = "main") =>
   relayConfigSchema.parse({
@@ -108,7 +118,9 @@ describe("sandboxOptions", () => {
 
   it("initialises submodules in the worktree before anything builds", () => {
     const options = optionsFor("main");
-    expect(options.hooks?.host?.onWorktreeReady).toEqual([{ command: "git submodule update --init --recursive" }]);
+    expect(options.hooks?.host?.onWorktreeReady).toEqual([
+      { command: "git submodule update --init --recursive" },
+    ]);
   });
 
   it("runs the resolved image with the socket group, mounts and env", () => {

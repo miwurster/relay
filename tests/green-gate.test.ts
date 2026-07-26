@@ -27,7 +27,14 @@ interface GateRun {
  * A sandbox whose gate command has a fixed result and whose triage run has a
  * fixed stdout. `git status --porcelain` answers the read-only check.
  */
-function gating({ stdout = "", stderr = "", exitCode, triage = "", commits = [], dirt = "" }: GateRun) {
+function gating({
+  stdout = "",
+  stderr = "",
+  exitCode,
+  triage = "",
+  commits = [],
+  dirt = "",
+}: GateRun) {
   const commands: string[] = [];
   const runs: SandboxRunOptions[] = [];
   const sandbox = {
@@ -49,7 +56,8 @@ const taggedTriage = (json: string) => `Had a look.\n<${GATE_TAG}>${json}</${GAT
 
 const redTriage = taggedTriage('{"detail":"OrderTest.rejectsEmptyCart fails: cart is never null"}');
 
-const commandOf = (run: SandboxRunOptions | undefined) => run?.agent.buildPrintCommand({ prompt: "", dangerouslySkipPermissions: true }).command;
+const commandOf = (run: SandboxRunOptions | undefined) =>
+  run?.agent.buildPrintCommand({ prompt: "", dangerouslySkipPermissions: true }).command;
 
 let outputDir: string;
 

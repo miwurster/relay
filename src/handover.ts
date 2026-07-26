@@ -97,11 +97,19 @@ function describeLeg(outcome: Outcome): HandoverLeg {
   }
 }
 
-function enforceMergeRequestRule(leg: HandoverLeg, kind: Outcome["kind"], mrUrl: string | undefined): void {
+function enforceMergeRequestRule(
+  leg: HandoverLeg,
+  kind: Outcome["kind"],
+  mrUrl: string | undefined,
+): void {
   if (leg.mergeRequest === "required" && !mrUrl) {
-    throw new RoleError(`handover reported a ${kind} pass with committed work but no merge request.`);
+    throw new RoleError(
+      `handover reported a ${kind} pass with committed work but no merge request.`,
+    );
   }
   if (leg.mergeRequest === "forbidden" && mrUrl) {
-    throw new RoleError(`handover opened ${mrUrl} for a ${kind} pass on an empty branch, which gets no merge request.`);
+    throw new RoleError(
+      `handover opened ${mrUrl} for a ${kind} pass on an empty branch, which gets no merge request.`,
+    );
   }
 }
