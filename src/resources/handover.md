@@ -19,6 +19,10 @@ Assume none of it.
 
 Do the one section that matches **{{OUTCOME}}**, and nothing from the other two.
 
+A merge request is **{{MERGE_REQUEST}}** for this pass — relay worked that out from what the pass committed, and holds you to it.
+Never decide it yourself from the branch.
+`required` means your run has not done its job until one is open; `forbidden` means the branch has nothing worth publishing and opening one is an error.
+
 ### success
 
 The branch is green and reviewable.
@@ -31,12 +35,10 @@ The branch is green and reviewable.
 
 The pass started but could not finish.
 
-1. Push the branch and open the merge request with the `kipu-all:kipu-mr` skill — the sandbox is thrown away after you, so unpushed work is lost work.
-2. Turn that merge request into a **draft**: `glab mr update {{BRANCH}} --draft`.
-3. Leave {{WORK_ITEM_KEY}} where it is, add the `agent-blocked` label to it, and comment the cause above plus what a human has to decide.
-
-A pass that blocked on its first ticket has no commits at all.
-Then skip steps 1 and 2 — there is nothing to publish and an empty merge request is noise — do step 3, and say so in your report.
+1. When a merge request is `required`: push the branch and open it with the `kipu-all:kipu-mr` skill — the sandbox is thrown away after you, so unpushed work is lost work.
+   Then turn it into a **draft**: `glab mr update {{BRANCH}} --draft`.
+   When it is `forbidden` the pass blocked before it committed anything, so there is nothing to push: skip this step and say so in your report.
+2. Leave {{WORK_ITEM_KEY}} where it is, add the `agent-blocked` label to it, and comment the cause above plus what a human has to decide.
 
 ### early-bail
 

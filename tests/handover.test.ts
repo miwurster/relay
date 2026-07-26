@@ -72,10 +72,21 @@ describe("createHandover", () => {
     expect(runs[0]?.promptArgs).toEqual({
       OUTCOME: "success",
       REASON: "The green gate is green.",
+      MERGE_REQUEST: "required",
       WORK_ITEM_KEY: workItem,
       BRANCH: branch,
       TRACKER_DOC: TRACKER_DOC_PATH,
     });
+  });
+
+  it("tells the leg the merge request rule relay will judge it by", async () => {
+    const { handover, runs } = handing({
+      stdout: tagged('{"report":"PSD-7 blocked before it committed anything."}'),
+    });
+
+    await handover(midBlockWithoutWork);
+
+    expect(runs[0]?.promptArgs).toMatchObject({ MERGE_REQUEST: "forbidden" });
   });
 
   it("passes a blocked outcome's own reason on as the cause", async () => {

@@ -53,6 +53,9 @@ export function createHandover({
       promptArgs: {
         OUTCOME: outcome.kind,
         REASON: leg.cause,
+        // Told, never inferred: relay holds the leg to this below, so the leg
+        // has to be reading the same verdict relay is about to judge it on.
+        MERGE_REQUEST: leg.mergeRequest,
         WORK_ITEM_KEY: workItem,
         BRANCH: branch,
         TRACKER_DOC: TRACKER_DOC_PATH,
@@ -82,6 +85,9 @@ interface HandoverLeg {
    * it got done: a branch carrying committed tickets owes the human a draft
    * merge request, while a block on the first ticket has an empty branch and
    * pushing that would open the same empty merge request an early bail is spared.
+   *
+   * The leg is told this rather than working it out from the branch, so the
+   * instruction it followed and the rule it is judged by are the same fact.
    */
   mergeRequest: "required" | "forbidden";
 }
