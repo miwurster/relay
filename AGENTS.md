@@ -1,3 +1,5 @@
+# AGENTS.md
+
 ## Code Principles
 
 These apply to **every** change — trivial or complex.
@@ -7,20 +9,6 @@ These apply to **every** change — trivial or complex.
 - Self-documented names and code.
 - Small functions.
 - Follow single responsibility principle in classes and functions.
-
-## Verifying
-
-`npm run verify` — typecheck, ESLint, Prettier, tests.
-It is the green gate for this repo, so a change is not done until it exits zero.
-`npm run format` and `npm run lint:code:fix` fix what is mechanically fixable.
-
-Never silence a lint rule to get to green.
-If a rule is genuinely wrong for this repo, turn it off in `eslint.config.ts` with a comment saying why.
-Inline suppression is a last resort and takes exactly one form, never file-wide and never bare:
-
-```ts
-// eslint-disable-next-line @typescript-eslint/no-unsafe-call -- <reason>
-```
 
 ## Karpathy rules
 
@@ -63,6 +51,20 @@ Define success criteria. Loop until verified.
 - Turn tasks into verifiable goals: "Fix the bug" becomes "Write a test that reproduces it, then make it pass".
 - For multi-step work, state a brief plan with a verify check per step.
 - Strong success criteria let you loop independently; weak ones ("make it work") need constant clarification.
+
+## Verifying
+
+`npm run verify` — typecheck, ESLint, Prettier, tests.
+It is the green gate for this repo, so a change is not done until it exits zero.
+`npm run format` and `npm run lint:code:fix` fix what is mechanically fixable.
+
+Never silence a lint rule to get to green.
+If a rule is genuinely wrong for this repo, turn it off in `eslint.config.ts` with a comment saying why.
+Inline suppression is a last resort and takes exactly one form, never file-wide and never bare:
+
+```ts
+// eslint-disable-next-line @typescript-eslint/no-unsafe-call -- <reason>
+```
 
 ## Markdown style
 

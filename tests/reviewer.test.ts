@@ -163,7 +163,7 @@ describe("createReviewer", () => {
     expect(runs[0]?.prompt).toContain("{{TRACKER_DOC}}");
   });
 
-  it("names each run for the lens and what it read, so concurrent runs stay apart", async () => {
+  it("names each run for the lens and what it read, so each lens gets its own findings file", async () => {
     const { review, runs } = reviewing(taggedFindings("[]"));
 
     await review("fastCodeReview", ticketScope);

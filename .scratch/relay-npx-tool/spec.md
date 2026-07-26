@@ -51,13 +51,13 @@ The pilot target is **qc-catalog** (Java 21 / Maven). Generalization to other re
 14. As a developer, I want each ticket implemented by a fresh implementer subagent under TDD, so that every ticket gets test-first, focused work in a clean session.
 15. As a developer, I want the implementer to use a custom prompt derived from the lean `implement` method (minus its review line), so that review is a separate role, not folded into implementation.
 16. As a developer, I want the implementer to self-commit its ticket, so that progress is captured in git without a separate commit role.
-17. As a developer, I want a fast code review and a fast spec review to run concurrently on each ticket, so that both maintainability and spec-compliance are checked quickly per ticket.
+17. As a developer, I want a fast code review and a fast spec review to run over each ticket, so that both maintainability and spec-compliance are checked per ticket.
 18. As a developer, I want a fixer to address the per-ticket review findings, so that issues are resolved before moving to the next ticket.
 19. As a developer, I want tickets processed sequentially on one branch in one sandbox, so that the work forms a single coherent chain.
 
 ### The pass — whole-branch review & gate
 
-20. As a developer, I want a whole-branch in-depth code review and spec review to run once (concurrently) after all tickets, so that the branch is checked as a whole, not just per ticket.
+20. As a developer, I want a whole-branch in-depth code review and spec review to run once after all tickets, so that the branch is checked as a whole, not just per ticket.
 21. As a developer, I want a fixer to address whole-branch review findings once, so that cross-ticket issues are resolved.
 22. As a developer, I want a quality-gate role that runs the repo's green-gate command and triages the result, so that the branch is verified against real tests.
 23. As a developer, I want the quality-gate → fixer loop capped at 2 iterations, so that relay converges or gives up rather than looping forever.
@@ -68,9 +68,9 @@ The pilot target is **qc-catalog** (Java 21 / Maven). Generalization to other re
 
 26. As a developer, I want the TypeScript harness to own the orchestration loop, so that each role is a real spawnable subagent rather than an inline rubric inside one umbrella agent.
 27. As a developer, I want each role to run as a separate sandbox run in its own cold session, sharing only files and git, so that roles stay focused and independent.
-28. As a developer, I want the two review lenses to run concurrently as read-only roles, so that reviews are fast and can't interfere with each other.
+28. As a developer, I want the two review lenses to run one after another as read-only roles, so that they cannot interfere with each other or with the branch they read.
 29. As a developer, I want findings passed between roles via per-role status/findings files and branch commits, so that handoff is inspectable and file-based.
-30. As a developer, I want the harness to array-merge findings and the fixer to dedup them, so that overlapping findings from concurrent reviewers are handled cleanly.
+30. As a developer, I want the harness to array-merge findings and the fixer to dedup them, so that overlapping findings from two independent reviewers are handled cleanly.
 
 ### Handover & outcomes
 
@@ -127,12 +127,13 @@ The pilot target is **qc-catalog** (Java 21 / Maven). Generalization to other re
 
 - **The TypeScript harness owns the loop.** The planner runs one-shot (ensures In Progress, emits an ordered `Output.object` plan of ticket refs), then the harness iterates. The rejected alternative was a persistent-planner agent — it would rebuild kipu-afk's umbrella.
 - **One sandbox / one branch / sequential tickets.** Each role is a separate `sandbox.run` with its own cold session, sharing only files and git.
-- **Per ticket:** implementer (custom prompt = `implement` method minus review line; self-commits via kipu-commit) → fast code review ∥ fast spec review (concurrent, read-only) → fixer.
-- **Whole branch, once:** in-depth code review ∥ spec review (concurrent) → fixer.
+- **Per ticket:** implementer (custom prompt = `implement` method minus review line; self-commits via kipu-commit) → fast code review then fast spec review (read-only) → fixer.
+- **Whole branch, once:** in-depth code review then spec review (read-only) → fixer.
 - **Then:** quality-gate (runs green-gate command, triages) → fixer, looped with a **cap of 2**.
 - **No dedicated commit role** — commit folds into implementer/fixer.
-- **Reviews run once** (subjective); **only the gate loops** (objective). The harness array-merges findings from concurrent reviewers; the fixer dedups.
+- **Reviews run once** (subjective); **only the gate loops** (objective). The harness array-merges findings from both reviewers; the fixer dedups.
 - **Handoff** = per-role status files under an output dir + findings files + branch commits.
+- **Revised during implementation:** the lenses of a scope were planned to run concurrently and now run sequentially — the legs share one worktree. See [ADR-0002](../../docs/adr/0002-one-sandbox-one-branch-sequential-legs.md) for the reasoning and what the lost parallelism costs.
 
 ### Work-item selection & planner (ticket 03)
 
@@ -168,7 +169,7 @@ The pilot target is **qc-catalog** (Java 21 / Maven). Generalization to other re
   - `relay.config.ts` (repo root, typed/zod, read by the TS harness): green-gate command, default branch, image ref, dockerfile path, URL env-var defaults. No secrets — resolved from `~/.config/relay/.env` / env per ticket 04.
   - `docs/agents/issue-tracker.md` (read by the in-sandbox agent): tracker access, repo label, relation model, issue-type mapping.
 - **Green gate = explicit command string**; relay is build-tool-agnostic (runs it, reads exit code). **Final gate = all tests except e2e** (migration + integration are IN — the image must run those tiers).
-- **Package defaults (overridable):** branch prefix / 45m timeout / **per-role model map** — implementer + fixer + MR: sonnet (escalating to opus); fast review: opus; in-depth review: fable; quality-gate: sonnet; planner: opus. (Deltas vs. kipu-afk map: no `commit` role; quality-gate haiku→sonnet.)
+- **Package defaults (overridable):** branch prefix / 45m timeout / **per-role model map** — implementer + fixer + MR: sonnet; fast review: opus; in-depth review: fable; quality-gate: sonnet; planner: opus. **Escalation to opus is the fixer's alone**, on the second and later attempt of the gate loop — that loop is the pass's one retried leg, so implementer and MR have nothing to escalate on. (Deltas vs. kipu-afk map: no `commit` role; quality-gate haiku→sonnet.)
 - **No GitLab coordinates** — glab / kipu-mr derive from the remote.
 - **Validation:** a `relay doctor` command (full opt-in check, including a docker-socket check per ticket 09). A real run does cheap fail-fast only (config parse + secrets → exit 2); deep failures are lazy but still exit 2.
 
@@ -218,7 +219,7 @@ Three injectable seams sit beneath the CLI process boundary (a single CLI-proces
 
 1. **Jira client interface (Seam 1 — pure).** Work-item selection + type guard (ticket 03) against a fake Jira client. Assert: auto-pick JQL narrowed to Story / Bug / Vulnerability; Task-as-param rejected (exit 2); priority DESC / created ASC ordering; explicit-key held to the same gates; under-spec bail. No sandbox, no network.
 
-2. **Orchestration harness loop (Seam 2 — topology).** The harness loop (tickets 07, 12) with `sandbox.run` stubbed per role + a fake Jira client. Assert: planner-then-iterate; sequential tickets; concurrent review lenses; gate → fixer loop capped at 2; exit-code mapping (0 / 1 / 2); crash → exit 2 + item left In Progress + sandbox disposed; branch collision → refuse, exit 2; findings array-merge + dedup. This is where failure/recovery semantics are proven.
+2. **Orchestration harness loop (Seam 2 — topology).** The harness loop (tickets 07, 12) with `sandbox.run` stubbed per role + a fake Jira client. Assert: planner-then-iterate; sequential tickets; sequential review lenses; gate → fixer loop capped at 2; exit-code mapping (0 / 1 / 2); crash → exit 2 + item left In Progress + sandbox disposed; branch collision → refuse, exit 2; findings array-merge + dedup. This is where failure/recovery semantics are proven.
 
 3. **Config + doctor (Seam 3 — edges).** `relay.config.ts` load via jiti + zod (tickets 06, 08): parse, validate, fail-fast exit 2 on bad config / missing secrets. `relay doctor` checks including the docker-socket check (ticket 09).
 

@@ -15,6 +15,7 @@ _Avoid_: run, session, job
 **Leg**:
 One run of one **role** inside a pass, and the unit of work handed from role to role.
 Every leg is a **cold session** over the shared worktree.
+Legs run strictly one after another — they share that worktree, so two at once would race on its refs.
 _Avoid_: step, stage, phase
 
 **Cold session**:

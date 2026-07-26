@@ -11,7 +11,7 @@ These are the findings, as JSON — each one line of what a reviewer or the gree
 {{FINDINGS}}
 ```
 
-They are the merge of roles that ran concurrently over the same code, so one problem may appear in the list more than once, in different words.
+They are the merge of independent roles that read the same code, so one problem may appear in the list more than once, in different words.
 Collapse those into one fix — judge that by reading the code they point at, not by comparing their wording — and never change the same thing twice.
 
 ## 2. Fix them
