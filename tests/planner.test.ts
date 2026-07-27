@@ -7,6 +7,7 @@ import { relayConfigSchema } from "../src/config.js";
 import { RoleError } from "../src/errors.js";
 import type { GitHubIssue } from "../src/github.js";
 import { createPlanner, PLAN_TAG } from "../src/planner.js";
+import { readResource } from "../src/resources.js";
 import { TRACKER_DOC_PATH } from "../src/tracker-doc.js";
 
 const config = relayConfigSchema.parse({
@@ -108,5 +109,50 @@ describe("createPlanner", () => {
     expect(run?.prompt).toContain("{{WORK_ITEM}}");
     expect(run?.prompt).toContain("{{TRACKER_DOC}}");
     expect(run?.prompt).toContain(`<${PLAN_TAG}>`);
+  });
+});
+
+/**
+ * The planner's behaviour lives in its prompt, so what the prompt instructs is
+ * the only thing there is to assert about the plan's shape.
+ */
+describe("the planner prompt", () => {
+  let prompt: string;
+
+  beforeEach(async () => {
+    prompt = await readResource("planner.md");
+  });
+
+  it("sends the planner to the tracker doc first, assuming none of it", () => {
+    expect(prompt).toMatch(/Read `\{\{TRACKER_DOC\}\}`[\s\S]*before you touch the tracker/);
+    expect(prompt).toContain("Assume none of it.");
+  });
+
+  it("makes the item's sub-issues the tickets, in dependency order", () => {
+    expect(prompt).toMatch(/sub-issues[\s\S]*ordered so that every ticket comes after/);
+  });
+
+  it("plans a childless item as its own single ticket", () => {
+    expect(prompt).toMatch(/No sub-issues[\s\S]*as a single ticket/);
+  });
+
+  it("leaves closed sub-issues out of the plan", () => {
+    expect(prompt).toMatch(/Leave out the closed ones/);
+  });
+
+  it("makes the one tracker write an idempotent `agent-in-progress` label", () => {
+    expect(prompt).toMatch(/Label \{\{WORK_ITEM\}\} `agent-in-progress`/);
+    expect(prompt).toMatch(/already[\s\S]*is normal and is not an error/);
+    expect(prompt).toContain("This label is the only tracker write you make.");
+  });
+
+  it("still bails, naming the ticket and what is missing", () => {
+    expect(prompt).toContain("Name the ticket and what is missing.");
+  });
+
+  it("has no issue-type mapping and no transitions left in it", () => {
+    expect(prompt).not.toMatch(/issue.type/i);
+    expect(prompt).not.toMatch(/transition/i);
+    expect(prompt).not.toMatch(/In Progress/);
   });
 });

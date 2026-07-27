@@ -27,12 +27,13 @@ const planSchema = z.discriminatedUnion("kind", [
 ]);
 
 /**
- * The real planner: one cold agent run that ensures the item is In Progress and
- * resolves it into the ordered tickets the rest of the pass implements.
+ * The real planner: one cold agent run that labels the item `agent-in-progress`
+ * and resolves it into the ordered tickets the rest of the pass implements —
+ * its open sub-issues, or the item itself when it has none.
  *
- * Everything tracker-shaped — access, repo label, relation model, issue types —
- * comes from the repo's own `docs/agents/issue-tracker.md`, which the prompt
- * sends the planner to read first, so relay hardcodes no tracker assumptions.
+ * The repo's own conventions — tracker access and its relation model — come from
+ * `docs/agents/issue-tracker.md`, which the prompt sends the planner to read
+ * first, so relay hardcodes nothing about how this repo expresses them.
  */
 export function createPlanner({
   sandbox,

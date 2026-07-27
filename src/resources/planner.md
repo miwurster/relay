@@ -10,32 +10,26 @@ Read `{{TRACKER_DOC}}` in this worktree before you touch the tracker.
 It is your only source for:
 
 - **Tracker access** — which tracker this repo uses, and the tool it is reached with.
-- **Repo label** — what scopes an issue to this repo.
-- **Relation model** — how "blocks / is blocked by" is expressed here, and how a ticket says which work item it belongs to.
-- **Issue-type mapping** — which type is a work item and which is an implementable ticket.
+- **Relation model** — how "blocks / is blocked by" and how the parent-child relation are expressed here.
 
 Assume none of it.
 If the doc does not tell you something you need, that is an under-specified plan: bail (step 4).
 
-## 2. Ensure {{WORK_ITEM}} is In Progress
+## 2. Label {{WORK_ITEM}} `agent-in-progress`
 
-Ensure, do not set.
-Read the item's current status and its available transitions, then:
+Apply the label; do not remove any other.
+An earlier run may have crashed after labelling, so finding the label already on the item is normal and is not an error — applying it twice changes nothing.
+This label is the only tracker write you make.
 
-- Already In Progress — do nothing.
-- Otherwise — take the transition from that item's own transitions list that lands it In Progress.
+## 3. Verify and order the sub-issues a human already wrote
 
-Transition ids are per-project, so never hardcode one.
-An earlier run may have crashed after transitioning; finding the item already In Progress is normal and is not an error.
-This transition is the only tracker write you make.
+The plan is {{WORK_ITEM}}'s sub-issues, under the relation model the doc describes.
 
-## 3. Verify and order the tickets that already exist
+- **Sub-issues exist** — the plan is those sub-issues, ordered so that every ticket comes after the tickets it is blocked by.
+  Leave out the closed ones: they are already done.
+- **No sub-issues** — the plan is {{WORK_ITEM}} itself, as a single ticket.
 
-Find the implementable tickets that already exist for {{WORK_ITEM}}, under the relation model the doc describes.
-
-- **Tickets exist** — the plan is those tickets, ordered so that every ticket comes after the tickets it is blocked by.
-  Leave out the ones that are already done.
-- **None exist** — the plan is {{WORK_ITEM}} itself, as a single ticket.
+An item with a whole tree of sub-issues is the ordinary multi-ticket case, not something to refuse.
 
 You verify and order.
 You never author, slice, split or invent a ticket, and you never create one in the tracker.
@@ -60,5 +54,5 @@ A plan:
 A bail:
 
 <relay-plan>
-{"kind": "under-specified", "reason": "ABC-123 has no acceptance criteria and no described change"}
+{"kind": "under-specified", "reason": "#123 has no acceptance criteria and no described change"}
 </relay-plan>
