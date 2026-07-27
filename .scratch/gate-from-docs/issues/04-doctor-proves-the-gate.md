@@ -8,13 +8,13 @@ The check reaches the resolver through an injectable probe, alongside the existi
 
 **Blocked by:** 03.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Doctor reports a gate check naming the resolved command and where it came from.
-- [ ] A declared gate is reported as ok; an inferred one as a warning.
-- [ ] A warning prints distinctly from ok and from failed, and on its own leaves doctor's exit code at 0.
-- [ ] A failed config, secrets or image check leaves the gate check skipped rather than crashing the run, and the checks after it still report.
-- [ ] The probe is injectable in the same shape as the existing docker and `gh` runners, and no test opens a sandbox.
-- [ ] The default probe disposes of its sandbox and deletes its own branch, so doctor can be run twice in a row.
-- [ ] The probe never uses a pass branch name.
-- [ ] `npm run verify` exits zero.
+- [x] Doctor reports a gate check naming the resolved command and where it came from.
+- [x] A declared gate is reported as ok; an inferred one as a warning.
+- [x] A warning prints distinctly from ok and from failed, and on its own leaves doctor's exit code at 0.
+- [x] A failed config, secrets or image check leaves the gate check skipped rather than crashing the run, and the checks after it still report.
+- [x] The probe is injectable in the same shape as the existing docker and `gh` runners, and no test opens a sandbox.
+- [x] The default probe disposes of its sandbox and deletes its own branch, so doctor can be run twice in a row.
+- [x] The probe never uses a pass branch name.
+- [x] `npm run verify` exits zero.

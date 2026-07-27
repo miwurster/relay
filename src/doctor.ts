@@ -2,6 +2,8 @@ import { CONFIG_FILE_NAME, loadConfig, type RelayConfig } from "./config.js";
 import { ConfigError } from "./errors.js";
 import { ExitCode } from "./exit-codes.js";
 import { type DockerRunner, dockerDaemonVersionInSandbox, runDocker } from "./docker-host.js";
+import type { ResolvedGate } from "./crew.js";
+import { type GateProbe, probeGate } from "./gate-probe.js";
 import { type GhRunner, ghAuthStatus, ghVersion, runGh } from "./github.js";
 import { resolveSandboxImage, verifyPrebuiltImage } from "./sandbox-image.js";
 import { loadSecrets } from "./secrets.js";
@@ -12,16 +14,20 @@ import {
   WORKTREE_DIR,
 } from "./worktree-dir.js";
 
-/** Why the daemon check cannot run when an earlier check failed. */
+/** Why the daemon and gate checks cannot run when an earlier check failed. */
 const NO_IMAGE = "no sandbox image to run the check in";
 
 /**
- * One preflight check's verdict. `skipped` is for a check whose prerequisite
- * failed — a sandbox image cannot be resolved without a config that parsed.
+ * One preflight check's verdict.
+ *
+ * `skipped` is for a check whose prerequisite failed — a sandbox image cannot
+ * be resolved without a config that parsed. `warning` is for a setup relay can
+ * run against but had to guess at, which is imperfect rather than broken, and
+ * so is worth saying out loud without failing the run.
  */
 export interface DoctorCheck {
   name: string;
-  status: "ok" | "failed" | "skipped";
+  status: "ok" | "warning" | "failed" | "skipped";
   detail: string;
 }
 
@@ -30,6 +36,7 @@ export interface DoctorOptions {
   env?: NodeJS.ProcessEnv;
   docker?: DockerRunner;
   gh?: GhRunner;
+  probe?: GateProbe;
 }
 
 /**
@@ -61,6 +68,7 @@ export async function runDoctorChecks({
   env = process.env,
   docker = runDocker,
   gh = runGh,
+  probe = probeGate,
 }: DoctorOptions = {}): Promise<DoctorCheck[]> {
   const checks: DoctorCheck[] = [];
 
@@ -78,7 +86,7 @@ export async function runDoctorChecks({
     () => `${GITIGNORE_FILE_NAME} ignores \`${WORKTREE_DIR}/\``,
   );
 
-  await record(
+  const secrets = await record(
     checks,
     "secrets",
     () => loadSecrets(env),
@@ -105,6 +113,7 @@ export async function runDoctorChecks({
 
   if (!config) {
     skip(checks, "sandbox image", `no valid ${CONFIG_FILE_NAME} to read the image from`);
+    skip(checks, "gate", `no valid ${CONFIG_FILE_NAME} to open a sandbox from`);
     skip(checks, "docker daemon", NO_IMAGE);
     return checks;
   }
@@ -117,8 +126,21 @@ export async function runDoctorChecks({
   );
 
   if (!image) {
+    skip(checks, "gate", NO_IMAGE);
     skip(checks, "docker daemon", NO_IMAGE);
     return checks;
+  }
+
+  if (secrets) {
+    await record(
+      checks,
+      "gate",
+      () => probe({ repoRoot, config, secrets }),
+      gateDetail,
+      (gate) => (gate.provenance === "declared" ? "ok" : "warning"),
+    );
+  } else {
+    skip(checks, "gate", "no credential to run the resolver's leg on");
   }
 
   await record(
@@ -180,18 +202,33 @@ async function resolvableImage({
 }
 
 /**
+ * The command a pass would verify this branch with, and where relay got it.
+ * A gate nobody declared still runs, so the operator is told rather than
+ * stopped — declaring it is how they make relay stop guessing.
+ */
+function gateDetail(gate: ResolvedGate): string {
+  if (gate.provenance === "declared") return `\`${gate.command}\` — declared in ${gate.source}`;
+  return (
+    `\`${gate.command}\` — no doc declares a gate, so relay inferred it from ${gate.source}. ` +
+    "Declare it in your docs to be sure a pass verifies what you verify."
+  );
+}
+
+/**
  * Run one check and record its verdict, handing back its value for the checks
- * that build on it — or `undefined` when it failed.
+ * that build on it — or `undefined` when it failed. A check that succeeded is
+ * `ok` unless `statusOf` grades its value otherwise.
  */
 async function record<T>(
   checks: DoctorCheck[],
   name: string,
   run: () => Promise<T>,
   describe: (value: T) => string,
+  statusOf: (value: T) => "ok" | "warning" = () => "ok",
 ): Promise<T | undefined> {
   try {
     const value = await run();
-    checks.push({ name, status: "ok", detail: describe(value) });
+    checks.push({ name, status: statusOf(value), detail: describe(value) });
     return value;
   } catch (error) {
     checks.push({ name, status: "failed", detail: reason(error) });
@@ -208,5 +245,5 @@ function reason(error: unknown): string {
 }
 
 function label(status: DoctorCheck["status"]): string {
-  return { ok: "  ok  ", failed: "FAILED", skipped: " skip " }[status];
+  return { ok: "  ok  ", warning: " warn ", failed: "FAILED", skipped: " skip " }[status];
 }

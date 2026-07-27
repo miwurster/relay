@@ -1,0 +1,121 @@
+import { join } from "node:path";
+import type { Sandbox } from "@ai-hero/sandcastle";
+import type { RelayConfig } from "./config.js";
+import type { ResolvedGate } from "./crew.js";
+import { createGateResolver } from "./gate-resolver.js";
+import { type GitRunner, runGit } from "./git.js";
+import { openSandbox } from "./sandbox.js";
+import type { Secrets } from "./secrets.js";
+
+/**
+ * Resolves the gate a pass would verify with, without being a pass. Injectable
+ * so no doctor test opens a sandbox or spends a session.
+ */
+export type GateProbe = (input: {
+  repoRoot: string;
+  config: RelayConfig;
+  secrets: Secrets;
+}) => Promise<ResolvedGate>;
+
+/**
+ * The branch the probe runs its one leg on. Named rather than numbered, so it
+ * can never be the branch of a pass — those are the prefix and an issue number.
+ */
+function probeBranch(config: RelayConfig): string {
+  return `${config.branchPrefix}doctor`;
+}
+
+/** Where on the host the probe's leg leaves its status file. */
+function doctorOutputDir(repoRoot: string): string {
+  return join(repoRoot, ".relay", "doctor");
+}
+
+/**
+ * The real probe: open a sandbox, run the gate resolver in it, and take the
+ * sandbox and its branch back down.
+ *
+ * The resolver is the pass's own first leg, so what doctor reports is what a
+ * pass would resolve — not a second implementation of the same reading.
+ */
+export async function probeGate({
+  repoRoot,
+  config,
+  secrets,
+  open = openSandbox,
+  git = runGit,
+}: Parameters<GateProbe>[0] & {
+  open?: typeof openSandbox;
+  git?: GitRunner;
+}): Promise<ResolvedGate> {
+  const branch = probeBranch(config);
+  let sandbox: Sandbox | undefined;
+  try {
+    sandbox = await open({ repoRoot, config, secrets, branch });
+    return await createGateResolver({
+      sandbox,
+      config,
+      outputDir: doctorOutputDir(repoRoot),
+    })();
+  } finally {
+    await dispose({ sandbox, repoRoot, branch, git });
+  }
+}
+
+/**
+ * Take the probe's sandbox and branch down, whatever the leg did.
+ *
+ * relay never deletes a branch, because a branch may carry commits worth a
+ * human's time. This one cannot: the probe's single leg is forbidden from
+ * committing, so the only real hazard is leaving it behind for the next doctor
+ * run to collide with — which is why the delete runs even when the close threw,
+ * and even when the sandbox never opened at all: an open that failed half way
+ * may still have cut the branch.
+ *
+ * Neither step may replace the failure that brought us here, so a cleanup that
+ * cannot finish is reported and swallowed.
+ */
+async function dispose({
+  sandbox,
+  repoRoot,
+  branch,
+  git,
+}: {
+  sandbox: Sandbox | undefined;
+  repoRoot: string;
+  branch: string;
+  git: GitRunner;
+}): Promise<void> {
+  try {
+    await sandbox?.close();
+  } catch (error) {
+    console.error("relay doctor: could not dispose of the gate probe's sandbox:", error);
+  }
+
+  await deleteBranch({ repoRoot, branch, git });
+}
+
+/**
+ * Delete the probe's branch, if it got as far as existing. The human who would
+ * have to remove a stubborn one by hand is told which branch it is.
+ */
+async function deleteBranch({
+  repoRoot,
+  branch,
+  git,
+}: {
+  repoRoot: string;
+  branch: string;
+  git: GitRunner;
+}): Promise<void> {
+  try {
+    await git(["-C", repoRoot, "show-ref", "--verify", "--quiet", `refs/heads/${branch}`]);
+  } catch {
+    return;
+  }
+
+  try {
+    await git(["-C", repoRoot, "branch", "-D", branch]);
+  } catch (error) {
+    console.error(`relay doctor: could not delete the gate probe's branch ${branch}:`, error);
+  }
+}

@@ -2,8 +2,10 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import type { ResolvedGate } from "../src/crew.js";
 import { type DoctorCheck, runDoctor, runDoctorChecks } from "../src/doctor.js";
 import { ExitCode } from "../src/exit-codes.js";
+import type { GateProbe } from "../src/gate-probe.js";
 
 const validConfig = `export default {
   defaultBranch: "main",
@@ -69,6 +71,33 @@ const missingGh = async () => {
   throw new Error("spawn gh ENOENT");
 };
 
+/**
+ * A probe answering with the gate it was given, recording the calls. No doctor
+ * test opens a sandbox or spends a session: the probe is the whole seam.
+ */
+function fakeProbe(gate: ResolvedGate) {
+  const calls: { repoRoot: string }[] = [];
+  const probe: GateProbe = async ({ repoRoot }) => {
+    calls.push({ repoRoot });
+    return gate;
+  };
+  return { probe, calls };
+}
+
+/** A repo that declares its gate in its own docs. */
+const declaredProbe = fakeProbe({
+  command: "npm run verify",
+  provenance: "declared",
+  source: "AGENTS.md, under Verifying",
+}).probe;
+
+/** A repo that declares nothing, leaving the resolver to guess. */
+const inferredProbe = fakeProbe({
+  command: "./mvnw verify",
+  provenance: "inferred",
+  source: "pom.xml is a Maven build",
+}).probe;
+
 function check(checks: readonly DoctorCheck[], name: string): DoctorCheck {
   const found = checks.find((candidate) => candidate.name === name);
   if (!found) throw new Error(`No ${name} check in ${checks.map((c) => c.name).join(", ")}`);
@@ -82,6 +111,7 @@ describe("runDoctorChecks", () => {
       env: await envWithSecrets(),
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
+      probe: declaredProbe,
     });
 
     expect(checks.map((c) => c.name)).toEqual([
@@ -91,6 +121,7 @@ describe("runDoctorChecks", () => {
       "gh installed",
       "gh authenticated",
       "sandbox image",
+      "gate",
       "docker daemon",
     ]);
     expect(checks.every((c) => c.status === "ok")).toBe(true);
@@ -102,6 +133,7 @@ describe("runDoctorChecks", () => {
       env: await envWithSecrets(),
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
+      probe: declaredProbe,
     });
 
     expect(check(checks, "sandbox image").detail).toContain("registry.example.com/relay:1");
@@ -117,6 +149,7 @@ describe("runDoctorChecks", () => {
       env,
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
+      probe: declaredProbe,
     });
 
     expect(check(checks, "secrets").status).toBe("failed");
@@ -133,6 +166,7 @@ describe("runDoctorChecks", () => {
       env: await envWithSecrets(),
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
+      probe: declaredProbe,
     });
 
     expect(check(checks, "worktree ignored").status).toBe("failed");
@@ -146,6 +180,7 @@ describe("runDoctorChecks", () => {
       env: await envWithSecrets(),
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
+      probe: declaredProbe,
     });
 
     expect(check(checks, "config").status).toBe("failed");
@@ -161,6 +196,7 @@ describe("runDoctorChecks", () => {
       env: await envWithSecrets(),
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
+      probe: declaredProbe,
     });
 
     expect(check(checks, "sandbox image").status).toBe("failed");
@@ -178,6 +214,7 @@ describe("runDoctorChecks", () => {
       env: await envWithSecrets(),
       docker,
       gh: healthyGh().gh,
+      probe: declaredProbe,
     });
 
     expect(check(checks, "sandbox image").status).toBe("failed");
@@ -197,6 +234,7 @@ describe("runDoctorChecks", () => {
       env: await envWithSecrets(),
       docker,
       gh: healthyGh().gh,
+      probe: declaredProbe,
     });
 
     expect(check(checks, "docker daemon").status).toBe("failed");
@@ -216,6 +254,7 @@ describe("runDoctorChecks", () => {
       env: await envWithSecrets(),
       docker,
       gh: healthyGh().gh,
+      probe: declaredProbe,
     });
 
     expect(check(checks, "sandbox image").status).toBe("ok");
@@ -228,6 +267,7 @@ describe("runDoctorChecks", () => {
       env: await envWithSecrets(),
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
+      probe: declaredProbe,
     });
 
     expect(check(checks, "gh installed").detail).toContain("2.62.0");
@@ -240,6 +280,7 @@ describe("runDoctorChecks", () => {
       env: await envWithSecrets(),
       docker: healthyDocker().docker,
       gh: missingGh,
+      probe: declaredProbe,
     });
 
     expect(check(checks, "gh installed").status).toBe("failed");
@@ -254,6 +295,7 @@ describe("runDoctorChecks", () => {
       env: await envWithSecrets(),
       docker: healthyDocker().docker,
       gh: unauthenticatedGh,
+      probe: declaredProbe,
     });
 
     expect(check(checks, "gh installed").status).toBe("ok");
@@ -268,6 +310,7 @@ describe("runDoctorChecks", () => {
       env: await envWithSecrets(),
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
+      probe: declaredProbe,
     });
 
     expect(check(checks, "gh installed").status).toBe("ok");
@@ -282,9 +325,118 @@ describe("runDoctorChecks", () => {
       env: await envWithSecrets(),
       docker: healthyDocker().docker,
       gh,
+      probe: declaredProbe,
     });
 
     expect(calls).toEqual([["--version"], ["auth", "status"]]);
+  });
+
+  it("names the command a pass will verify with, and the doc it was declared in", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(validConfig),
+      env: await envWithSecrets(),
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "gate").status).toBe("ok");
+    expect(check(checks, "gate").detail).toContain("npm run verify");
+    expect(check(checks, "gate").detail).toContain("AGENTS.md, under Verifying");
+  });
+
+  it("warns on a gate relay had to infer, and says what it inferred it from", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(validConfig),
+      env: await envWithSecrets(),
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: inferredProbe,
+    });
+
+    expect(check(checks, "gate").status).toBe("warning");
+    expect(check(checks, "gate").detail).toContain("./mvnw verify");
+    expect(check(checks, "gate").detail).toContain("pom.xml is a Maven build");
+  });
+
+  it("probes the repo doctor was pointed at", async () => {
+    const repoRoot = await repoWith(validConfig);
+    const { probe, calls } = fakeProbe({
+      command: "make test",
+      provenance: "declared",
+      source: "README.md",
+    });
+
+    await runDoctorChecks({
+      repoRoot,
+      env: await envWithSecrets(),
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe,
+    });
+
+    expect(calls).toEqual([{ repoRoot }]);
+  });
+
+  it("reports a probe that failed without stopping the checks after it", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(validConfig),
+      env: await envWithSecrets(),
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: async () => {
+        throw new Error("the resolver ended without a gate block");
+      },
+    });
+
+    expect(check(checks, "gate").status).toBe("failed");
+    expect(check(checks, "gate").detail).toContain("without a gate block");
+    expect(check(checks, "docker daemon").status).toBe("ok");
+  });
+
+  it("skips the gate check when the config it would open a sandbox from is invalid", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(`export default {};`),
+      env: await envWithSecrets(),
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "gate").status).toBe("skipped");
+    expect(check(checks, "docker daemon").status).toBe("skipped");
+  });
+
+  it("skips the gate check when a secret the resolver's leg needs is missing", async () => {
+    const env = await envWithSecrets();
+    delete env["CLAUDE_CODE_OAUTH_TOKEN"];
+
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(validConfig),
+      env,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "gate").status).toBe("skipped");
+    expect(check(checks, "docker daemon").status).toBe("ok");
+  });
+
+  it("skips the gate check when there is no image to run it in", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(`export default {
+        defaultBranch: "main",
+      };`),
+      env: await envWithSecrets(),
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "sandbox image").status).toBe("failed");
+    expect(check(checks, "gate").status).toBe("skipped");
+    expect(check(checks, "docker daemon").status).toBe("skipped");
   });
 });
 
@@ -295,6 +447,7 @@ describe("runDoctor", () => {
       env: await envWithSecrets(),
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
+      probe: declaredProbe,
     });
     expect(code).toBe(ExitCode.Success);
   });
@@ -308,6 +461,7 @@ describe("runDoctor", () => {
       env,
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
+      probe: declaredProbe,
     });
     expect(code).toBe(ExitCode.Error);
   });
@@ -318,6 +472,7 @@ describe("runDoctor", () => {
       env: await envWithSecrets(),
       docker: healthyDocker().docker,
       gh: unauthenticatedGh,
+      probe: declaredProbe,
     });
     expect(code).toBe(ExitCode.Error);
   });
@@ -330,6 +485,7 @@ describe("runDoctor", () => {
         env: await envWithSecrets(),
         docker: healthyDocker().docker,
         gh: healthyGh().gh,
+        probe: declaredProbe,
       });
       const printed = log.mock.calls.map((call) => String(call[0])).join("\n");
       for (const name of [
@@ -338,10 +494,43 @@ describe("runDoctor", () => {
         "gh installed",
         "gh authenticated",
         "sandbox image",
+        "gate",
         "docker daemon",
       ]) {
         expect(printed).toContain(name);
       }
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it("succeeds on an inferred gate — a guess is imperfect, not broken", async () => {
+    const code = await runDoctor({
+      repoRoot: await repoWith(validConfig),
+      env: await envWithSecrets(),
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: inferredProbe,
+    });
+    expect(code).toBe(ExitCode.Success);
+  });
+
+  it("prints a warning distinctly from an ok and from a failure", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await runDoctor({
+        repoRoot: await repoWith(validConfig),
+        env: await envWithSecrets(),
+        docker: healthyDocker().docker,
+        gh: healthyGh().gh,
+        probe: inferredProbe,
+      });
+      const gateLine = log.mock.calls
+        .map((call) => String(call[0]))
+        .find((line) => line.includes("gate:"));
+
+      expect(gateLine).toMatch(/warn/i);
+      expect(gateLine).not.toMatch(/\bok\b|FAILED/);
     } finally {
       log.mockRestore();
     }

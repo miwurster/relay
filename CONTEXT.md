@@ -157,4 +157,15 @@ _Avoid_: sandbox dockerfile, image recipe
 
 **Doctor**:
 The opt-in preflight that runs every setup check eagerly and reports them all, rather than failing on the first.
+A check it could not reach is skipped rather than failed, and one it can only warn about is a **warning**, which does not fail the run.
 _Avoid_: healthcheck, diagnostics
+
+**Warning**:
+A **doctor** check whose setup relay can run against but had to guess at — today, an `inferred` **provenance**.
+It prints apart from ok and from failed and leaves the exit code alone, because a gate no doc declares is imperfect, not broken.
+_Avoid_: soft failure, notice
+
+**Gate probe**:
+How **doctor** answers what a **pass** would verify with, without being a pass: it opens a **sandbox**, runs the **gate resolver** in it, and takes both the sandbox and its own branch back down.
+That branch is named off the configured prefix rather than numbered, so it is never a **pass branch** — which is what lets the probe delete it, the one exception to relay never deleting a branch.
+_Avoid_: gate check, doctor pass
