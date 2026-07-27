@@ -12,19 +12,19 @@ Carries two seams the next ticket builds on: a git runner injectable the way the
 
 **Blocked by:** 01.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `relay init` is a third flagless command beside `doctor`, dispatched through the existing CLI seam.
-- [ ] In a GitHub clone it writes `relay.config.ts` at the repo root carrying `greenGate` and `defaultBranch` and nothing else — defaults are not echoed back out.
-- [ ] The written config loads: running init in a temporary repo and then loading the result yields the detected gate and branch.
-- [ ] `defaultBranch` comes from the clone's default branch, falling back to the current branch when it is unset.
-- [ ] The gate is detected for all three languages — Maven from `pom.xml`, `uv` from `pyproject.toml`, and from `package.json` scripts preferring `verify`, then `ci`, then `test`.
-- [ ] A repo matching none of those, or a `package.json` with none of those scripts, gets the ticket-01 sentinel.
-- [ ] A detected gate is written with a comment marking it as detected and asking for confirmation.
-- [ ] Outside a git repo, or on a non-GitHub remote, init writes nothing and exits 2.
-- [ ] An existing `relay.config.ts` is kept, not overwritten, and reported as kept.
-- [ ] Init reports per-file verdicts as data, not only as printed text, so the behaviour is testable without scraping stdout.
-- [ ] Init stages and commits nothing.
-- [ ] Init prints what remains manual — confirm the gate, create the labels, provision `GH_TOKEN` — and names `relay doctor` as the next command.
-- [ ] Git is reached through an injected runner faked in tests, the way the docker and `gh` runners already are.
-- [ ] `npm run verify` exits zero.
+- [x] `relay init` is a third flagless command beside `doctor`, dispatched through the existing CLI seam.
+- [x] In a GitHub clone it writes `relay.config.ts` at the repo root carrying `greenGate` and `defaultBranch` and nothing else — defaults are not echoed back out.
+- [x] The written config loads: running init in a temporary repo and then loading the result yields the detected gate and branch.
+- [x] `defaultBranch` comes from the clone's default branch, falling back to the current branch when it is unset.
+- [x] The gate is detected for all three languages — Maven from `pom.xml`, `uv` from `pyproject.toml`, and from `package.json` scripts preferring `verify`, then `ci`, then `test`.
+- [x] A repo matching none of those, or a `package.json` with none of those scripts, gets the ticket-01 sentinel.
+- [x] A detected gate is written with a comment marking it as detected and asking for confirmation.
+- [x] Outside a git repo, or on a non-GitHub remote, init writes nothing and exits 2.
+- [x] An existing `relay.config.ts` is kept, not overwritten, and reported as kept.
+- [x] Init reports per-file verdicts as data, not only as printed text, so the behaviour is testable without scraping stdout.
+- [x] Init stages and commits nothing.
+- [x] Init prints what remains manual — confirm the gate, create the labels, provision `GH_TOKEN` — and names `relay doctor` as the next command.
+- [x] Git is reached through an injected runner faked in tests, the way the docker and `gh` runners already are.
+- [x] `npm run verify` exits zero.
