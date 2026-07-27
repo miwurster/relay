@@ -8,11 +8,11 @@ The checklist becomes: run `relay init`, confirm the detected **green gate**, th
 
 **Blocked by:** 02, 03.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The checklist opens with `relay init` and says which files it writes and which it never touches.
-- [ ] Confirming the detected green gate is its own explicit step, since nothing can verify that value.
-- [ ] The tracker doc, the four labels, and the token remain human steps, and the doc says why each one is.
-- [ ] The reference Dockerfile is described as the reference the templates follow, not as something to copy by hand.
-- [ ] The doc still ends at `relay doctor`.
-- [ ] `npm run verify` exits zero.
+- [x] The checklist opens with `relay init` and says which files it writes and which it never touches.
+- [x] Confirming the detected green gate is its own explicit step, since nothing can verify that value.
+- [x] The tracker doc, the four labels, and the token remain human steps, and the doc says why each one is.
+- [x] The reference Dockerfile is described as the reference the templates follow, not as something to copy by hand.
+- [x] The doc still ends at `relay doctor`.
+- [x] `npm run verify` exits zero.
