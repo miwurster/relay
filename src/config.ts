@@ -8,6 +8,14 @@ import { ConfigError } from "./errors.js";
 export const CONFIG_FILE_NAME = "relay.config.ts";
 
 /**
+ * What `relay init` writes as the `greenGate` when it could not detect one.
+ *
+ * The schema refuses it by name, so a setup nobody confirmed fails at load
+ * rather than running an unchosen command as the sole evidence for green.
+ */
+export const UNSET_GREEN_GATE = "<unset: relay init could not detect your green gate>";
+
+/**
  * The model each role runs on. Roles are the orchestration graph's roles; the
  * defaults are relay's, and a repo may override any of them.
  */
@@ -43,7 +51,14 @@ export const relayConfigSchema = z.strictObject({
    * analysis, and the migration and integration test tiers included — because
    * it is the only thing relay runs before it calls a branch green.
    */
-  greenGate: z.string().min(1),
+  greenGate: z
+    .string()
+    .min(1)
+    .refine((gate) => gate !== UNSET_GREEN_GATE, {
+      message:
+        "`relay init` left the green gate unset because it could not detect one — " +
+        "fill it in with the command that must pass before a branch is called green",
+    }),
   /** The branch a pass branches from. */
   defaultBranch: z.string().min(1),
   /** A prebuilt sandbox image; when absent relay builds from `dockerfile`. */

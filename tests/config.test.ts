@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ConfigError } from "../src/errors.js";
-import { loadConfig } from "../src/config.js";
+import { UNSET_GREEN_GATE, loadConfig } from "../src/config.js";
 
 const minimalConfig = `export default {
   greenGate: "./mvnw verify -DexcludedGroups=e2e",
@@ -78,6 +78,14 @@ describe("loadConfig", () => {
       githubToken: "shh",
     };`);
     await expect(loadConfig(root)).rejects.toThrow(ConfigError);
+  });
+
+  it("refuses the green-gate sentinel with a message naming init as its origin", async () => {
+    const root = await repoWith(`export default {
+      greenGate: ${JSON.stringify(UNSET_GREEN_GATE)},
+      defaultBranch: "main",
+    };`);
+    await expect(loadConfig(root)).rejects.toThrow(/relay init.*fill/is);
   });
 
   it("names a leftover jira block, so migrating a repo cannot half-succeed", async () => {

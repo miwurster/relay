@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { UNSET_GREEN_GATE } from "../src/config.js";
 import { type DoctorCheck, runDoctor, runDoctorChecks } from "../src/doctor.js";
 import { ExitCode } from "../src/exit-codes.js";
 
@@ -135,6 +136,23 @@ describe("runDoctorChecks", () => {
     expect(check(checks, "config").status).toBe("failed");
     expect(check(checks, "sandbox image").status).toBe("skipped");
     expect(check(checks, "docker daemon").status).toBe("skipped");
+  });
+
+  it("fails the config check on a gate init left unset, and still runs the rest", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(`export default {
+        greenGate: ${JSON.stringify(UNSET_GREEN_GATE)},
+        defaultBranch: "main",
+      };`),
+      env: await envWithSecrets(),
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+    });
+
+    expect(check(checks, "config").status).toBe("failed");
+    expect(check(checks, "config").detail).toMatch(/relay init/i);
+    expect(check(checks, "secrets").status).toBe("ok");
+    expect(check(checks, "gh installed").status).toBe("ok");
   });
 
   it("reports an unbuildable image and skips the daemon check that needs it", async () => {

@@ -10,10 +10,10 @@ Nothing writes the sentinel yet. This is the prefactor that makes init's undetec
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] A sentinel constant is exported from the config module for init to write later.
-- [ ] Loading a `relay.config.ts` whose `greenGate` is the sentinel fails with a message that names init as its origin and says to fill the gate in — not a generic schema error.
-- [ ] A config carrying any other non-empty gate still loads exactly as before.
-- [ ] Doctor reports a sentinel-carrying config as a failed config check, through its existing check rather than a new one, and still runs the checks that follow.
-- [ ] `npm run verify` exits zero.
+- [x] A sentinel constant is exported from the config module for init to write later.
+- [x] Loading a `relay.config.ts` whose `greenGate` is the sentinel fails with a message that names init as its origin and says to fill the gate in — not a generic schema error.
+- [x] A config carrying any other non-empty gate still loads exactly as before.
+- [x] Doctor reports a sentinel-carrying config as a failed config check, through its existing check rather than a new one, and still runs the checks that follow.
+- [x] `npm run verify` exits zero.
