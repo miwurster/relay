@@ -1,6 +1,7 @@
 import { CONFIG_FILE_NAME, loadConfig, type RelayConfig } from "./config.js";
 import { ExitCode } from "./exit-codes.js";
 import { type DockerRunner, dockerDaemonVersionInSandbox, runDocker } from "./docker-host.js";
+import { type GhRunner, ghAuthStatus, ghVersion, runGh } from "./github.js";
 import { resolveSandboxImage, verifyPrebuiltImage } from "./sandbox-image.js";
 import { loadSecrets } from "./secrets.js";
 
@@ -21,6 +22,7 @@ export interface DoctorOptions {
   repoRoot?: string;
   env?: NodeJS.ProcessEnv;
   docker?: DockerRunner;
+  gh?: GhRunner;
 }
 
 /**
@@ -51,6 +53,7 @@ export async function runDoctorChecks({
   repoRoot = process.cwd(),
   env = process.env,
   docker = runDocker,
+  gh = runGh,
 }: DoctorOptions = {}): Promise<DoctorCheck[]> {
   const checks: DoctorCheck[] = [];
 
@@ -67,6 +70,24 @@ export async function runDoctorChecks({
     () => loadSecrets(env),
     () => "every required secret resolves",
   );
+
+  const installedGh = await record(
+    checks,
+    "gh installed",
+    () => ghVersion(gh),
+    (version: string) => `${version} on this host's PATH`,
+  );
+
+  if (installedGh) {
+    await record(
+      checks,
+      "gh authenticated",
+      () => ghAuthStatus(gh),
+      (status: string) => loggedInLine(status),
+    );
+  } else {
+    skip(checks, "gh authenticated", "no `gh` on this host to ask for a credential");
+  }
 
   if (!config) {
     skip(checks, "sandbox image", `no valid ${CONFIG_FILE_NAME} to read the image from`);
@@ -94,6 +115,16 @@ export async function runDoctorChecks({
   );
 
   return checks;
+}
+
+/**
+ * The account line out of `gh auth status`, which names the host and login an
+ * operator has to recognise. Older `gh` releases print the status on stderr, so
+ * the detail must survive an empty stdout.
+ */
+function loggedInLine(status: string): string {
+  const line = status.split("\n").find((candidate) => /logged in to/i.test(candidate));
+  return line?.trim() ?? "`gh auth status` accepted this host's credential";
 }
 
 /**

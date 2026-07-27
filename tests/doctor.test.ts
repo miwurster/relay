@@ -44,6 +44,31 @@ function fakeDocker(answers: string[] = []) {
 /** A healthy host's answers: the image's id, the socket gid, the server version. */
 const healthyDocker = () => fakeDocker(["sha256:abc", "0", "29.6.2"]);
 
+/** Answers each `gh` invocation with a canned line, recording the calls. */
+function fakeGh(answers: string[] = []) {
+  const calls: string[][] = [];
+  const gh = async (args: readonly string[]) => {
+    calls.push([...args]);
+    return answers.shift() ?? "";
+  };
+  return { gh, calls };
+}
+
+/** A healthy host's `gh`: a version, then a logged-in auth status. */
+const healthyGh = () =>
+  fakeGh(["gh version 2.62.0 (2024-11-14)", "✓ Logged in to github.com account octocat"]);
+
+/** A `gh` that is on the PATH but has no valid credential. */
+const unauthenticatedGh = async (args: readonly string[]) => {
+  if (args[0] === "--version") return "gh version 2.62.0 (2024-11-14)";
+  throw new Error("You are not logged into any GitHub hosts. Run gh auth login to authenticate.");
+};
+
+/** A host with no `gh` at all: every invocation fails the way `execFile` does. */
+const missingGh = async () => {
+  throw new Error("spawn gh ENOENT");
+};
+
 function check(checks: readonly DoctorCheck[], name: string): DoctorCheck {
   const found = checks.find((candidate) => candidate.name === name);
   if (!found) throw new Error(`No ${name} check in ${checks.map((c) => c.name).join(", ")}`);
@@ -56,11 +81,14 @@ describe("runDoctorChecks", () => {
       repoRoot: await repoWith(validConfig),
       env: await envWithSecrets(),
       docker: healthyDocker().docker,
+      gh: healthyGh().gh,
     });
 
     expect(checks.map((c) => c.name)).toEqual([
       "config",
       "secrets",
+      "gh installed",
+      "gh authenticated",
       "sandbox image",
       "docker daemon",
     ]);
@@ -72,6 +100,7 @@ describe("runDoctorChecks", () => {
       repoRoot: await repoWith(validConfig),
       env: await envWithSecrets(),
       docker: healthyDocker().docker,
+      gh: healthyGh().gh,
     });
 
     expect(check(checks, "config").detail).toContain("./mvnw verify");
@@ -87,6 +116,7 @@ describe("runDoctorChecks", () => {
       repoRoot: await repoWith(validConfig),
       env,
       docker: healthyDocker().docker,
+      gh: healthyGh().gh,
     });
 
     expect(check(checks, "secrets").status).toBe("failed");
@@ -99,6 +129,7 @@ describe("runDoctorChecks", () => {
       repoRoot: await repoWith(`export default { greenGate: "" };`),
       env: await envWithSecrets(),
       docker: healthyDocker().docker,
+      gh: healthyGh().gh,
     });
 
     expect(check(checks, "config").status).toBe("failed");
@@ -114,6 +145,7 @@ describe("runDoctorChecks", () => {
       };`),
       env: await envWithSecrets(),
       docker: healthyDocker().docker,
+      gh: healthyGh().gh,
     });
 
     expect(check(checks, "sandbox image").status).toBe("failed");
@@ -130,6 +162,7 @@ describe("runDoctorChecks", () => {
       repoRoot: await repoWith(validConfig),
       env: await envWithSecrets(),
       docker,
+      gh: healthyGh().gh,
     });
 
     expect(check(checks, "sandbox image").status).toBe("failed");
@@ -148,6 +181,7 @@ describe("runDoctorChecks", () => {
       repoRoot: await repoWith(validConfig),
       env: await envWithSecrets(),
       docker,
+      gh: healthyGh().gh,
     });
 
     expect(check(checks, "docker daemon").status).toBe("failed");
@@ -163,10 +197,80 @@ describe("runDoctorChecks", () => {
     await writeFile(join(root, "docker/relay.Dockerfile"), "FROM scratch\n", "utf8");
     const { docker, calls } = healthyDocker();
 
-    const checks = await runDoctorChecks({ repoRoot: root, env: await envWithSecrets(), docker });
+    const checks = await runDoctorChecks({
+      repoRoot: root,
+      env: await envWithSecrets(),
+      docker,
+      gh: healthyGh().gh,
+    });
 
     expect(check(checks, "sandbox image").status).toBe("ok");
     expect(calls[0]?.[0]).toBe("build");
+  });
+
+  it("names the host's gh version and the account it is logged in as", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(validConfig),
+      env: await envWithSecrets(),
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+    });
+
+    expect(check(checks, "gh installed").detail).toContain("2.62.0");
+    expect(check(checks, "gh authenticated").detail).toContain("github.com");
+  });
+
+  it("reports a missing gh, skips the auth check, and still runs the docker checks", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(validConfig),
+      env: await envWithSecrets(),
+      docker: healthyDocker().docker,
+      gh: missingGh,
+    });
+
+    expect(check(checks, "gh installed").status).toBe("failed");
+    expect(check(checks, "gh installed").detail).toContain("PATH");
+    expect(check(checks, "gh authenticated").status).toBe("skipped");
+    expect(check(checks, "docker daemon").status).toBe("ok");
+  });
+
+  it("reports a present-but-unauthenticated gh as a failure of its own", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(validConfig),
+      env: await envWithSecrets(),
+      docker: healthyDocker().docker,
+      gh: unauthenticatedGh,
+    });
+
+    expect(check(checks, "gh installed").status).toBe("ok");
+    expect(check(checks, "gh authenticated").status).toBe("failed");
+    expect(check(checks, "gh authenticated").detail).toContain("gh auth login");
+    expect(check(checks, "docker daemon").status).toBe("ok");
+  });
+
+  it("reports the gh checks even when the config is invalid", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(`export default { greenGate: "" };`),
+      env: await envWithSecrets(),
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+    });
+
+    expect(check(checks, "gh installed").status).toBe("ok");
+    expect(check(checks, "gh authenticated").status).toBe("ok");
+  });
+
+  it("asks gh only what the two checks need", async () => {
+    const { gh, calls } = healthyGh();
+
+    await runDoctorChecks({
+      repoRoot: await repoWith(validConfig),
+      env: await envWithSecrets(),
+      docker: healthyDocker().docker,
+      gh,
+    });
+
+    expect(calls).toEqual([["--version"], ["auth", "status"]]);
   });
 });
 
@@ -176,6 +280,7 @@ describe("runDoctor", () => {
       repoRoot: await repoWith(validConfig),
       env: await envWithSecrets(),
       docker: healthyDocker().docker,
+      gh: healthyGh().gh,
     });
     expect(code).toBe(ExitCode.Success);
   });
@@ -188,6 +293,17 @@ describe("runDoctor", () => {
       repoRoot: await repoWith(validConfig),
       env,
       docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+    });
+    expect(code).toBe(ExitCode.Error);
+  });
+
+  it("exits with the error code when gh is not authenticated", async () => {
+    const code = await runDoctor({
+      repoRoot: await repoWith(validConfig),
+      env: await envWithSecrets(),
+      docker: healthyDocker().docker,
+      gh: unauthenticatedGh,
     });
     expect(code).toBe(ExitCode.Error);
   });
@@ -199,9 +315,17 @@ describe("runDoctor", () => {
         repoRoot: await repoWith(validConfig),
         env: await envWithSecrets(),
         docker: healthyDocker().docker,
+        gh: healthyGh().gh,
       });
       const printed = log.mock.calls.map((call) => String(call[0])).join("\n");
-      for (const name of ["config", "secrets", "sandbox image", "docker daemon"]) {
+      for (const name of [
+        "config",
+        "secrets",
+        "gh installed",
+        "gh authenticated",
+        "sandbox image",
+        "docker daemon",
+      ]) {
         expect(printed).toContain(name);
       }
     } finally {

@@ -9,10 +9,10 @@ It follows the existing pattern: run every check eagerly and report them all, so
 
 **Blocked by:** 02.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Doctor reports `gh` installed, and separately whether it is authenticated.
-- [ ] A missing or unauthenticated `gh` is a failed check with an actionable detail, and doctor exits non-zero without skipping later checks.
-- [ ] A healthy setup reports the `gh` check as ok alongside the rest.
-- [ ] The check is faked in tests the way the docker runner already is — no real `gh` invocation.
-- [ ] `npm run verify` exits zero.
+- [x] Doctor reports `gh` installed, and separately whether it is authenticated.
+- [x] A missing or unauthenticated `gh` is a failed check with an actionable detail, and doctor exits non-zero without skipping later checks.
+- [x] A healthy setup reports the `gh` check as ok alongside the rest.
+- [x] The check is faked in tests the way the docker runner already is — no real `gh` invocation.
+- [x] `npm run verify` exits zero.

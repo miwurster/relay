@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GitHubError } from "../src/errors.js";
-import { createGitHubClient } from "../src/github.js";
+import { createGitHubClient, ghAuthStatus, ghVersion } from "../src/github.js";
 
 /** Answers each `gh` invocation with the next canned stdout, recording the calls. */
 function fakeGh(answers: string[] = []) {
@@ -239,5 +239,36 @@ describe("dependency edges", () => {
       expect(args).not.toContain("api");
       expect(args.some((arg) => arg.includes("dependencies"))).toBe(false);
     }
+  });
+});
+
+describe("ghVersion", () => {
+  it("reports the version of the host's `gh`", async () => {
+    const { gh, calls } = fakeGh(["gh version 2.62.0 (2024-11-14)\nhttps://github.com/cli/cli"]);
+
+    await expect(ghVersion(gh)).resolves.toBe("gh version 2.62.0 (2024-11-14)");
+    expect(calls[0]).toEqual(["--version"]);
+  });
+
+  it("says how to install `gh` when the host has none", async () => {
+    await expect(ghVersion(failingGh("spawn gh ENOENT"))).rejects.toThrow(
+      /is not on this host's PATH/,
+    );
+  });
+});
+
+describe("ghAuthStatus", () => {
+  it("reports the host that `gh` is logged in to", async () => {
+    const { gh, calls } = fakeGh(["github.com\n  ✓ Logged in to github.com account octocat"]);
+
+    await expect(ghAuthStatus(gh)).resolves.toContain("Logged in to github.com");
+    expect(calls[0]).toEqual(["auth", "status"]);
+  });
+
+  it("says how to log in when `gh` has no valid credential", async () => {
+    const failing = failingGh("You are not logged into any GitHub hosts.");
+
+    await expect(ghAuthStatus(failing)).rejects.toThrow(/gh auth login/);
+    await expect(ghAuthStatus(failing)).rejects.toThrow(GitHubError);
   });
 });

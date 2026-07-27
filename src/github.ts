@@ -52,6 +52,41 @@ export const runGh: GhRunner = async (args) => {
 };
 
 /**
+ * The version of the host's `gh`, which proves the CLI is there at all.
+ *
+ * Separate from the credential check because a missing CLI and an expired
+ * login are different operator mistakes with different fixes.
+ */
+export async function ghVersion(gh: GhRunner = runGh): Promise<string> {
+  let output: string;
+  try {
+    output = await gh(["--version"]);
+  } catch (cause) {
+    throw new GitHubError(
+      "`gh` is not on this host's PATH, and relay resolves the work item through " +
+        `the GitHub CLI: ${reasonOf(cause)}. Install it — https://cli.github.com.`,
+    );
+  }
+  // `gh --version` follows the version with its release url.
+  return output.split("\n")[0]?.trim() ?? output;
+}
+
+/**
+ * What `gh auth status` says, which fails unless a credential is stored *and*
+ * GitHub still accepts it.
+ */
+export async function ghAuthStatus(gh: GhRunner = runGh): Promise<string> {
+  try {
+    return await gh(["auth", "status"]);
+  } catch (cause) {
+    throw new GitHubError(
+      `\`gh\` on this host has no credential GitHub accepts: ${reasonOf(cause)}. ` +
+        "Run `gh auth login`, or export a GH_TOKEN with repo access.",
+    );
+  }
+}
+
+/**
  * The label that marks an item as agent-grabbable. Never bypassed — the
  * frontier query filters on it and the eligibility check gates on it, so both
  * read the one constant rather than agreeing by coincidence.
