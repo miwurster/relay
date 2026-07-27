@@ -38,6 +38,7 @@ function recordingCrew(overrides: Partial<Crew> = {}) {
   const fixed: Finding[][] = [];
   const fixTargets: FixTarget[] = [];
   let handedOver: Outcome | undefined;
+  let handedOverTickets: readonly TicketRef[] = [];
 
   const crew: Crew = {
     async plan(): Promise<PlanResult> {
@@ -61,14 +62,22 @@ function recordingCrew(overrides: Partial<Crew> = {}) {
       calls.push("gate");
       return { green: true, detail: "green" };
     },
-    async handover(outcome): Promise<void> {
+    async handover(outcome, committed): Promise<void> {
       calls.push(`handover:${outcome.kind}`);
       handedOver = outcome;
+      handedOverTickets = committed;
     },
     ...overrides,
   };
 
-  return { crew, calls, fixed, fixTargets, handover: () => handedOver };
+  return {
+    crew,
+    calls,
+    fixed,
+    fixTargets,
+    handover: () => handedOver,
+    committed: () => handedOverTickets,
+  };
 }
 
 describe("runHarness", () => {
@@ -212,7 +221,7 @@ describe("runHarness", () => {
 
     const outcome = await runHarness(crew, issue);
 
-    expect(outcome).toEqual({ kind: "mid-block", reason: "still red", hasWork: true });
+    expect(outcome).toEqual({ kind: "mid-block", reason: "still red" });
     expect(calls.filter((call) => call === "fix")).toHaveLength(MAX_GATE_FIX_ATTEMPTS);
     expect(calls.at(-1)).toBe("handover:mid-block");
   });
@@ -232,7 +241,7 @@ describe("runHarness", () => {
   });
 
   it("collapses a role that needs input into a mid-block handover, never a pause", async () => {
-    const { crew, calls } = recordingCrew({
+    const { crew, calls, committed } = recordingCrew({
       async plan() {
         calls.push("plan");
         return { kind: "plan", tickets: [ticket(1), ticket(2)] };
@@ -245,16 +254,13 @@ describe("runHarness", () => {
 
     const outcome = await runHarness(crew, issue);
 
-    expect(outcome).toEqual({
-      kind: "mid-block",
-      reason: "which queue does this drain?",
-      hasWork: false,
-    });
+    expect(outcome).toEqual({ kind: "mid-block", reason: "which queue does this drain?" });
+    expect(committed()).toEqual([]);
     expect(calls).toEqual(["plan", "implement:1", "handover:mid-block"]);
   });
 
-  it("reports a block after an implemented ticket as work the handover has to publish", async () => {
-    const { crew } = recordingCrew({
+  it("hands the handover the tickets committed before a block, and no more", async () => {
+    const { crew, committed } = recordingCrew({
       async plan() {
         return { kind: "plan", tickets: [ticket(1), ticket(2)] };
       },
@@ -267,11 +273,32 @@ describe("runHarness", () => {
 
     const outcome = await runHarness(crew, issue);
 
-    expect(outcome).toEqual({
-      kind: "mid-block",
-      reason: "which queue does this drain?",
-      hasWork: true,
+    expect(outcome).toEqual({ kind: "mid-block", reason: "which queue does this drain?" });
+    expect(committed()).toEqual([ticket(1)]);
+  });
+
+  it("hands the handover every ticket of a pass that finished", async () => {
+    const { crew, committed } = recordingCrew({
+      async plan() {
+        return { kind: "plan", tickets: [ticket(1), ticket(2)] };
+      },
     });
+
+    await runHarness(crew, issue);
+
+    expect(committed()).toEqual([ticket(1), ticket(2)]);
+  });
+
+  it("hands an early bail over with no committed tickets", async () => {
+    const { crew, committed } = recordingCrew({
+      async plan() {
+        return { kind: "under-specified", reason: "no acceptance criteria" };
+      },
+    });
+
+    await runHarness(crew, issue);
+
+    expect(committed()).toEqual([]);
   });
 
   it("runs end to end on the stub crew", async () => {
@@ -287,7 +314,7 @@ describe("exitCodeFor", () => {
   });
 
   it("maps both blocked outcomes to the blocked code", () => {
-    expect(exitCodeFor({ kind: "mid-block", reason: "red", hasWork: true })).toBe(ExitCode.Blocked);
+    expect(exitCodeFor({ kind: "mid-block", reason: "red" })).toBe(ExitCode.Blocked);
     expect(exitCodeFor({ kind: "early-bail", reason: "thin" })).toBe(ExitCode.Blocked);
   });
 });

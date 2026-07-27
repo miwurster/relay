@@ -32,8 +32,8 @@ export const MAX_GATE_FIX_ATTEMPTS = 2;
  * handover call, so no outcome can skip it.
  */
 export async function runHarness(crew: Crew, issue: GitHubIssue): Promise<Outcome> {
-  const outcome = await runLegs(crew, issue);
-  await crew.handover(outcome);
+  const { outcome, committed } = await runLegs(crew, issue);
+  await crew.handover(outcome, committed);
   return outcome;
 }
 
@@ -42,38 +42,45 @@ export function exitCodeFor(outcome: Outcome): ExitCode {
   return outcome.kind === "success" ? ExitCode.Success : ExitCode.Blocked;
 }
 
-async function runLegs(crew: Crew, issue: GitHubIssue): Promise<Outcome> {
+/** How the legs ended, and the tickets the branch carries by then. */
+interface LegsResult {
+  outcome: Outcome;
+  committed: TicketRef[];
+}
+
+async function runLegs(crew: Crew, issue: GitHubIssue): Promise<LegsResult> {
   const plan = await crew.plan(issue);
   if (plan.kind === "under-specified") {
-    return { kind: "early-bail", reason: plan.reason };
+    return { outcome: { kind: "early-bail", reason: plan.reason }, committed: [] };
   }
 
-  const blocked = await implementTickets(crew, plan.tickets);
-  if (blocked) return blocked;
+  const { committed, blocked } = await implementTickets(crew, plan.tickets);
+  if (blocked) return { outcome: blocked, committed };
 
   await reviewAndFix(crew, WHOLE_BRANCH_LENSES, { kind: "branch", workItem: issue.number });
-  // Every ticket was implemented by now, so the branch carries work whenever
-  // the plan had a ticket at all.
-  return await driveGate(crew, plan.tickets.length > 0);
+  return { outcome: await driveGate(crew), committed };
 }
 
 /**
  * Implement each ticket in the planner's order, reviewing and fixing it before
  * the next one starts. A role that wants human input stops the loop as a
- * mid-block: relay hands the baton over rather than waiting for an answer.
+ * mid-block: relay hands the baton over rather than waiting for an answer, with
+ * whatever the earlier tickets already committed.
  */
 async function implementTickets(
   crew: Crew,
   tickets: readonly TicketRef[],
-): Promise<Outcome | undefined> {
-  for (const [index, ticket] of tickets.entries()) {
+): Promise<{ committed: TicketRef[]; blocked?: Outcome }> {
+  const committed: TicketRef[] = [];
+  for (const ticket of tickets) {
     const result = await crew.implement(ticket);
     if (result.kind === "needs-input") {
-      return { kind: "mid-block", reason: result.reason, hasWork: index > 0 };
+      return { committed, blocked: { kind: "mid-block", reason: result.reason } };
     }
+    committed.push(ticket);
     await reviewAndFix(crew, PER_TICKET_LENSES, { kind: "ticket", ticket, base: result.base });
   }
-  return undefined;
+  return { committed };
 }
 
 /**
@@ -102,13 +109,13 @@ function fixTargetFor(scope: ReviewScope): FixTarget {
 }
 
 /** Run the gate, handing each red verdict to the fixer until green or capped. */
-async function driveGate(crew: Crew, hasWork: boolean): Promise<Outcome> {
+async function driveGate(crew: Crew): Promise<Outcome> {
   let gate = await crew.greenGate(1);
   for (let attempt = 1; !gate.green && attempt <= MAX_GATE_FIX_ATTEMPTS; attempt++) {
     await crew.fix([gateFinding(gate.detail)], { kind: "gate", attempt });
     gate = await crew.greenGate(attempt + 1);
   }
-  return gate.green ? { kind: "success" } : { kind: "mid-block", reason: gate.detail, hasWork };
+  return gate.green ? { kind: "success" } : { kind: "mid-block", reason: gate.detail };
 }
 
 function gateFinding(detail: string): Finding {

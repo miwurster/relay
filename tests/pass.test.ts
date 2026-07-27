@@ -12,7 +12,7 @@ import { ConfigError, SandboxError } from "../src/errors.js";
 import { ExitCode } from "../src/exit-codes.js";
 import type { GitHubClient, GitHubIssue } from "../src/github.js";
 import { type PassRun, runPass, runPassOnItem } from "../src/pass.js";
-import type { RelaySandbox } from "../src/sandbox.js";
+
 import { createStubCrew } from "../src/stub-crew.js";
 import type { Secrets } from "../src/secrets.js";
 import { TRACKER_DOC_PATH } from "../src/tracker-doc.js";
@@ -106,6 +106,9 @@ const passConfig = relayConfigSchema.parse({
 function fakeGitHub() {
   const comments: { number: number; text: string }[] = [];
   const github: GitHubClient = {
+    async repository() {
+      return "kipu-quantum/relay";
+    },
     async frontier() {
       return [];
     },
@@ -122,12 +125,12 @@ function fakeGitHub() {
 /** A sandbox that records its disposal and never touches docker. */
 function fakeSandbox() {
   let closed = false;
-  const opened: RelaySandbox = {
-    sandbox: { branch: "agent/1" } as Sandbox,
+  const opened = {
+    branch: "agent/1",
     close: async () => {
       closed = true;
     },
-  };
+  } as unknown as Sandbox;
   return { open: async () => opened, wasClosed: () => closed };
 }
 
@@ -216,6 +219,17 @@ describe("runPassOnItem", () => {
     expect(sandbox.wasClosed()).toBe(true);
     expect(comments).toHaveLength(1);
     expect(comments[0]?.text).toMatch(/the sandbox died[\s\S]*left labelled `agent-in-progress`/);
+  });
+
+  it("tells the human on the item how to lift the hold a crash left behind", async () => {
+    const { github, comments } = fakeGitHub();
+
+    await expect(runOnePass({ github, createCrew: crashingCrew })).rejects.toThrow(
+      "the sandbox died",
+    );
+
+    expect(comments[0]?.text).toContain("git branch -D agent/1");
+    expect(comments[0]?.text).toContain("gh issue edit 1 --remove-label agent-in-progress");
   });
 
   it("comments too when the sandbox never opened", async () => {

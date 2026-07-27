@@ -165,7 +165,7 @@ describe("createCrew", () => {
     } as unknown as Sandbox;
     const crew = createCrew({ sandbox, config, outputDir, workItem: issue.number, branch });
 
-    await crew.handover({ kind: "success" });
+    await crew.handover({ kind: "success" }, [{ number: 8, summary: "the one ticket" }]);
 
     expect(runs.map((run) => run.name)).toEqual(["handover"]);
     expect(runs[0]?.promptArgs).toMatchObject({

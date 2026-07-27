@@ -32,8 +32,8 @@ export function createStubCrew(): Crew {
       return { green: true, detail: "stub gate is always green" };
     },
 
-    async handover(outcome) {
-      log("handover", `would hand over: ${outcome.kind}`);
+    async handover(outcome, committed) {
+      log("handover", `would hand over: ${outcome.kind}, closing ${committed.length} tickets`);
     },
   };
 }

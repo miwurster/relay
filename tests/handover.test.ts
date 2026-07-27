@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { Sandbox, SandboxRunOptions, SandboxRunResult } from "@ai-hero/sandcastle";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { relayConfigSchema } from "../src/config.js";
-import type { Outcome } from "../src/crew.js";
+import type { Outcome, TicketRef } from "../src/crew.js";
 import { RoleError } from "../src/errors.js";
 import { readResource } from "../src/resources.js";
 import { createHandover, HANDOVER_TAG } from "../src/handover.js";
@@ -38,13 +38,15 @@ const published = tagged(
 );
 
 const success: Outcome = { kind: "success" };
-const midBlock: Outcome = { kind: "mid-block", reason: "the gate is still red", hasWork: true };
-const midBlockWithoutWork: Outcome = {
-  kind: "mid-block",
-  reason: "blocked on the first ticket",
-  hasWork: false,
-};
+const midBlock: Outcome = { kind: "mid-block", reason: "the gate is still red" };
 const earlyBail: Outcome = { kind: "early-bail", reason: "#7 has no acceptance criteria" };
+
+/** What the pass committed: two tickets, or an empty branch. */
+const tickets: TicketRef[] = [
+  { number: 8, summary: "reject an empty cart" },
+  { number: 9, summary: "price the cart" },
+];
+const nothing: TicketRef[] = [];
 
 let outputDir: string;
 
@@ -56,7 +58,7 @@ describe("createHandover", () => {
   it("hands over in one leg, on the handover model", async () => {
     const { handover, runs } = handing({ stdout: published });
 
-    await handover(success);
+    await handover(success, tickets);
 
     expect(runs.map((run) => run.name)).toEqual(["handover"]);
     expect(
@@ -67,12 +69,13 @@ describe("createHandover", () => {
   it("tells the leg which outcome it is handing over, and on what", async () => {
     const { handover, runs } = handing({ stdout: published });
 
-    await handover(success);
+    await handover(success, tickets);
 
     expect(runs[0]?.promptArgs).toEqual({
       OUTCOME: "success",
       REASON: "The green gate is green.",
       PULL_REQUEST: "required",
+      COMMITTED_TICKETS: "#8, #9",
       WORK_ITEM: `#${workItem}`,
       BRANCH: branch,
       DEFAULT_BRANCH: config.defaultBranch,
@@ -80,12 +83,30 @@ describe("createHandover", () => {
     });
   });
 
+  it("names the committed tickets, which the leg cannot read out of the commits", async () => {
+    const { handover, runs } = handing({ stdout: published });
+
+    await handover(midBlock, [{ number: 8, summary: "reject an empty cart" }]);
+
+    expect(runs[0]?.promptArgs).toMatchObject({ COMMITTED_TICKETS: "#8" });
+  });
+
+  it("tells a leg with an empty branch that it committed nothing", async () => {
+    const { handover, runs } = handing({
+      stdout: tagged('{"report":"#7 needs acceptance criteria; nothing was built."}'),
+    });
+
+    await handover(earlyBail, nothing);
+
+    expect(runs[0]?.promptArgs).toMatchObject({ COMMITTED_TICKETS: "nothing" });
+  });
+
   it("tells the leg the pull request rule relay will judge it by", async () => {
     const { handover, runs } = handing({
       stdout: tagged('{"report":"#7 blocked before it committed anything."}'),
     });
 
-    await handover(midBlockWithoutWork);
+    await handover(midBlock, nothing);
 
     expect(runs[0]?.promptArgs).toMatchObject({ PULL_REQUEST: "forbidden" });
   });
@@ -93,7 +114,7 @@ describe("createHandover", () => {
   it("passes a blocked outcome's own reason on as the cause", async () => {
     const { handover, runs } = handing({ stdout: published });
 
-    await handover(midBlock);
+    await handover(midBlock, tickets);
 
     expect(runs[0]?.promptArgs).toMatchObject({
       OUTCOME: "mid-block",
@@ -105,7 +126,7 @@ describe("createHandover", () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     const { handover } = handing({ stdout: published });
 
-    await handover(success);
+    await handover(success, tickets);
 
     const printed = log.mock.calls.map((call) => call.join(" ")).join("\n");
     expect(printed).toContain("success");
@@ -119,7 +140,7 @@ describe("createHandover", () => {
     // judges it, so the report is the human's only record of that.
     const { handover } = handing({ stdout: tagged('{"report":"#7 is agent-in-review."}') });
 
-    await expect(handover(success)).rejects.toThrow(RoleError);
+    await expect(handover(success, tickets)).rejects.toThrow(RoleError);
 
     expect(log).toHaveBeenCalledWith(expect.stringContaining("#7 is agent-in-review."));
     log.mockRestore();
@@ -130,7 +151,7 @@ describe("createHandover", () => {
       stdout: tagged('{"report":"#7 needs acceptance criteria; nothing was built."}'),
     });
 
-    await handover(earlyBail);
+    await handover(earlyBail, nothing);
 
     expect(runs[0]?.promptArgs).toMatchObject({ OUTCOME: "early-bail" });
   });
@@ -138,7 +159,7 @@ describe("createHandover", () => {
   it("refuses a success that opened no pull request", async () => {
     const { handover } = handing({ stdout: tagged('{"report":"#7 is agent-in-review."}') });
 
-    await expect(handover(success)).rejects.toThrow(RoleError);
+    await expect(handover(success, tickets)).rejects.toThrow(RoleError);
   });
 
   it("lets a mid-block on an empty branch hand over without a pull request", async () => {
@@ -146,7 +167,7 @@ describe("createHandover", () => {
       stdout: tagged('{"report":"#7 blocked on its first ticket; nothing was committed."}'),
     });
 
-    await expect(handover(midBlockWithoutWork)).resolves.toBeUndefined();
+    await expect(handover(midBlock, nothing)).resolves.toBeUndefined();
   });
 
   it("refuses a mid-block that left committed tickets unpublished", async () => {
@@ -154,31 +175,31 @@ describe("createHandover", () => {
       stdout: tagged('{"report":"#7 blocked after two tickets; the branch was not pushed."}'),
     });
 
-    await expect(handover(midBlock)).rejects.toThrow(RoleError);
+    await expect(handover(midBlock, tickets)).rejects.toThrow(RoleError);
   });
 
   it("refuses a mid-block that opened a pull request on an empty branch", async () => {
     const { handover } = handing({ stdout: published });
 
-    await expect(handover(midBlockWithoutWork)).rejects.toThrow(RoleError);
+    await expect(handover(midBlock, nothing)).rejects.toThrow(RoleError);
   });
 
   it("refuses an early bail that opened a pull request on an empty branch", async () => {
     const { handover } = handing({ stdout: published });
 
-    await expect(handover(earlyBail)).rejects.toThrow(RoleError);
+    await expect(handover(earlyBail, nothing)).rejects.toThrow(RoleError);
   });
 
   it("refuses a handover that committed to the branch", async () => {
     const { handover } = handing({ stdout: published, commits: [{ sha: "c0ffee" }] });
 
-    await expect(handover(success)).rejects.toThrow(RoleError);
+    await expect(handover(success, tickets)).rejects.toThrow(RoleError);
   });
 
   it("leaves the leg's answer on the host, even when the leg broke its own rule", async () => {
     const { handover } = handing({ stdout: tagged('{"report":"#7 is agent-in-review."}') });
 
-    await expect(handover(success)).rejects.toThrow(RoleError);
+    await expect(handover(success, tickets)).rejects.toThrow(RoleError);
 
     const written = await readFile(join(outputDir, "handover.status.json"), "utf8");
     expect(JSON.parse(written)).toEqual({
@@ -191,7 +212,7 @@ describe("createHandover", () => {
   it("refuses a handover that reported nothing", async () => {
     const { handover } = handing({ stdout: "Pushed it." });
 
-    await expect(handover(success)).rejects.toThrow(RoleError);
+    await expect(handover(success, tickets)).rejects.toThrow(RoleError);
   });
 });
 
@@ -215,11 +236,10 @@ describe("the handover prompt", () => {
     expect(prompt).toContain("gh pr create --draft");
   });
 
-  it("closes each committed ticket and never a parent work item", () => {
-    expect(prompt).toMatch(/`Closes #<number>` line for \*\*each ticket the pass committed\*\*/);
-    expect(prompt).toMatch(
-      /Never write a closing keyword against \{\{WORK_ITEM\}\} when it is a parent/,
-    );
+  it("closes the tickets relay names, never a list the leg worked out itself", () => {
+    expect(prompt).toMatch(/`Closes` line for \*\*each ticket the pass committed\*\*/);
+    expect(prompt).toContain("The pass committed **{{COMMITTED_TICKETS}}**");
+    expect(prompt).toMatch(/Never work the list out yourself/);
   });
 
   it("swaps the held label for the state the outcome leaves the item in", () => {

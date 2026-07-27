@@ -1,7 +1,7 @@
 import type { Sandbox } from "@ai-hero/sandcastle";
 import { z } from "zod";
 import type { RelayConfig } from "./config.js";
-import type { Crew, Outcome } from "./crew.js";
+import type { Crew, Outcome, TicketRef } from "./crew.js";
 import { RoleError } from "./errors.js";
 import { runRole } from "./run-role.js";
 import { TRACKER_DOC_PATH } from "./tracker-doc.js";
@@ -40,8 +40,8 @@ export function createHandover({
   workItem: number;
   branch: string;
 }): Crew["handover"] {
-  return async function handover(outcome: Outcome): Promise<void> {
-    const leg = describeLeg(outcome);
+  return async function handover(outcome: Outcome, committed: readonly TicketRef[]): Promise<void> {
+    const leg = describeLeg(outcome, committed);
 
     const { prUrl, report } = await runRole({
       sandbox,
@@ -56,6 +56,9 @@ export function createHandover({
         // Told, never inferred: relay holds the leg to this below, so the leg
         // has to be reading the same verdict relay is about to judge it on.
         PULL_REQUEST: leg.pullRequest,
+        // Told too: the leg cannot read the ticket numbers back out of the
+        // commits, which carry no issue reference of their own.
+        COMMITTED_TICKETS: leg.committed,
         WORK_ITEM: `#${workItem}`,
         BRANCH: branch,
         DEFAULT_BRANCH: config.defaultBranch,
@@ -81,27 +84,24 @@ interface HandoverLeg {
   /** Why the pass ended where it did, in the words the tracker comment carries. */
   cause: string;
   /**
-   * Whether the outcome gets a pull request. A success always has commits to
-   * publish; an early bail never does. A mid-block goes either way on the work
-   * it got done: a branch carrying committed tickets owes the human a draft
-   * pull request, while a block on the first ticket has an empty branch and
-   * pushing that would open the same empty pull request an early bail is spared.
+   * Whether the outcome gets a pull request. A branch carrying committed
+   * tickets owes the human one; an empty branch — an early bail, or a block on
+   * the first ticket — has nothing to publish and opening one is an error.
    *
    * The leg is told this rather than working it out from the branch, so the
    * instruction it followed and the rule it is judged by are the same fact.
    */
   pullRequest: "required" | "forbidden";
+  /** The tickets the pull request closes, as the prompt names them. */
+  committed: string;
 }
 
-function describeLeg(outcome: Outcome): HandoverLeg {
-  switch (outcome.kind) {
-    case "success":
-      return { cause: "The green gate is green.", pullRequest: "required" };
-    case "mid-block":
-      return { cause: outcome.reason, pullRequest: outcome.hasWork ? "required" : "forbidden" };
-    case "early-bail":
-      return { cause: outcome.reason, pullRequest: "forbidden" };
-  }
+function describeLeg(outcome: Outcome, committed: readonly TicketRef[]): HandoverLeg {
+  return {
+    cause: outcome.kind === "success" ? "The green gate is green." : outcome.reason,
+    pullRequest: committed.length > 0 ? "required" : "forbidden",
+    committed: committed.map((ticket) => `#${ticket.number}`).join(", ") || "nothing",
+  };
 }
 
 function enforcePullRequestRule(

@@ -38,6 +38,24 @@ function json(value: unknown): string {
   return JSON.stringify(value);
 }
 
+describe("repository", () => {
+  it("asks `gh` what this clone's repository is", async () => {
+    const { gh, calls } = fakeGh([json({ nameWithOwner: "kipu-quantum/relay" })]);
+
+    await expect(createGitHubClient(gh).repository()).resolves.toBe("kipu-quantum/relay");
+
+    expect(calls[0]).toEqual(["repo", "view", "--json", "nameWithOwner"]);
+  });
+
+  it("names what it was doing when `gh` fails", async () => {
+    const gh = failingGh("not a git repository");
+
+    await expect(createGitHubClient(gh).repository()).rejects.toThrow(
+      /Could not read this clone's repository: not a git repository/,
+    );
+  });
+});
+
 describe("frontier", () => {
   it("asks for this repo's open ready-for-agent issues in one call", async () => {
     const { gh, calls } = fakeGh([json([])]);

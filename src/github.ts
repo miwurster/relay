@@ -32,6 +32,8 @@ export interface GitHubIssue {
  * one work item and comments on it, which keeps this seam small enough to fake.
  */
 export interface GitHubClient {
+  /** This clone's `owner/repo`, as `gh` infers it from the git remote. */
+  repository(): Promise<string>;
   /** This repo's frontier: open `ready-for-agent` issues, longest-waiting first. */
   frontier(): Promise<GitHubIssue[]>;
   /** One issue by number, or `undefined` when no such issue is visible. */
@@ -127,6 +129,13 @@ const NO_SUCH_ISSUE = /could not resolve to an issue/i;
 /** A GitHub client that shells out to `gh`. */
 export function createGitHubClient(gh: GhRunner = runGh): GitHubClient {
   return {
+    async repository() {
+      const output = await run("read this clone's repository", () =>
+        gh(["repo", "view", "--json", "nameWithOwner"]),
+      );
+      return parse(repositorySchema, output).nameWithOwner;
+    },
+
     async frontier() {
       const output = await run("list this repo's frontier", () =>
         gh([
@@ -181,6 +190,8 @@ async function run(description: string, call: () => Promise<string>): Promise<st
 function reasonOf(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
 }
+
+const repositorySchema = z.object({ nameWithOwner: z.string().min(1) });
 
 const stateSchema = z.enum(["OPEN", "CLOSED"]);
 

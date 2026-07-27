@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { SelectionError } from "../src/errors.js";
 import type { GitHubClient, GitHubIssue } from "../src/github.js";
-import { selectWorkItem, workItemNumber } from "../src/work-item.js";
+import { parseWorkItem, selectWorkItem } from "../src/work-item.js";
 
 function issue(overrides: Partial<GitHubIssue> = {}): GitHubIssue {
   return {
@@ -18,10 +18,16 @@ function blocker(overrides: Partial<GitHubIssue["blockedBy"][number]> = {}) {
   return { number: 3, repository: "kipu/qc-catalog", isOpen: true, ...overrides };
 }
 
+/** The repository the clone under test runs against. */
+const REPOSITORY = "kipu/qc-catalog";
+
 /** A fake standing in for the whole GitHub seam: no `gh`, no network. */
 function fakeGitHub(issues: GitHubIssue[]): GitHubClient & { frontierScans: number } {
   return {
     frontierScans: 0,
+    async repository() {
+      return REPOSITORY;
+    },
     async frontier() {
       this.frontierScans += 1;
       // Whatever the query answered, eligibility gates it: the query is only a
@@ -91,7 +97,7 @@ describe("an explicitly named item", () => {
   it("runs an item that passes every gate", async () => {
     const target = issue({ number: 7 });
 
-    const selection = await selectWorkItem(fakeGitHub([target]), 7);
+    const selection = await selectWorkItem(fakeGitHub([target]), { number: 7 });
 
     expect(selection).toEqual({ kind: "work-item", issue: target });
   });
@@ -99,37 +105,33 @@ describe("an explicitly named item", () => {
   it("never scans the frontier", async () => {
     const github = fakeGitHub([issue({ number: 7 })]);
 
-    await selectWorkItem(github, 7);
+    await selectWorkItem(github, { number: 7 });
 
     expect(github.frontierScans).toBe(0);
   });
 
   it.each([
     ["an untriaged item", { labels: [] }, /not labelled ready-for-agent/],
-    [
-      "a held item",
-      { labels: ["ready-for-agent", "agent-in-progress"] },
-      /already held.*agent-in-progress/,
-    ],
+    ["a held item", { labels: ["ready-for-agent", "agent-in-progress"] }, /is held by a pass/],
     ["a closed item", { isOpen: false }, /is closed/],
     ["a blocked item", { blockedBy: [blocker()] }, /blocked by kipu\/qc-catalog#3/],
   ])("breaks the pass on %s, naming the gate it failed", async (_name, overrides, reason) => {
     const github = fakeGitHub([issue({ number: 7, ...overrides })]);
 
-    await expect(selectWorkItem(github, 7)).rejects.toThrow(reason);
+    await expect(selectWorkItem(github, { number: 7 })).rejects.toThrow(reason);
   });
 
   it("honours a blocker in another repository", async () => {
     const other = blocker({ number: 4, repository: "kipu/other" });
     const github = fakeGitHub([issue({ number: 7, blockedBy: [other] })]);
 
-    await expect(selectWorkItem(github, 7)).rejects.toThrow(/blocked by kipu\/other#4/);
+    await expect(selectWorkItem(github, { number: 7 })).rejects.toThrow(/blocked by kipu\/other#4/);
   });
 
   it("ignores a closed blocker, so a finished dependency never holds work back", async () => {
     const target = issue({ number: 7, blockedBy: [blocker({ isOpen: false })] });
 
-    await expect(selectWorkItem(fakeGitHub([target]), 7)).resolves.toEqual({
+    await expect(selectWorkItem(fakeGitHub([target]), { number: 7 })).resolves.toEqual({
       kind: "work-item",
       issue: target,
     });
@@ -138,21 +140,55 @@ describe("an explicitly named item", () => {
   it("breaks the pass with a SelectionError, never a silent skip", async () => {
     const github = fakeGitHub([issue({ number: 7, labels: [] })]);
 
-    await expect(selectWorkItem(github, 7)).rejects.toBeInstanceOf(SelectionError);
+    await expect(selectWorkItem(github, { number: 7 })).rejects.toBeInstanceOf(SelectionError);
+  });
+
+  it("says how to lift a hold, since nothing removes the label after a crash", async () => {
+    const held = issue({ number: 7, labels: ["ready-for-agent", "agent-in-progress"] });
+
+    await expect(selectWorkItem(fakeGitHub([held]), { number: 7 })).rejects.toThrow(
+      /gh issue edit 7 --remove-label agent-in-progress/,
+    );
+  });
+
+  it("refuses a URL from another repository, rather than running this repo's issue", async () => {
+    const github = fakeGitHub([issue({ number: 7 })]);
+
+    await expect(selectWorkItem(github, { number: 7, repository: "kipu/other" })).rejects.toThrow(
+      /kipu\/other#7 is not in kipu\/qc-catalog/,
+    );
+  });
+
+  it("runs a URL naming this repository, whatever case it was pasted in", async () => {
+    const target = issue({ number: 7 });
+
+    await expect(
+      selectWorkItem(fakeGitHub([target]), { number: 7, repository: "Kipu/QC-Catalog" }),
+    ).resolves.toEqual({ kind: "work-item", issue: target });
   });
 
   it("breaks the pass on an unknown number", async () => {
-    await expect(selectWorkItem(fakeGitHub([]), 404)).rejects.toThrow(/#404 does not exist/);
+    await expect(selectWorkItem(fakeGitHub([]), { number: 404 })).rejects.toThrow(
+      /#404 does not exist/,
+    );
   });
 });
 
-describe("workItemNumber", () => {
+describe("parseWorkItem", () => {
   it.each([
     ["a bare number", "42"],
     ["a #-prefixed number", "#42"],
-    ["a full issue URL", "https://github.com/kipu/qc-catalog/issues/42"],
+    ["a full issue URL", `https://github.com/${REPOSITORY}/issues/42`],
   ])("resolves %s to the same item", (_form, argument) => {
-    expect(workItemNumber(argument)).toBe(42);
+    expect(parseWorkItem(argument).number).toBe(42);
+  });
+
+  it("keeps the repository a URL names, and leaves a bare number without one", () => {
+    expect(parseWorkItem(`https://github.com/${REPOSITORY}/issues/42`)).toEqual({
+      number: 42,
+      repository: REPOSITORY,
+    });
+    expect(parseWorkItem("42")).toEqual({ number: 42 });
   });
 
   it.each([
@@ -167,6 +203,6 @@ describe("workItemNumber", () => {
     "https://github.com/kipu/qc-catalog/pull/42",
     "https://example.com/kipu/qc-catalog/issues/42",
   ])("rejects %o before any tracker call", (argument) => {
-    expect(() => workItemNumber(argument)).toThrow(SelectionError);
+    expect(() => parseWorkItem(argument)).toThrow(SelectionError);
   });
 });

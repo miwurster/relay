@@ -21,12 +21,6 @@ const SUBMODULE_INIT = "git submodule update --init --recursive";
 
 const execFileAsync = promisify(execFile);
 
-/** An open sandbox and its teardown. */
-export interface RelaySandbox {
-  readonly sandbox: Sandbox;
-  close(): Promise<void>;
-}
-
 /**
  * What only the host can answer, resolved once per pass: which image to run,
  * how to reach the host daemon, and what to mount.
@@ -146,7 +140,7 @@ export async function openSandbox({
   config: RelayConfig;
   secrets: Secrets;
   branch: string;
-}): Promise<RelaySandbox> {
+}): Promise<Sandbox> {
   // Operator setup first: a plugin the host has not installed must not cost a
   // whole image build before it is reported.
   const plugins = await resolveSkillPlugins();
@@ -159,7 +153,7 @@ export async function openSandbox({
   await assertGhInSandbox({ image });
   const socketGid = await detectDockerSocketGid({ image });
 
-  const sandbox = await createSandbox(
+  return await createSandbox(
     sandboxOptions({
       repoRoot,
       config,
@@ -168,11 +162,4 @@ export async function openSandbox({
       host: { image, socketGid, testcontainersHost, plugins },
     }),
   );
-
-  return {
-    sandbox,
-    close: async () => {
-      await sandbox.close();
-    },
-  };
 }

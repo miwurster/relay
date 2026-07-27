@@ -29,10 +29,13 @@ gh pr create --title '<title>' --body '<body>'
 ```
 
 Title it for a human — what the branch changes, in one line.
-The body says what the pass built, and then carries one `Closes #<number>` line for **each ticket the pass committed**, which you read from `git log --oneline {{DEFAULT_BRANCH}}..{{BRANCH}}`.
+The body says what the pass built, and then carries one `Closes` line for **each ticket the pass committed**.
 
-Never write a closing keyword against {{WORK_ITEM}} when it is a parent — a ticket of this pass is one of its sub-issues, so closing the parent on merge would close it out from under its remaining children.
-Only when {{WORK_ITEM}} has no sub-issues is it itself the single ticket the pass committed, and only then does it get its own `Closes` line.
+The pass committed **{{COMMITTED_TICKETS}}** — relay tracked that as the tickets went in, so write a `Closes` line for exactly those and never for an issue that is not among them.
+Never work the list out yourself: the commits carry no issue number, and `git log` cannot tell you which ticket a commit was for.
+
+That list is also why no closing keyword ever lands on a parent by accident: when {{WORK_ITEM}} has sub-issues the tickets are those sub-issues, and closing the parent on merge would close it out from under its remaining children.
+{{WORK_ITEM}} appears in the list only when it has no sub-issues and is therefore the single ticket the pass committed.
 
 Now do the one outcome below that matches **{{OUTCOME}}**, and nothing from the other two.
 
@@ -74,7 +77,7 @@ Write the report the human reads in their terminal, as plain text lines — no J
 - the outcome and, when the pass did not succeed, its cause;
 - {{WORK_ITEM}} and the state you left it in;
 - the branch, and the pull request URL when there is one;
-- each ticket the branch committed, with its short SHA;
+- each ticket the branch committed, with its short SHA from `git log --oneline {{DEFAULT_BRANCH}}..{{BRANCH}}`;
 - the green gate's verdict.
 
 ## Output

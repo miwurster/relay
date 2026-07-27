@@ -70,13 +70,13 @@ export type FixTarget =
  * How the pass ended, and therefore which handover it gets.
  *
  * `early-bail` is the planner refusing an under-specified item before any work
- * happened; `mid-block` is work that started but could not be finished. A
- * mid-block carries whether any ticket was implemented before it blocked,
- * because that is what decides whether there is anything to publish.
+ * happened; `mid-block` is work that started but could not be finished. What
+ * there is to publish is not part of the outcome: the handover is handed the
+ * committed tickets themselves.
  */
 export type Outcome =
   | { kind: "success" }
-  | { kind: "mid-block"; reason: string; hasWork: boolean }
+  | { kind: "mid-block"; reason: string }
   | { kind: "early-bail"; reason: string };
 
 /**
@@ -94,7 +94,12 @@ export interface Crew {
    * is, so the pass's repeated gate legs stay apart in its logs.
    */
   greenGate(attempt: number): Promise<GateResult>;
-  handover(outcome: Outcome): Promise<void>;
+  /**
+   * Hand the baton over. `committed` is the tickets whose change the branch
+   * carries, in the order they were implemented — what the pull request closes,
+   * and what decides whether there is a pull request at all.
+   */
+  handover(outcome: Outcome, committed: readonly TicketRef[]): Promise<void>;
 }
 
 /**
