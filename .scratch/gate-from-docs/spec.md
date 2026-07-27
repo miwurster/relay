@@ -1,6 +1,6 @@
 # Spec: the repo's docs declare the green gate
 
-Status: ready-for-agent
+Status: resolved
 
 Vocabulary: `CONTEXT.md` — **Gate resolver**, **Provenance**, **Green gate**, **Role**, **Crew**, **Leg**, **Cold session**, **Pass**, **Handover**, **Doctor**, **Init**, **Sandbox**, **Pass branch**, **Tagged block**.
 Architecture it rests on: [ADR-0009](../../docs/adr/0009-the-repos-docs-declare-the-green-gate.md) (this decision), [ADR-0006](../../docs/adr/0006-static-analysis-is-part-of-green.md) (static analysis is part of green), [ADR-0002](../../docs/adr/0002-one-sandbox-one-branch-sequential-legs.md) (sequential legs in one sandbox).
