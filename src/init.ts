@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { CONFIG_FILE_NAME, UNSET_GREEN_GATE } from "./config.js";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { CONFIG_FILE_NAME, DEFAULT_DOCKERFILE_PATH, UNSET_GREEN_GATE } from "./config.js";
 import { ConfigError } from "./errors.js";
 import { ExitCode } from "./exit-codes.js";
 import {
@@ -12,11 +12,12 @@ import {
   runGit,
   type GitRunner,
 } from "./git.js";
+import { readResource } from "./resources.js";
 
 /** One file init considered, and what it did with it. */
 export interface InitVerdict {
   file: string;
-  outcome: "written" | "kept";
+  outcome: "written" | "kept" | "skipped";
   detail: string;
 }
 
@@ -62,24 +63,78 @@ export async function runInitChecks({
 }: InitOptions = {}): Promise<InitVerdict[]> {
   await guardGitHubClone({ repoRoot, git });
 
+  const { stack, gate } = await detectStack(repoRoot);
+
+  return [
+    await writeConfigFile({ repoRoot, git, gate }),
+    await writeSandboxRecipe({ repoRoot, stack }),
+  ];
+}
+
+async function writeConfigFile({
+  repoRoot,
+  git,
+  gate,
+}: {
+  repoRoot: string;
+  git: GitRunner;
+  gate: GateDetection;
+}): Promise<InitVerdict> {
   const configPath = join(repoRoot, CONFIG_FILE_NAME);
   if (existsSync(configPath)) {
-    return [{ file: CONFIG_FILE_NAME, outcome: "kept", detail: "already exists" }];
+    return { file: CONFIG_FILE_NAME, outcome: "kept", detail: "already exists" };
   }
 
   const branch = await defaultBranch({ repoRoot, git });
-  const gate = await detectGreenGate(repoRoot);
   await writeFile(configPath, configSource({ gate, branch }), "utf8");
 
-  return [
-    {
-      file: CONFIG_FILE_NAME,
-      outcome: "written",
-      detail: gate.detected
-        ? `detected green gate \`${gate.value}\` — confirm it`
-        : "green gate could not be detected — left as the sentinel `relay doctor` will refuse",
-    },
-  ];
+  return {
+    file: CONFIG_FILE_NAME,
+    outcome: "written",
+    detail: gate.detected
+      ? `detected green gate \`${gate.value}\` — confirm it`
+      : "green gate could not be detected — left as the sentinel `relay doctor` will refuse",
+  };
+}
+
+/** The three sandbox recipe templates shipped as resources, one per stack. */
+const SANDBOX_RECIPE_TEMPLATES: Record<Stack, string> = {
+  java: "java.Dockerfile",
+  python: "python.Dockerfile",
+  node: "node.Dockerfile",
+};
+
+async function writeSandboxRecipe({
+  repoRoot,
+  stack,
+}: {
+  repoRoot: string;
+  stack: Stack | undefined;
+}): Promise<InitVerdict> {
+  const dockerfilePath = join(repoRoot, DEFAULT_DOCKERFILE_PATH);
+  if (existsSync(dockerfilePath)) {
+    return { file: DEFAULT_DOCKERFILE_PATH, outcome: "kept", detail: "already exists" };
+  }
+
+  if (!stack) {
+    return {
+      file: DEFAULT_DOCKERFILE_PATH,
+      outcome: "skipped",
+      detail:
+        "no recipe written — the repo matched none of Java, Python, or Node; " +
+        `write your own at ${DEFAULT_DOCKERFILE_PATH}`,
+    };
+  }
+
+  const template = await readResource("sandbox-recipes", SANDBOX_RECIPE_TEMPLATES[stack]);
+  await mkdir(dirname(dockerfilePath), { recursive: true });
+  await writeFile(dockerfilePath, template, "utf8");
+
+  return {
+    file: DEFAULT_DOCKERFILE_PATH,
+    outcome: "written",
+    detail: `wrote the ${stack} sandbox recipe`,
+  };
 }
 
 async function guardGitHubClone({
@@ -109,29 +164,41 @@ interface GateDetection {
   detected: boolean;
 }
 
+/** The language a sandbox recipe template is chosen for. */
+type Stack = "java" | "python" | "node";
+
+interface StackDetection {
+  stack: Stack | undefined;
+  gate: GateDetection;
+}
+
 /**
- * The green gate detected from the repo's manifest, by fixed precedence:
- * Maven, then `uv`, then npm. A `package.json` with none of the preferred
- * scripts, or a repo matching none of the three, yields the ticket-01
- * sentinel rather than a guess.
+ * The stack and green gate detected from the repo's manifest, by fixed
+ * precedence: Maven, then `uv`, then npm. A Maven or `uv` repo always yields
+ * its command; a `package.json` with none of the preferred scripts still
+ * yields the Node stack, but the sentinel gate rather than a guess. A repo
+ * matching none of the three yields neither.
  */
-async function detectGreenGate(repoRoot: string): Promise<GateDetection> {
+async function detectStack(repoRoot: string): Promise<StackDetection> {
   if (existsSync(join(repoRoot, "pom.xml"))) {
-    return { value: "./mvnw verify", detected: true };
+    return { stack: "java", gate: { value: "./mvnw verify", detected: true } };
   }
   if (existsSync(join(repoRoot, "pyproject.toml"))) {
-    return { value: "uv run pytest", detected: true };
+    return { stack: "python", gate: { value: "uv run pytest", detected: true } };
   }
 
   const packageJsonPath = join(repoRoot, "package.json");
   if (existsSync(packageJsonPath)) {
     const scripts = await readPackageScripts(packageJsonPath);
     for (const name of ["verify", "ci", "test"]) {
-      if (scripts[name]) return { value: `npm run ${name}`, detected: true };
+      if (scripts[name]) {
+        return { stack: "node", gate: { value: `npm run ${name}`, detected: true } };
+      }
     }
+    return { stack: "node", gate: { value: UNSET_GREEN_GATE, detected: false } };
   }
 
-  return { value: UNSET_GREEN_GATE, detected: false };
+  return { stack: undefined, gate: { value: UNSET_GREEN_GATE, detected: false } };
 }
 
 async function readPackageScripts(packageJsonPath: string): Promise<Record<string, string>> {
@@ -157,5 +224,5 @@ function configSource({ gate, branch }: { gate: GateDetection; branch: string })
 }
 
 function label(outcome: InitVerdict["outcome"]): string {
-  return { written: "wrote ", kept: "kept  " }[outcome];
+  return { written: "wrote ", kept: "kept  ", skipped: "skip  " }[outcome];
 }

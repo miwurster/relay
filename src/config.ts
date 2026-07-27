@@ -15,6 +15,9 @@ export const CONFIG_FILE_NAME = "relay.config.ts";
  */
 export const UNSET_GREEN_GATE = "<unset: relay init could not detect your green gate>";
 
+/** Where a target repo's sandbox recipe lives unless `dockerfile` overrides it. */
+export const DEFAULT_DOCKERFILE_PATH = "docker/relay.Dockerfile";
+
 /**
  * The model each role runs on. Roles are the orchestration graph's roles; the
  * defaults are relay's, and a repo may override any of them.
@@ -64,7 +67,7 @@ export const relayConfigSchema = z.strictObject({
   /** A prebuilt sandbox image; when absent relay builds from `dockerfile`. */
   image: z.string().min(1).optional(),
   /** Repo-relative path to the sandbox Dockerfile, used when `image` is unset. */
-  dockerfile: z.string().min(1).default("docker/relay.Dockerfile"),
+  dockerfile: z.string().min(1).default(DEFAULT_DOCKERFILE_PATH),
   branchPrefix: z.string().min(1).default("agent/"),
   roleTimeoutMs: z
     .number()

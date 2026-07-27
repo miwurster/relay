@@ -1,4 +1,5 @@
-import { mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -212,11 +213,99 @@ describe("runInitChecks", () => {
 
     const verdicts = await runInitChecks({ repoRoot, git: githubClone().git });
 
-    expect(verdicts).toEqual([
-      { file: CONFIG_FILE_NAME, outcome: "kept", detail: "already exists" },
-    ]);
+    expect(verdicts[0]).toEqual({
+      file: CONFIG_FILE_NAME,
+      outcome: "kept",
+      detail: "already exists",
+    });
     const config = await loadConfig(repoRoot);
     expect(config.greenGate).toBe("make test");
+  });
+
+  it("writes the java sandbox recipe for a pom.xml repo", async () => {
+    const repoRoot = await tempRepo();
+    await writeFile(join(repoRoot, "pom.xml"), "<project/>", "utf8");
+
+    const verdicts = await runInitChecks({ repoRoot, git: githubClone().git });
+
+    const recipe = verdicts.find((v) => v.file === "docker/relay.Dockerfile");
+    expect(recipe).toEqual({
+      file: "docker/relay.Dockerfile",
+      outcome: "written",
+      detail: "wrote the java sandbox recipe",
+    });
+    const written = await readFile(join(repoRoot, "docker/relay.Dockerfile"), "utf8");
+    expect(written).toContain("ARG AGENT_UID");
+    expect(written).toContain("FROM maven:3-eclipse-temurin-21");
+  });
+
+  it("writes the python sandbox recipe for a pyproject.toml repo", async () => {
+    const repoRoot = await tempRepo();
+    await writeFile(join(repoRoot, "pyproject.toml"), '[project]\nname = "x"\n', "utf8");
+
+    await runInitChecks({ repoRoot, git: githubClone().git });
+
+    const written = await readFile(join(repoRoot, "docker/relay.Dockerfile"), "utf8");
+    expect(written).toContain("FROM ghcr.io/astral-sh/uv:python3.12-trixie");
+  });
+
+  it("writes the node sandbox recipe for a package.json repo", async () => {
+    const repoRoot = await tempRepo();
+    await writeFile(
+      join(repoRoot, "package.json"),
+      JSON.stringify({ scripts: { test: "vitest run" } }),
+      "utf8",
+    );
+
+    await runInitChecks({ repoRoot, git: githubClone().git });
+
+    const written = await readFile(join(repoRoot, "docker/relay.Dockerfile"), "utf8");
+    expect(written).toContain("FROM node:lts");
+  });
+
+  it("writes no recipe for a repo matching none of the three, and says where to write one", async () => {
+    const repoRoot = await tempRepo();
+
+    const verdicts = await runInitChecks({ repoRoot, git: githubClone().git });
+
+    const recipe = verdicts.find((v) => v.file === "docker/relay.Dockerfile");
+    expect(recipe?.outcome).toBe("skipped");
+    expect(recipe?.detail).toContain("docker/relay.Dockerfile");
+    expect(existsSync(join(repoRoot, "docker/relay.Dockerfile"))).toBe(false);
+  });
+
+  it("keeps an existing sandbox recipe rather than overwriting it, and reports it kept", async () => {
+    const repoRoot = await tempRepo();
+    await writeFile(join(repoRoot, "pom.xml"), "<project/>", "utf8");
+    await writeFile(join(repoRoot, CONFIG_FILE_NAME), "export default {};", "utf8");
+    await mkdir(join(repoRoot, "docker"), { recursive: true });
+    await writeFile(join(repoRoot, "docker/relay.Dockerfile"), "FROM scratch\n", "utf8");
+
+    const verdicts = await runInitChecks({ repoRoot, git: githubClone().git });
+
+    const recipe = verdicts.find((v) => v.file === "docker/relay.Dockerfile");
+    expect(recipe).toEqual({
+      file: "docker/relay.Dockerfile",
+      outcome: "kept",
+      detail: "already exists",
+    });
+    const untouched = await readFile(join(repoRoot, "docker/relay.Dockerfile"), "utf8");
+    expect(untouched).toBe("FROM scratch\n");
+  });
+
+  it("writes the sandbox recipe even when the config already exists", async () => {
+    const repoRoot = await tempRepo();
+    await writeFile(join(repoRoot, "pom.xml"), "<project/>", "utf8");
+    await writeFile(
+      join(repoRoot, CONFIG_FILE_NAME),
+      `export default { greenGate: "make test", defaultBranch: "main" };`,
+      "utf8",
+    );
+
+    const verdicts = await runInitChecks({ repoRoot, git: githubClone().git });
+
+    expect(verdicts.find((v) => v.file === CONFIG_FILE_NAME)?.outcome).toBe("kept");
+    expect(verdicts.find((v) => v.file === "docker/relay.Dockerfile")?.outcome).toBe("written");
   });
 
   it("stages and commits nothing", async () => {

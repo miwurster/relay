@@ -12,15 +12,15 @@ One thing to settle rather than guess: whether the image must supply an idling e
 
 **Blocked by:** 02.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Three sandbox recipe templates ship as resources — Java on the Maven base, Python on the `uv` base, Node on the `node:lts` base — read through the existing resource helpers so they travel with the published package.
-- [ ] Each template declares `AGENT_UID` and `AGENT_GID` build arguments and creates the agent user from them, keeping the group-reuse guard for low gids that already exist in a base image.
-- [ ] Each template installs `gh`, the `docker` CLI, and the native `claude`.
-- [ ] `relay init` writes the chosen template to the path the config's `dockerfile` field already defaults to, so the two files agree without an edit.
-- [ ] Language is chosen by the precedence `pom.xml` > `pyproject.toml` > `package.json`, and the report says which template was chosen.
-- [ ] A repo matching none of the three gets no recipe, and the report says where to write one.
-- [ ] An existing recipe is kept, not overwritten, and reported as kept — independently of whether the config was written.
-- [ ] The entrypoint question is settled against the sandcastle source, and the templates reflect the answer.
-- [ ] The reference recipe in the docs stays consistent with the three templates.
-- [ ] `npm run verify` exits zero.
+- [x] Three sandbox recipe templates ship as resources — Java on the Maven base, Python on the `uv` base, Node on the `node:lts` base — read through the existing resource helpers so they travel with the published package.
+- [x] Each template declares `AGENT_UID` and `AGENT_GID` build arguments and creates the agent user from them, keeping the group-reuse guard for low gids that already exist in a base image.
+- [x] Each template installs `gh`, the `docker` CLI, and the native `claude`.
+- [x] `relay init` writes the chosen template to the path the config's `dockerfile` field already defaults to, so the two files agree without an edit.
+- [x] Language is chosen by the precedence `pom.xml` > `pyproject.toml` > `package.json`, and the report says which template was chosen.
+- [x] A repo matching none of the three gets no recipe, and the report says where to write one.
+- [x] An existing recipe is kept, not overwritten, and reported as kept — independently of whether the config was written.
+- [x] The entrypoint question is settled against the sandcastle source, and the templates reflect the answer.
+- [x] The reference recipe in the docs stays consistent with the three templates.
+- [x] `npm run verify` exits zero.

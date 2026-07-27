@@ -1,6 +1,3 @@
-# Reference sandbox recipe for a Maven repo — the same file `relay init`
-# writes as `docker/relay.Dockerfile` (see `src/resources/sandbox-recipes`,
-# which also ships the Python and Node templates).
 FROM maven:3-eclipse-temurin-21
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
