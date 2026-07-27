@@ -15,6 +15,10 @@ describe("parseArgs", () => {
     expect(parseArgs(["doctor"])).toEqual({ kind: "doctor" });
   });
 
+  it("treats the `init` keyword as the init command", () => {
+    expect(parseArgs(["init"])).toEqual({ kind: "init" });
+  });
+
   it("treats no argument as an auto-pick pass", () => {
     expect(parseArgs([])).toEqual({ kind: "pass", workItem: undefined });
   });
@@ -24,6 +28,7 @@ describe("runCli", () => {
   const handlers = (): CliHandlers => ({
     runPass: vi.fn(async () => ExitCode.Success),
     runDoctor: vi.fn(async () => ExitCode.Success),
+    runInit: vi.fn(async () => ExitCode.Success),
   });
 
   it("dispatches a named work item to runPass and returns its exit code", async () => {
@@ -43,6 +48,13 @@ describe("runCli", () => {
     const h = handlers();
     await runCli(["doctor"], h);
     expect(h.runDoctor).toHaveBeenCalledOnce();
+    expect(h.runPass).not.toHaveBeenCalled();
+  });
+
+  it("dispatches `init` to runInit", async () => {
+    const h = handlers();
+    await runCli(["init"], h);
+    expect(h.runInit).toHaveBeenCalledOnce();
     expect(h.runPass).not.toHaveBeenCalled();
   });
 

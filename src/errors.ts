@@ -21,6 +21,9 @@ export class ConfigError extends RelayError {}
  */
 export class GitHubError extends RelayError {}
 
+/** A `git` invocation itself failed — not one of init's guard refusals, which are `ConfigError`. */
+export class GitError extends RelayError {}
+
 /**
  * The sandbox could not be prepared or opened: an image that will not build, a
  * docker daemon that will not answer, or a worktree relay cannot create.

@@ -180,7 +180,11 @@ function crashingCrew(): Crew {
 /** The exit code the CLI ends on for a pass that throws. */
 async function exitCodeOf(run: () => Promise<ExitCode>): Promise<ExitCode> {
   vi.spyOn(console, "error").mockImplementation(() => {});
-  return await runCli(["1"], { runPass: run, runDoctor: async () => ExitCode.Success });
+  return await runCli(["1"], {
+    runPass: run,
+    runDoctor: async () => ExitCode.Success,
+    runInit: async () => ExitCode.Success,
+  });
 }
 
 describe("runPassOnItem", () => {
