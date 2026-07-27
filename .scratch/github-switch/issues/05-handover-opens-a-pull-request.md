@@ -18,13 +18,13 @@ Merge-request naming becomes pull-request throughout — the reported URL field,
 
 **Blocked by:** 03.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Each outcome publishes what it is owed, and the harness rejects a leg that ignores the verdict in **either** direction — no pull request when one was required, or one opened when it was forbidden.
-- [ ] A mid-block with commits produces a draft pull request in one command.
-- [ ] The body closes each committed ticket and never the parent work item.
-- [ ] The work item ends labelled `agent-in-review` or `agent-blocked`, with `agent-in-progress` removed.
-- [ ] The work item is commented with the pull request URL and one line on what the pass built.
-- [ ] The operator's terminal report names the outcome and its cause, the item and the state it was left in, the branch, the pull request URL when there is one, each committed ticket with its short SHA, and the green gate's verdict.
-- [ ] The leg makes no commit of its own.
-- [ ] Nothing in the codebase says "merge request", and `npm run verify` exits zero.
+- [x] Each outcome publishes what it is owed, and the harness rejects a leg that ignores the verdict in **either** direction — no pull request when one was required, or one opened when it was forbidden.
+- [x] A mid-block with commits produces a draft pull request in one command.
+- [x] The body closes each committed ticket and never the parent work item.
+- [x] The work item ends labelled `agent-in-review` or `agent-blocked`, with `agent-in-progress` removed.
+- [x] The work item is commented with the pull request URL and one line on what the pass built.
+- [x] The operator's terminal report names the outcome and its cause, the item and the state it was left in, the branch, the pull request URL when there is one, each committed ticket with its short SHA, and the green gate's verdict.
+- [x] The leg makes no commit of its own.
+- [x] Nothing in the codebase says "merge request", and `npm run verify` exits zero.
