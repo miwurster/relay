@@ -11,8 +11,10 @@ export const CONFIG_FILE_NAME = "relay.config.ts";
 export const DEFAULT_DOCKERFILE_PATH = "docker/relay.Dockerfile";
 
 /**
- * The model each role runs on. Roles are the orchestration graph's roles; the
- * defaults are relay's, and a repo may override any of them.
+ * One key per distinct model choice a pass makes, which is not one per role:
+ * the reviewer's four lenses each pick their own, and the fixer picks a second
+ * one for the attempt it escalates. The defaults are relay's, and a repo may
+ * override any of them.
  */
 const modelsSchema = z
   .strictObject({

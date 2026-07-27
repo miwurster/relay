@@ -1,9 +1,8 @@
 import type { Sandbox } from "@ai-hero/sandcastle";
 import { z } from "zod";
-import type { RelayConfig } from "./config.js";
 import type { Crew, ImplementResult, TicketRef } from "./crew.js";
 import { RoleError } from "./errors.js";
-import { runRole } from "./run-role.js";
+import { type RoleDeps, runRole } from "./run-role.js";
 import { TRACKER_DOC_PATH } from "./tracker-doc.js";
 
 /** The block the implementer ends its run with, and the prompt it runs from. */
@@ -37,26 +36,16 @@ async function headSha(sandbox: Sandbox): Promise<string> {
  * only the agent that wrote the change knows what the commit says, and a
  * separate cold session would have to rediscover it from the diff.
  */
-export function createImplementer({
-  sandbox,
-  config,
-  outputDir,
-}: {
-  sandbox: Sandbox;
-  config: RelayConfig;
-  outputDir: string;
-}): Crew["implement"] {
+export function createImplementer(deps: RoleDeps): Crew["implement"] {
   return async function implement(ticket: TicketRef): Promise<ImplementResult> {
     // Read before the run: afterwards the ticket's own commits are in the way,
     // and this is what the reviewers diff the ticket's change from.
-    const base = await headSha(sandbox);
+    const base = await headSha(deps.sandbox);
 
     const result = await runRole({
-      sandbox,
-      config,
+      ...deps,
       name: `implementer-${ticket.number}`,
-      outputDir,
-      model: config.models.implementer,
+      model: deps.config.models.implementer,
       prompt: IMPLEMENTER_PROMPT,
       promptArgs: {
         TICKET: `#${ticket.number}`,

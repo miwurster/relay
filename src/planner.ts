@@ -1,9 +1,7 @@
-import type { Sandbox } from "@ai-hero/sandcastle";
 import { z } from "zod";
-import type { RelayConfig } from "./config.js";
 import type { Crew, PlanResult } from "./crew.js";
 import type { GitHubIssue } from "./github.js";
-import { runRole } from "./run-role.js";
+import { type RoleDeps, runRole } from "./run-role.js";
 import { TRACKER_DOC_PATH } from "./tracker-doc.js";
 
 /** The block the planner ends its run with, and the prompt it runs from. */
@@ -35,22 +33,12 @@ const planSchema = z.discriminatedUnion("kind", [
  * `docs/agents/issue-tracker.md`, which the prompt sends the planner to read
  * first, so relay hardcodes nothing about how this repo expresses them.
  */
-export function createPlanner({
-  sandbox,
-  config,
-  outputDir,
-}: {
-  sandbox: Sandbox;
-  config: RelayConfig;
-  outputDir: string;
-}): Crew["plan"] {
+export function createPlanner(deps: RoleDeps): Crew["plan"] {
   return async function plan(issue: GitHubIssue): Promise<PlanResult> {
     return await runRole({
-      sandbox,
-      config,
+      ...deps,
       name: "planner",
-      outputDir,
-      model: config.models.planner,
+      model: deps.config.models.planner,
       prompt: PLANNER_PROMPT,
       promptArgs: { WORK_ITEM: `#${issue.number}`, TRACKER_DOC: TRACKER_DOC_PATH },
       tag: PLAN_TAG,

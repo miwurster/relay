@@ -15,7 +15,7 @@ import type {
 import { ExitCode } from "../src/exit-codes.js";
 import { exitCodeFor, MAX_GATE_FIX_ATTEMPTS, runHarness } from "../src/harness.js";
 import type { GitHubIssue } from "../src/github.js";
-import { createStubCrew } from "../src/stub-crew.js";
+import { createStubCrew } from "./stub-crew.js";
 
 const issue: GitHubIssue = {
   number: 1,

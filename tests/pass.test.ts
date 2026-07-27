@@ -13,7 +13,7 @@ import { ExitCode } from "../src/exit-codes.js";
 import type { GitHubClient, GitHubIssue } from "../src/github.js";
 import { type PassRun, runPass, runPassOnItem } from "../src/pass.js";
 
-import { createStubCrew } from "../src/stub-crew.js";
+import { createStubCrew } from "./stub-crew.js";
 import type { Secrets } from "../src/secrets.js";
 import { TRACKER_DOC_PATH } from "../src/tracker-doc.js";
 

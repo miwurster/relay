@@ -1,8 +1,6 @@
-import type { Sandbox } from "@ai-hero/sandcastle";
 import { z } from "zod";
-import type { RelayConfig } from "./config.js";
 import type { Crew, ResolvedGate } from "./crew.js";
-import { runRole } from "./run-role.js";
+import { type RoleDeps, runRole } from "./run-role.js";
 
 /** The block the resolver ends its run with, and the prompt it runs from. */
 export const RESOLVED_GATE_TAG = "relay-resolved-gate";
@@ -24,22 +22,12 @@ const resolvedGateSchema = z.object({
  * no doc declares a gate are the prompt's — relay hardcodes nothing about how a
  * repo phrases its own gate.
  */
-export function createGateResolver({
-  sandbox,
-  config,
-  outputDir,
-}: {
-  sandbox: Sandbox;
-  config: RelayConfig;
-  outputDir: string;
-}): Crew["resolveGate"] {
+export function createGateResolver(deps: RoleDeps): Crew["resolveGate"] {
   return async function resolveGate(): Promise<ResolvedGate> {
     return await runRole({
-      sandbox,
-      config,
+      ...deps,
       name: "gate-resolver",
-      outputDir,
-      model: config.models.gateResolver,
+      model: deps.config.models.gateResolver,
       prompt: RESOLVER_PROMPT,
       promptArgs: {},
       tag: RESOLVED_GATE_TAG,

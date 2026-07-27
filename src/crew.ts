@@ -1,5 +1,3 @@
-import type { Sandbox } from "@ai-hero/sandcastle";
-import type { RelayConfig } from "./config.js";
 import { createFixer } from "./fixer.js";
 import { createGateResolver } from "./gate-resolver.js";
 import type { GitHubIssue } from "./github.js";
@@ -8,6 +6,7 @@ import { createHandover } from "./handover.js";
 import { createImplementer } from "./implementer.js";
 import { createPlanner } from "./planner.js";
 import { createReviewer } from "./reviewer.js";
+import type { RoleDeps } from "./run-role.js";
 
 /** One ticket of the pass's plan: the unit an implementer leg runs over. */
 export interface TicketRef {
@@ -127,27 +126,22 @@ export interface Crew {
  * plan to the handover that gives the human the baton.
  */
 export function createCrew({
-  sandbox,
-  config,
-  outputDir,
   workItem,
   branch,
-}: {
-  sandbox: Sandbox;
-  config: RelayConfig;
-  outputDir: string;
+  ...deps
+}: RoleDeps & {
   /** The issue number of the work item this pass runs over. */
   workItem: number;
   /** The branch the pass commits to, and the handover publishes. */
   branch: string;
 }): Crew {
   return {
-    resolveGate: createGateResolver({ sandbox, config, outputDir }),
-    plan: createPlanner({ sandbox, config, outputDir }),
-    implement: createImplementer({ sandbox, config, outputDir }),
-    review: createReviewer({ sandbox, config, outputDir }),
-    fix: createFixer({ sandbox, config, outputDir }),
-    greenGate: createGreenGate({ sandbox, config, outputDir }),
-    handover: createHandover({ sandbox, config, outputDir, workItem, branch }),
+    resolveGate: createGateResolver(deps),
+    plan: createPlanner(deps),
+    implement: createImplementer(deps),
+    review: createReviewer(deps),
+    fix: createFixer(deps),
+    greenGate: createGreenGate(deps),
+    handover: createHandover({ ...deps, workItem, branch }),
   };
 }

@@ -1,8 +1,6 @@
-import type { Sandbox } from "@ai-hero/sandcastle";
 import { z } from "zod";
-import type { RelayConfig } from "./config.js";
 import type { Crew, GateResult, ResolvedGate } from "./crew.js";
-import { runRole } from "./run-role.js";
+import { type RoleDeps, runRole } from "./run-role.js";
 
 /** The block the gate's triage leg ends its run with, and the prompt it runs from. */
 export const GATE_TAG = "relay-gate";
@@ -27,27 +25,17 @@ const gateSchema = z.object({ detail: z.string().min(1) });
  * the one line the fixer will act on. Green needs no judgement and costs no
  * run, which is what keeps the common case cheap.
  */
-export function createGreenGate({
-  sandbox,
-  config,
-  outputDir,
-}: {
-  sandbox: Sandbox;
-  config: RelayConfig;
-  outputDir: string;
-}): Crew["greenGate"] {
+export function createGreenGate(deps: RoleDeps): Crew["greenGate"] {
   return async function greenGate(attempt: number, gate: ResolvedGate): Promise<GateResult> {
-    const { stdout, stderr, exitCode } = await sandbox.exec(gate.command);
+    const { stdout, stderr, exitCode } = await deps.sandbox.exec(gate.command);
     if (exitCode === 0) {
       return { green: true, detail: greenDetail(gate) };
     }
 
     const { detail } = await runRole({
-      sandbox,
-      config,
+      ...deps,
       name: `green-gate-${attempt}`,
-      outputDir,
-      model: config.models.greenGate,
+      model: deps.config.models.greenGate,
       prompt: GATE_PROMPT,
       promptArgs: {
         COMMAND: gate.command,

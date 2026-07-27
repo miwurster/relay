@@ -43,10 +43,5 @@ export default defineConfig(
       "@typescript-eslint/unbound-method": "off",
     },
   },
-  {
-    // The stub crew implements the async crew interface with canned answers.
-    files: ["src/stub-crew.ts"],
-    rules: { "@typescript-eslint/require-await": "off" },
-  },
   eslintConfigPrettier,
 );

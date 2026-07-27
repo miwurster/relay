@@ -1,9 +1,9 @@
-import type { Crew } from "./crew.js";
+import type { Crew } from "../src/crew.js";
 
 /**
  * A crew of stubs: the whole topology runs and every exit path is reachable
- * without an agent, a model or a network. Each real role replaces one method
- * of this in a later ticket.
+ * without an agent, a model or a network — which is what lets the harness's own
+ * decisions be tested without running one.
  */
 export function createStubCrew(): Crew {
   return {

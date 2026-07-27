@@ -35,7 +35,7 @@ _Avoid_: pipeline, team, orchestrator
 **Lens**:
 One of the reviewer's four configurations — fast or in-depth, code or spec.
 A lens is not a **role**; the harness passes it to the one reviewer role.
-Known wart: the model map is keyed per lens for the reviewer and per role for everyone else.
+Each lens has its own key in the model map, because each is its own model choice.
 _Avoid_: review type, review mode
 
 ## The work

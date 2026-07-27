@@ -1,8 +1,7 @@
-import type { Sandbox } from "@ai-hero/sandcastle";
 import { z } from "zod";
 import type { RelayConfig } from "./config.js";
 import type { Crew, Finding, FixTarget } from "./crew.js";
-import { runRole } from "./run-role.js";
+import { type RoleDeps, runRole } from "./run-role.js";
 
 /** The block the fixer ends its run with, and the prompt it runs from. */
 export const FIX_TAG = "relay-fix";
@@ -37,23 +36,13 @@ interface FixLeg {
  * same job: a merged list of findings over the branch as it stands. Only the
  * leg's name, the scope it is told, and its model differ.
  */
-export function createFixer({
-  sandbox,
-  config,
-  outputDir,
-}: {
-  sandbox: Sandbox;
-  config: RelayConfig;
-  outputDir: string;
-}): Crew["fix"] {
+export function createFixer(deps: RoleDeps): Crew["fix"] {
   return async function fix(findings: readonly Finding[], target: FixTarget): Promise<void> {
-    const leg = describeLeg(target, config);
+    const leg = describeLeg(target, deps.config);
 
     const result = await runRole({
-      sandbox,
-      config,
+      ...deps,
       name: `fixer-${leg.name}`,
-      outputDir,
       model: leg.model,
       prompt: FIXER_PROMPT,
       promptArgs: {

@@ -1,9 +1,7 @@
-import type { Sandbox } from "@ai-hero/sandcastle";
 import { z } from "zod";
-import type { RelayConfig } from "./config.js";
 import type { Crew, Outcome, TicketRef } from "./crew.js";
 import { RoleError } from "./errors.js";
-import { runRole } from "./run-role.js";
+import { type RoleDeps, runRole } from "./run-role.js";
 import { TRACKER_DOC_PATH } from "./tracker-doc.js";
 
 /** The block the handover ends its run with, and the prompt it runs from. */
@@ -28,27 +26,17 @@ const handoverSchema = z.object({
  * holds the leg to having done it.
  */
 export function createHandover({
-  sandbox,
-  config,
-  outputDir,
   workItem,
   branch,
-}: {
-  sandbox: Sandbox;
-  config: RelayConfig;
-  outputDir: string;
-  workItem: number;
-  branch: string;
-}): Crew["handover"] {
+  ...deps
+}: RoleDeps & { workItem: number; branch: string }): Crew["handover"] {
   return async function handover(outcome: Outcome, committed: readonly TicketRef[]): Promise<void> {
     const leg = describeLeg(outcome, committed);
 
     const { prUrl, report } = await runRole({
-      sandbox,
-      config,
+      ...deps,
       name: "handover",
-      outputDir,
-      model: config.models.handover,
+      model: deps.config.models.handover,
       prompt: HANDOVER_PROMPT,
       promptArgs: {
         OUTCOME: outcome.kind,
@@ -61,7 +49,7 @@ export function createHandover({
         COMMITTED_TICKETS: leg.committed,
         WORK_ITEM: `#${workItem}`,
         BRANCH: branch,
-        DEFAULT_BRANCH: config.defaultBranch,
+        DEFAULT_BRANCH: deps.config.defaultBranch,
         TRACKER_DOC: TRACKER_DOC_PATH,
       },
       tag: HANDOVER_TAG,

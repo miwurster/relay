@@ -19,14 +19,24 @@ import { readTaggedOutput } from "./tagged-output.js";
  */
 export type BranchRule = "read-only" | "no-commits" | "must-commit" | "any";
 
-export interface RunRoleOptions<Schema extends z.ZodType> {
+/**
+ * What every role of the crew is built from: the pass's sandbox, its config, and
+ * where its legs' output lands.
+ *
+ * The same three facts for every role, so they are named once here and bound
+ * once per pass rather than restated by each role module.
+ */
+export interface RoleDeps {
   sandbox: Sandbox;
   config: RelayConfig;
+  /** Where on the host the pass's legs write their status and findings files. */
+  outputDir: string;
+}
+
+export interface RunRoleOptions<Schema extends z.ZodType> extends RoleDeps {
   /** Names the run, its log file, and the role in every error it raises. */
   name: string;
   model: string;
-  /** Where on the host the leg's status file lands. */
-  outputDir: string;
   /** The prompt resource this role runs from. */
   prompt: string;
   promptArgs: Record<string, string>;

@@ -1,9 +1,8 @@
-import type { Sandbox } from "@ai-hero/sandcastle";
 import { z } from "zod";
 import type { RelayConfig } from "./config.js";
 import type { Crew, Finding, ReviewLens, ReviewScope } from "./crew.js";
 import { writeFindingsFile } from "./findings-file.js";
-import { runRole } from "./run-role.js";
+import { type RoleDeps, runRole } from "./run-role.js";
 import { TRACKER_DOC_PATH } from "./tracker-doc.js";
 
 /** The block every review lens ends its run with. */
@@ -50,25 +49,15 @@ interface ReviewTarget {
  * Ordering is the harness's — it runs a scope's lenses and merges what they
  * return — so a lens here knows nothing about the other three.
  */
-export function createReviewer({
-  sandbox,
-  config,
-  outputDir,
-}: {
-  sandbox: Sandbox;
-  config: RelayConfig;
-  outputDir: string;
-}): Crew["review"] {
+export function createReviewer(deps: RoleDeps): Crew["review"] {
   return async function review(lens: ReviewLens, scope: ReviewScope): Promise<Finding[]> {
     const lensRun = LENSES[lens];
-    const target = describeScope(scope, config);
+    const target = describeScope(scope, deps.config);
 
     const summaries = await runRole({
-      sandbox,
-      config,
+      ...deps,
       name: `${lens}-${target.name}`,
-      outputDir,
-      model: config.models[lens],
+      model: deps.config.models[lens],
       prompt: lensRun.prompt,
       promptArgs: { SCOPE: scope.kind, ITEM: target.item, BASE: target.base, ...lensRun.args },
       tag: FINDINGS_TAG,
@@ -79,7 +68,7 @@ export function createReviewer({
     });
 
     const findings = summaries.map((summary) => toFinding(lens, target, summary));
-    await writeFindingsFile({ dir: outputDir, name: `${target.name}-${lens}`, findings });
+    await writeFindingsFile({ dir: deps.outputDir, name: `${target.name}-${lens}`, findings });
     return findings;
   };
 }
