@@ -159,7 +159,7 @@ describe("createCrew", () => {
         return {
           iterations: [],
           commits: [],
-          stdout: `<${HANDOVER_TAG}>{"mrUrl":"https://gitlab.example.com/g/r/-/merge_requests/1","report":"done"}</${HANDOVER_TAG}>`,
+          stdout: `<${HANDOVER_TAG}>{"prUrl":"https://github.com/g/r/pull/1","report":"done"}</${HANDOVER_TAG}>`,
         };
       },
     } as unknown as Sandbox;

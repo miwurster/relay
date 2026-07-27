@@ -71,7 +71,7 @@ relay never parses the command's output.
 _Avoid_: quality gate, CI check, test gate
 
 **Handover**:
-The pass's last **leg**: it publishes the branch and tells the human what state the work is in.
+The pass's last **leg**: it publishes the branch as a pull request when the **outcome** is owed one, and tells the human what state the work is in.
 Every outcome reaches it — no path skips the handover.
 _Avoid_: finalize, wrap-up, publish
 

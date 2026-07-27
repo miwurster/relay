@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { relayConfigSchema } from "../src/config.js";
 import type { Outcome } from "../src/crew.js";
 import { RoleError } from "../src/errors.js";
+import { readResource } from "../src/resources.js";
 import { createHandover, HANDOVER_TAG } from "../src/handover.js";
 import { TRACKER_DOC_PATH } from "../src/tracker-doc.js";
 
@@ -33,7 +34,7 @@ function handing({ stdout = "", commits = [] as { sha: string }[] } = {}) {
 const tagged = (json: string) => `Handed over.\n<${HANDOVER_TAG}>${json}</${HANDOVER_TAG}>`;
 
 const published = tagged(
-  '{"mrUrl":"https://gitlab.com/kipu/qc/-/merge_requests/12","report":"PSD-7 is In Review."}',
+  '{"prUrl":"https://github.com/kipu/qc/pull/12","report":"#7 is agent-in-review."}',
 );
 
 const success: Outcome = { kind: "success" };
@@ -43,7 +44,7 @@ const midBlockWithoutWork: Outcome = {
   reason: "blocked on the first ticket",
   hasWork: false,
 };
-const earlyBail: Outcome = { kind: "early-bail", reason: "PSD-7 has no acceptance criteria" };
+const earlyBail: Outcome = { kind: "early-bail", reason: "#7 has no acceptance criteria" };
 
 let outputDir: string;
 
@@ -71,21 +72,22 @@ describe("createHandover", () => {
     expect(runs[0]?.promptArgs).toEqual({
       OUTCOME: "success",
       REASON: "The green gate is green.",
-      MERGE_REQUEST: "required",
+      PULL_REQUEST: "required",
       WORK_ITEM: `#${workItem}`,
       BRANCH: branch,
+      DEFAULT_BRANCH: config.defaultBranch,
       TRACKER_DOC: TRACKER_DOC_PATH,
     });
   });
 
-  it("tells the leg the merge request rule relay will judge it by", async () => {
+  it("tells the leg the pull request rule relay will judge it by", async () => {
     const { handover, runs } = handing({
-      stdout: tagged('{"report":"PSD-7 blocked before it committed anything."}'),
+      stdout: tagged('{"report":"#7 blocked before it committed anything."}'),
     });
 
     await handover(midBlockWithoutWork);
 
-    expect(runs[0]?.promptArgs).toMatchObject({ MERGE_REQUEST: "forbidden" });
+    expect(runs[0]?.promptArgs).toMatchObject({ PULL_REQUEST: "forbidden" });
   });
 
   it("passes a blocked outcome's own reason on as the cause", async () => {
@@ -107,25 +109,25 @@ describe("createHandover", () => {
 
     const printed = log.mock.calls.map((call) => call.join(" ")).join("\n");
     expect(printed).toContain("success");
-    expect(printed).toContain("PSD-7 is In Review.");
+    expect(printed).toContain("#7 is agent-in-review.");
     log.mockRestore();
   });
 
   it("reports what the leg did even when the leg broke its own rule", async () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
-    // The leg has already pushed, transitioned and commented by the time relay
+    // The leg has already pushed, labelled and commented by the time relay
     // judges it, so the report is the human's only record of that.
-    const { handover } = handing({ stdout: tagged('{"report":"PSD-7 is In Review."}') });
+    const { handover } = handing({ stdout: tagged('{"report":"#7 is agent-in-review."}') });
 
     await expect(handover(success)).rejects.toThrow(RoleError);
 
-    expect(log).toHaveBeenCalledWith(expect.stringContaining("PSD-7 is In Review."));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("#7 is agent-in-review."));
     log.mockRestore();
   });
 
-  it("hands an early bail over without a merge request", async () => {
+  it("hands an early bail over without a pull request", async () => {
     const { handover, runs } = handing({
-      stdout: tagged('{"report":"PSD-7 needs acceptance criteria; nothing was built."}'),
+      stdout: tagged('{"report":"#7 needs acceptance criteria; nothing was built."}'),
     });
 
     await handover(earlyBail);
@@ -133,15 +135,15 @@ describe("createHandover", () => {
     expect(runs[0]?.promptArgs).toMatchObject({ OUTCOME: "early-bail" });
   });
 
-  it("refuses a success that opened no merge request", async () => {
-    const { handover } = handing({ stdout: tagged('{"report":"PSD-7 is In Review."}') });
+  it("refuses a success that opened no pull request", async () => {
+    const { handover } = handing({ stdout: tagged('{"report":"#7 is agent-in-review."}') });
 
     await expect(handover(success)).rejects.toThrow(RoleError);
   });
 
-  it("lets a mid-block on an empty branch hand over without a merge request", async () => {
+  it("lets a mid-block on an empty branch hand over without a pull request", async () => {
     const { handover } = handing({
-      stdout: tagged('{"report":"PSD-7 blocked on its first ticket; nothing was committed."}'),
+      stdout: tagged('{"report":"#7 blocked on its first ticket; nothing was committed."}'),
     });
 
     await expect(handover(midBlockWithoutWork)).resolves.toBeUndefined();
@@ -149,19 +151,19 @@ describe("createHandover", () => {
 
   it("refuses a mid-block that left committed tickets unpublished", async () => {
     const { handover } = handing({
-      stdout: tagged('{"report":"PSD-7 blocked after two tickets; the branch was not pushed."}'),
+      stdout: tagged('{"report":"#7 blocked after two tickets; the branch was not pushed."}'),
     });
 
     await expect(handover(midBlock)).rejects.toThrow(RoleError);
   });
 
-  it("refuses a mid-block that opened a merge request on an empty branch", async () => {
+  it("refuses a mid-block that opened a pull request on an empty branch", async () => {
     const { handover } = handing({ stdout: published });
 
     await expect(handover(midBlockWithoutWork)).rejects.toThrow(RoleError);
   });
 
-  it("refuses an early bail that opened a merge request on an empty branch", async () => {
+  it("refuses an early bail that opened a pull request on an empty branch", async () => {
     const { handover } = handing({ stdout: published });
 
     await expect(handover(earlyBail)).rejects.toThrow(RoleError);
@@ -174,7 +176,7 @@ describe("createHandover", () => {
   });
 
   it("leaves the leg's answer on the host, even when the leg broke its own rule", async () => {
-    const { handover } = handing({ stdout: tagged('{"report":"PSD-7 is In Review."}') });
+    const { handover } = handing({ stdout: tagged('{"report":"#7 is agent-in-review."}') });
 
     await expect(handover(success)).rejects.toThrow(RoleError);
 
@@ -182,7 +184,7 @@ describe("createHandover", () => {
     expect(JSON.parse(written)).toEqual({
       role: "handover",
       model: config.models.handover,
-      answer: { report: "PSD-7 is In Review." },
+      answer: { report: "#7 is agent-in-review." },
     });
   });
 
@@ -190,5 +192,38 @@ describe("createHandover", () => {
     const { handover } = handing({ stdout: "Pushed it." });
 
     await expect(handover(success)).rejects.toThrow(RoleError);
+  });
+});
+
+/**
+ * What the leg publishes lives in its prompt, so what the prompt instructs is
+ * the only thing there is to assert about how the pull request gets opened.
+ */
+describe("the handover prompt", () => {
+  let prompt: string;
+
+  beforeEach(async () => {
+    prompt = await readResource("handover.md");
+  });
+
+  it("opens the pull request with `gh` itself, delegating to no skill", () => {
+    expect(prompt).toContain("gh pr create");
+    expect(prompt).not.toMatch(/kipu-mr|glab|merge request/i);
+  });
+
+  it("drafts a mid-block's pull request in the one command", () => {
+    expect(prompt).toContain("gh pr create --draft");
+  });
+
+  it("closes each committed ticket and never a parent work item", () => {
+    expect(prompt).toMatch(/`Closes #<number>` line for \*\*each ticket the pass committed\*\*/);
+    expect(prompt).toMatch(
+      /Never write a closing keyword against \{\{WORK_ITEM\}\} when it is a parent/,
+    );
+  });
+
+  it("swaps the held label for the state the outcome leaves the item in", () => {
+    expect(prompt).toMatch(/add `agent-in-review` and remove `agent-in-progress`/);
+    expect(prompt).toMatch(/add `agent-blocked` and remove `agent-in-progress`/);
   });
 });

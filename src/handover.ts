@@ -11,11 +11,11 @@ export const HANDOVER_TAG = "relay-handover";
 const HANDOVER_PROMPT = "handover.md";
 
 /**
- * What the handover leg reports back: the merge request it opened, if the
+ * What the handover leg reports back: the pull request it opened, if the
  * outcome is one that gets one, and the report the operator reads.
  */
 const handoverSchema = z.object({
-  mrUrl: z.url().optional(),
+  prUrl: z.url().optional(),
   report: z.string().min(1),
 });
 
@@ -43,7 +43,7 @@ export function createHandover({
   return async function handover(outcome: Outcome): Promise<void> {
     const leg = describeLeg(outcome);
 
-    const { mrUrl, report } = await runRole({
+    const { prUrl, report } = await runRole({
       sandbox,
       config,
       name: "handover",
@@ -55,9 +55,10 @@ export function createHandover({
         REASON: leg.cause,
         // Told, never inferred: relay holds the leg to this below, so the leg
         // has to be reading the same verdict relay is about to judge it on.
-        MERGE_REQUEST: leg.mergeRequest,
+        PULL_REQUEST: leg.pullRequest,
         WORK_ITEM: `#${workItem}`,
         BRANCH: branch,
+        DEFAULT_BRANCH: config.defaultBranch,
         TRACKER_DOC: TRACKER_DOC_PATH,
       },
       tag: HANDOVER_TAG,
@@ -71,7 +72,7 @@ export function createHandover({
     // Printed before the leg is judged: by now it has already pushed, labelled
     // and commented, and the report is how the human finds out what it did.
     console.log(`relay: [handover] ${outcome.kind} on ${branch}\n${report}`);
-    enforceMergeRequestRule(leg, outcome.kind, mrUrl);
+    enforcePullRequestRule(leg, outcome.kind, prUrl);
   };
 }
 
@@ -80,42 +81,42 @@ interface HandoverLeg {
   /** Why the pass ended where it did, in the words the tracker comment carries. */
   cause: string;
   /**
-   * Whether the outcome gets a merge request. A success always has commits to
+   * Whether the outcome gets a pull request. A success always has commits to
    * publish; an early bail never does. A mid-block goes either way on the work
    * it got done: a branch carrying committed tickets owes the human a draft
-   * merge request, while a block on the first ticket has an empty branch and
-   * pushing that would open the same empty merge request an early bail is spared.
+   * pull request, while a block on the first ticket has an empty branch and
+   * pushing that would open the same empty pull request an early bail is spared.
    *
    * The leg is told this rather than working it out from the branch, so the
    * instruction it followed and the rule it is judged by are the same fact.
    */
-  mergeRequest: "required" | "forbidden";
+  pullRequest: "required" | "forbidden";
 }
 
 function describeLeg(outcome: Outcome): HandoverLeg {
   switch (outcome.kind) {
     case "success":
-      return { cause: "The green gate is green.", mergeRequest: "required" };
+      return { cause: "The green gate is green.", pullRequest: "required" };
     case "mid-block":
-      return { cause: outcome.reason, mergeRequest: outcome.hasWork ? "required" : "forbidden" };
+      return { cause: outcome.reason, pullRequest: outcome.hasWork ? "required" : "forbidden" };
     case "early-bail":
-      return { cause: outcome.reason, mergeRequest: "forbidden" };
+      return { cause: outcome.reason, pullRequest: "forbidden" };
   }
 }
 
-function enforceMergeRequestRule(
+function enforcePullRequestRule(
   leg: HandoverLeg,
   kind: Outcome["kind"],
-  mrUrl: string | undefined,
+  prUrl: string | undefined,
 ): void {
-  if (leg.mergeRequest === "required" && !mrUrl) {
+  if (leg.pullRequest === "required" && !prUrl) {
     throw new RoleError(
-      `handover reported a ${kind} pass with committed work but no merge request.`,
+      `handover reported a ${kind} pass with committed work but no pull request.`,
     );
   }
-  if (leg.mergeRequest === "forbidden" && mrUrl) {
+  if (leg.pullRequest === "forbidden" && prUrl) {
     throw new RoleError(
-      `handover opened ${mrUrl} for a ${kind} pass on an empty branch, which gets no merge request.`,
+      `handover opened ${prUrl} for a ${kind} pass on an empty branch, which gets no pull request.`,
     );
   }
 }
