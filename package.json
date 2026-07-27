@@ -1,8 +1,14 @@
 {
-  "name": "@quantum-hub/relay",
-  "version": "1.0.0",
+  "name": "@miwurster/relay",
+  "version": "0.0.1",
   "description": "Runs one autonomous pass over a single work item, then passes the baton to a human.",
   "license": "Apache-2.0",
+  "homepage": "https://github.com/miwurster/relay#readme",
+  "bugs": "https://github.com/miwurster/relay/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/miwurster/relay.git"
+  },
   "type": "module",
   "bin": {
     "relay": "dist/main.js"
