@@ -1,8 +1,6 @@
 import { SelectionError } from "./errors.js";
-import { READY_LABEL, type GitHubBlocker, type GitHubClient, type GitHubIssue } from "./github.js";
-
-/** The label a running pass holds an item with. A held item is someone's run. */
-const HELD_LABEL = "agent-in-progress";
+import { type GitHubBlocker, type GitHubClient, type GitHubIssue } from "./github.js";
+import { HELD_LABEL, READY_LABEL } from "./labels.js";
 
 /** Either the one item this pass runs, or an empty frontier. */
 export type Selection = { kind: "work-item"; issue: GitHubIssue } | { kind: "nothing-to-do" };

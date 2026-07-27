@@ -69,6 +69,35 @@ A pass gates on the first two labels and writes all four:
 - `agent-in-review` — a successful pass leaves it, meaning the work is waiting on you.
 - `agent-blocked` — a blocked pass leaves it, meaning the item needs a human decision.
 
+All four have to exist in the repo before the first pass.
+Nothing creates them lazily: `gh` resolves every `--label` and `--add-label` name against the repo's existing labels and fails the whole call with `'agent-in-progress' not found` when a name is missing, so a pass that reaches for an absent label dies there rather than inventing it.
+
+`relay init` creates them for you, through your own `gh` and against the repo `gh` resolves this clone to.
+It also creates the four triage labels the agent skills speak in — `needs-triage`, `needs-info`, `ready-for-human`, `wontfix` — which `docs/agents/triage-labels.md` maps the roles to.
+
+A label the repo already has is kept, never `--force`d: relay fills the gaps in your vocabulary and never restates a colour or description you chose.
+Names match case-insensitively, so an existing `Ready-For-Agent` already satisfies the gate, and `wontfix` ships with every new GitHub repo and so is normally reported as kept.
+`relay doctor` reports a missing pass label as a failure and a missing triage label as a warning.
+
+Init reports each label as written, kept, skipped or failed, and never stops over one.
+A host with no `gh`, or no credential GitHub accepts, has its labels skipped and its files written anyway.
+If you would rather create them by hand, or a token without write access left init unable to:
+
+```sh
+gh label create ready-for-agent   --color 0E8A16 --description "Eligible for a relay pass" --force
+gh label create agent-in-progress --color FBCA04 --description "Held by a running pass" --force
+gh label create agent-in-review   --color 1D76DB --description "Pass finished, waiting on a human" --force
+gh label create agent-blocked     --color D93F0B --description "Pass blocked, needs a human decision" --force
+
+gh label create needs-triage    --color FBCA04 --description "Maintainer needs to evaluate this issue" --force
+gh label create needs-info      --color D876E3 --description "Waiting on reporter for more information" --force
+gh label create ready-for-human --color 1D76DB --description "Requires human implementation" --force
+gh label create wontfix         --color FFFFFF --description "Will not be actioned" --force
+```
+
+Colours and descriptions are yours; only the names matter.
+`--force` there is yours to use — it overwrites an existing label's colour and description, which is exactly what `relay init` will not do.
+
 ## 4. Provision one token
 
 One fine-grained GitHub personal access token, scoped to this repo:

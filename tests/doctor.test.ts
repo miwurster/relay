@@ -6,6 +6,7 @@ import type { ResolvedGate } from "../src/crew.js";
 import { type DoctorCheck, runDoctor, runDoctorChecks } from "../src/doctor.js";
 import { ExitCode } from "../src/exit-codes.js";
 import type { GateProbe } from "../src/gate-probe.js";
+import { PASS_LABELS, TRIAGE_LABELS } from "../src/labels.js";
 
 const validConfig = `export default {
   defaultBranch: "main",
@@ -56,9 +57,19 @@ function fakeGh(answers: string[] = []) {
   return { gh, calls };
 }
 
-/** A healthy host's `gh`: a version, then a logged-in auth status. */
-const healthyGh = () =>
-  fakeGh(["gh version 2.62.0 (2024-11-14)", "✓ Logged in to github.com account octocat"]);
+/** Every label relay's own passes and its agent skills speak in. */
+const ALL_LABELS = [...PASS_LABELS, ...TRIAGE_LABELS].map(({ name }) => name);
+
+/**
+ * A healthy host's `gh`: a version, a logged-in auth status, and a repo
+ * holding `labels` — every label in the vocabulary unless a test says less.
+ */
+const healthyGh = (labels: readonly string[] = ALL_LABELS) =>
+  fakeGh([
+    "gh version 2.62.0 (2024-11-14)",
+    "✓ Logged in to github.com account octocat",
+    JSON.stringify(labels.map((name) => ({ name }))),
+  ]);
 
 /** A `gh` that is on the PATH but has no valid credential. */
 const unauthenticatedGh = async (args: readonly string[]) => {
@@ -120,6 +131,8 @@ describe("runDoctorChecks", () => {
       "secrets",
       "gh installed",
       "gh authenticated",
+      "labels",
+      "triage labels",
       "sandbox image",
       "gate",
       "docker daemon",
@@ -317,7 +330,7 @@ describe("runDoctorChecks", () => {
     expect(check(checks, "gh authenticated").status).toBe("ok");
   });
 
-  it("asks gh only what the two checks need", async () => {
+  it("asks gh only what the checks need", async () => {
     const { gh, calls } = healthyGh();
 
     await runDoctorChecks({
@@ -328,7 +341,118 @@ describe("runDoctorChecks", () => {
       probe: declaredProbe,
     });
 
-    expect(calls).toEqual([["--version"], ["auth", "status"]]);
+    expect(calls).toEqual([
+      ["--version"],
+      ["auth", "status"],
+      ["label", "list", "--json", "name", "--limit", "200"],
+    ]);
+  });
+
+  it("fails on a missing pass label, which would kill a pass mid-flight", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(validConfig),
+      env: await envWithSecrets(),
+      docker: healthyDocker().docker,
+      gh: healthyGh(ALL_LABELS.filter((name) => name !== "agent-in-progress")).gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "labels").status).toBe("failed");
+    expect(check(checks, "labels").detail).toContain("agent-in-progress");
+    expect(check(checks, "triage labels").status).toBe("ok");
+  });
+
+  it("only warns on a missing triage label, which a repo may rename", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(validConfig),
+      env: await envWithSecrets(),
+      docker: healthyDocker().docker,
+      gh: healthyGh(PASS_LABELS.map(({ name }) => name)).gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "labels").status).toBe("ok");
+    expect(check(checks, "triage labels").status).toBe("warning");
+    expect(check(checks, "triage labels").detail).toContain("needs-triage");
+  });
+
+  it("counts a differently-cased label as present", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(validConfig),
+      env: await envWithSecrets(),
+      docker: healthyDocker().docker,
+      gh: healthyGh(ALL_LABELS.map((name) => name.toUpperCase())).gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "labels").status).toBe("ok");
+    expect(check(checks, "triage labels").status).toBe("ok");
+  });
+
+  it("reads the labels on a gh that prints its auth status on stderr", async () => {
+    const gh = async (args: readonly string[]) => {
+      if (args[0] === "--version") return "gh version 2.62.0 (2024-11-14)";
+      if (args[0] === "auth") return "";
+      return JSON.stringify(ALL_LABELS.map((name) => ({ name })));
+    };
+
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(validConfig),
+      env: await envWithSecrets(),
+      docker: healthyDocker().docker,
+      gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "gh authenticated").status).toBe("ok");
+    expect(check(checks, "labels").status).toBe("ok");
+    expect(check(checks, "triage labels").status).toBe("ok");
+  });
+
+  it("skips both label checks when gh has no credential to read them with", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(validConfig),
+      env: await envWithSecrets(),
+      docker: healthyDocker().docker,
+      gh: unauthenticatedGh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "labels").status).toBe("skipped");
+    expect(check(checks, "triage labels").status).toBe("skipped");
+  });
+
+  it("skips both label checks when there is no gh at all", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(validConfig),
+      env: await envWithSecrets(),
+      docker: healthyDocker().docker,
+      gh: missingGh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "labels").status).toBe("skipped");
+    expect(check(checks, "triage labels").status).toBe("skipped");
+  });
+
+  it("reports a refused label read as a failure of both checks", async () => {
+    const gh = async (args: readonly string[]) => {
+      if (args[0] === "--version") return "gh version 2.62.0 (2024-11-14)";
+      if (args[0] === "auth") return "✓ Logged in to github.com account octocat";
+      throw new Error("HTTP 404: Not Found");
+    };
+
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(validConfig),
+      env: await envWithSecrets(),
+      docker: healthyDocker().docker,
+      gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "labels").status).toBe("failed");
+    expect(check(checks, "labels").detail).toContain("404");
+    expect(check(checks, "triage labels").status).toBe("failed");
   });
 
   it("names the command a pass will verify with, and the doc it was declared in", async () => {
@@ -477,6 +601,28 @@ describe("runDoctor", () => {
     expect(code).toBe(ExitCode.Error);
   });
 
+  it("fails a repo whose label vocabulary a pass would die on", async () => {
+    const code = await runDoctor({
+      repoRoot: await repoWith(validConfig),
+      env: await envWithSecrets(),
+      docker: healthyDocker().docker,
+      gh: healthyGh(ALL_LABELS.filter((name) => name !== "agent-blocked")).gh,
+      probe: declaredProbe,
+    });
+    expect(code).toBe(ExitCode.Error);
+  });
+
+  it("succeeds on missing triage labels — a repo may speak its own vocabulary", async () => {
+    const code = await runDoctor({
+      repoRoot: await repoWith(validConfig),
+      env: await envWithSecrets(),
+      docker: healthyDocker().docker,
+      gh: healthyGh(PASS_LABELS.map(({ name }) => name)).gh,
+      probe: declaredProbe,
+    });
+    expect(code).toBe(ExitCode.Success);
+  });
+
   it("prints one line per check", async () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     try {
@@ -493,6 +639,8 @@ describe("runDoctor", () => {
         "secrets",
         "gh installed",
         "gh authenticated",
+        "labels",
+        "triage labels",
         "sandbox image",
         "gate",
         "docker daemon",

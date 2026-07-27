@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { CONFIG_FILE_NAME, DEFAULT_DOCKERFILE_PATH } from "./config.js";
-import { ConfigError } from "./errors.js";
+import { ConfigError, reasonOf } from "./errors.js";
 import { ExitCode } from "./exit-codes.js";
 import {
   defaultBranch,
@@ -12,6 +12,15 @@ import {
   runGit,
   type GitRunner,
 } from "./git.js";
+import {
+  ghAuthStatus,
+  ghCreateLabel,
+  ghLabelNames,
+  ghVersion,
+  runGh,
+  type GhRunner,
+} from "./github.js";
+import { missingLabels, PASS_LABELS, TRIAGE_LABELS, type LabelSpec } from "./labels.js";
 import { readResource } from "./resources.js";
 import {
   GITIGNORE_FILE_NAME,
@@ -21,22 +30,22 @@ import {
   WORKTREE_DIR,
 } from "./worktree-dir.js";
 
-/** One file init considered, and what it did with it. */
+/** One thing init considered — a file or a label — and what it did with it. */
 export interface InitVerdict {
-  file: string;
-  outcome: "written" | "kept" | "skipped";
+  subject: string;
+  outcome: "written" | "kept" | "skipped" | "failed";
   detail: string;
 }
 
 export interface InitOptions {
   repoRoot?: string;
   git?: GitRunner;
+  gh?: GhRunner;
 }
 
 /** What remains an operator's job once init has written what it could. */
 const MANUAL_STEPS = [
   "declare the green gate command in AGENTS.md",
-  "create the label vocabulary: ready-for-agent, agent-in-progress, agent-in-review, agent-blocked",
   "provision a GH_TOKEN with repo access",
 ].join("\n  - ");
 
@@ -44,14 +53,14 @@ const MANUAL_STEPS = [
  * Run the bootstrap and report every verdict.
  *
  * Init never overwrites and never stages or commits — it writes the files a
- * repo is missing, appends the one `.gitignore` line a pass needs, and leaves
- * both for the operator to review.
+ * repo is missing, appends the one `.gitignore` line a pass needs, creates the
+ * labels the repo has none of, and leaves all of it for the operator to review.
  */
 export async function runInit(options: InitOptions = {}): Promise<ExitCode> {
   const verdicts = await runInitChecks(options);
   console.log("relay init");
   for (const verdict of verdicts) {
-    console.log(`  ${label(verdict.outcome)} ${verdict.file}: ${verdict.detail}`);
+    console.log(`  ${label(verdict.outcome)} ${verdict.subject}: ${verdict.detail}`);
   }
   console.log(`\nStill yours to do:\n  - ${MANUAL_STEPS}`);
   console.log("\nNext: relay doctor");
@@ -68,6 +77,7 @@ export async function runInit(options: InitOptions = {}): Promise<ExitCode> {
 export async function runInitChecks({
   repoRoot = process.cwd(),
   git = runGit,
+  gh = runGh,
 }: InitOptions = {}): Promise<InitVerdict[]> {
   await guardGitHubClone({ repoRoot, git });
 
@@ -77,7 +87,74 @@ export async function runInitChecks({
     await writeConfigFile({ repoRoot, git }),
     await writeSandboxRecipe({ repoRoot, stack }),
     await ignoreWorktreeDir(repoRoot),
+    ...(await createLabels(gh)),
   ];
+}
+
+/**
+ * Create the labels this repo has none of, one verdict per label.
+ *
+ * A label that is already there is kept untouched, colour and description
+ * included: relay fills the gaps in a repo's vocabulary and never re-states
+ * what its maintainers already decided.
+ */
+async function createLabels(gh: GhRunner): Promise<InitVerdict[]> {
+  const wanted = [...PASS_LABELS, ...TRIAGE_LABELS];
+
+  const unreachable = await whyGhCannotBeAsked(gh);
+  if (unreachable) {
+    return wanted.map(({ name }) => ({ subject: name, outcome: "skipped", detail: unreachable }));
+  }
+
+  let existing: string[];
+  try {
+    existing = await ghLabelNames(gh);
+  } catch (error) {
+    const detail = reasonOf(error);
+    return wanted.map(({ name }) => ({ subject: name, outcome: "failed", detail }));
+  }
+
+  const missing = new Set(missingLabels({ wanted, existing }).map(({ name }) => name));
+
+  const verdicts: InitVerdict[] = [];
+  for (const spec of wanted) {
+    if (!missing.has(spec.name)) {
+      verdicts.push({ subject: spec.name, outcome: "kept", detail: "this repo already has it" });
+      continue;
+    }
+    verdicts.push(await createLabel({ spec, gh }));
+  }
+  return verdicts;
+}
+
+async function createLabel({ spec, gh }: { spec: LabelSpec; gh: GhRunner }): Promise<InitVerdict> {
+  try {
+    await ghCreateLabel(spec, gh);
+    return { subject: spec.name, outcome: "written", detail: `created #${spec.color}` };
+  } catch (error) {
+    return { subject: spec.name, outcome: "failed", detail: reasonOf(error) };
+  }
+}
+
+/**
+ * Why the host cannot be asked about labels at all, or nothing when it can.
+ *
+ * A missing or unauthenticated `gh` means init never got to ask, which is a
+ * skip; a `gh` that asked and was refused is a failure, and that verdict is
+ * carried by whichever call GitHub refused.
+ */
+async function whyGhCannotBeAsked(gh: GhRunner): Promise<string | undefined> {
+  try {
+    await ghVersion(gh);
+  } catch {
+    return "no `gh` on this host to create labels with";
+  }
+  try {
+    await ghAuthStatus(gh);
+  } catch {
+    return "`gh` on this host has no credential GitHub accepts";
+  }
+  return undefined;
 }
 
 /**
@@ -89,7 +166,7 @@ async function ignoreWorktreeDir(repoRoot: string): Promise<InitVerdict> {
   const existing = await readGitignore(repoRoot);
   if (ignoresWorktreeDir(existing)) {
     return {
-      file: GITIGNORE_FILE_NAME,
+      subject: GITIGNORE_FILE_NAME,
       outcome: "kept",
       detail: `already ignores \`${WORKTREE_DIR}/\``,
     };
@@ -98,7 +175,7 @@ async function ignoreWorktreeDir(repoRoot: string): Promise<InitVerdict> {
   await writeFile(join(repoRoot, GITIGNORE_FILE_NAME), withWorktreeDirIgnored(existing), "utf8");
 
   return {
-    file: GITIGNORE_FILE_NAME,
+    subject: GITIGNORE_FILE_NAME,
     outcome: "written",
     detail: `now ignores \`${WORKTREE_DIR}/\``,
   };
@@ -113,13 +190,13 @@ async function writeConfigFile({
 }): Promise<InitVerdict> {
   const configPath = join(repoRoot, CONFIG_FILE_NAME);
   if (existsSync(configPath)) {
-    return { file: CONFIG_FILE_NAME, outcome: "kept", detail: "already exists" };
+    return { subject: CONFIG_FILE_NAME, outcome: "kept", detail: "already exists" };
   }
 
   const branch = await defaultBranch({ repoRoot, git });
   await writeFile(configPath, configSource({ branch }), "utf8");
 
-  return { file: CONFIG_FILE_NAME, outcome: "written", detail: `defaultBranch \`${branch}\`` };
+  return { subject: CONFIG_FILE_NAME, outcome: "written", detail: `defaultBranch \`${branch}\`` };
 }
 
 /** The three sandbox recipe templates shipped as resources, one per stack. */
@@ -138,12 +215,12 @@ async function writeSandboxRecipe({
 }): Promise<InitVerdict> {
   const dockerfilePath = join(repoRoot, DEFAULT_DOCKERFILE_PATH);
   if (existsSync(dockerfilePath)) {
-    return { file: DEFAULT_DOCKERFILE_PATH, outcome: "kept", detail: "already exists" };
+    return { subject: DEFAULT_DOCKERFILE_PATH, outcome: "kept", detail: "already exists" };
   }
 
   if (!stack) {
     return {
-      file: DEFAULT_DOCKERFILE_PATH,
+      subject: DEFAULT_DOCKERFILE_PATH,
       outcome: "skipped",
       detail:
         "no recipe written — the repo matched none of Java, Python, or Node; " +
@@ -156,7 +233,7 @@ async function writeSandboxRecipe({
   await writeFile(dockerfilePath, template, "utf8");
 
   return {
-    file: DEFAULT_DOCKERFILE_PATH,
+    subject: DEFAULT_DOCKERFILE_PATH,
     outcome: "written",
     detail: `wrote the ${stack} sandbox recipe`,
   };
@@ -215,5 +292,5 @@ function configSource({ branch }: { branch: string }): string {
 }
 
 function label(outcome: InitVerdict["outcome"]): string {
-  return { written: "wrote ", kept: "kept  ", skipped: "skip  " }[outcome];
+  return { written: "wrote ", kept: "kept  ", skipped: "skip  ", failed: "FAILED" }[outcome];
 }

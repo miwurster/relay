@@ -41,3 +41,8 @@ export class RoleError extends RelayError {}
  * fails an eligibility gate.
  */
 export class SelectionError extends RelayError {}
+
+/** What went wrong, as a line a report can carry. */
+export function reasonOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}

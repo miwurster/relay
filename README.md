@@ -14,8 +14,8 @@ You need Node 20+, Docker, an authenticated `gh`, a repo-scoped `GH_TOKEN`, and 
 Secrets live in your environment or in `~/.config/relay/.env`.
 
 ```sh
-npx @miwurster/relay init      # write the missing config, sandbox recipe, .gitignore line
-npx @miwurster/relay doctor    # check config, secrets, gh, sandbox image, Docker, gate
+npx @miwurster/relay init      # write the missing config, sandbox recipe, .gitignore line, labels
+npx @miwurster/relay doctor    # check config, secrets, gh, labels, sandbox image, Docker, gate
 npx @miwurster/relay 42        # run a pass over issue 42
 npx @miwurster/relay           # or over the longest-waiting ready-for-agent item
 ```

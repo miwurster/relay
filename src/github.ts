@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { z } from "zod";
 import { GitHubError } from "./errors.js";
+import { READY_LABEL, type LabelSpec } from "./labels.js";
 
 /** A blocking edge: the issue relay would have to wait on. */
 export interface GitHubBlocker {
@@ -89,11 +90,29 @@ export async function ghAuthStatus(gh: GhRunner = runGh): Promise<string> {
 }
 
 /**
- * The label that marks an item as agent-grabbable. Never bypassed — the
- * frontier query filters on it and the eligibility check gates on it, so both
- * read the one constant rather than agreeing by coincidence.
+ * Every label name this repo has. `gh` defaults to 30, which would leave a
+ * label present in a well-used repo looking absent.
  */
-export const READY_LABEL = "ready-for-agent";
+export async function ghLabelNames(gh: GhRunner = runGh): Promise<string[]> {
+  const output = await run("list this repo's labels", () =>
+    gh(["label", "list", "--json", "name", "--limit", String(LABEL_LIMIT)]),
+  );
+  return parse(z.array(z.object({ name: z.string() })), output).map((label) => label.name);
+}
+
+/**
+ * Create one label, colour and description included. Never `--force`: relay
+ * creates the labels a repo is missing and leaves the ones it has exactly as
+ * their maintainers tuned them.
+ */
+export async function ghCreateLabel(label: LabelSpec, gh: GhRunner = runGh): Promise<void> {
+  await run(`create the \`${label.name}\` label`, () =>
+    gh(["label", "create", label.name, "--color", label.color, "--description", label.description]),
+  );
+}
+
+/** The label page size, well past any repo's hand-maintained vocabulary. */
+const LABEL_LIMIT = 200;
 
 /**
  * The frontier page size. `gh` defaults to 30, which would silently truncate a

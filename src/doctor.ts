@@ -1,10 +1,11 @@
 import { CONFIG_FILE_NAME, loadConfig, type RelayConfig } from "./config.js";
-import { ConfigError } from "./errors.js";
+import { ConfigError, reasonOf } from "./errors.js";
 import { ExitCode } from "./exit-codes.js";
 import { type DockerRunner, dockerDaemonVersionInSandbox, runDocker } from "./docker-host.js";
 import type { ResolvedGate } from "./crew.js";
 import { type GateProbe, probeGate } from "./gate-probe.js";
-import { type GhRunner, ghAuthStatus, ghVersion, runGh } from "./github.js";
+import { type GhRunner, ghAuthStatus, ghLabelNames, ghVersion, runGh } from "./github.js";
+import { missingLabels, PASS_LABELS, TRIAGE_LABELS, type LabelSpec } from "./labels.js";
 import { resolveSandboxImage, verifyPrebuiltImage } from "./sandbox-image.js";
 import { loadSecrets } from "./secrets.js";
 import {
@@ -16,6 +17,9 @@ import {
 
 /** Why the daemon and gate checks cannot run when an earlier check failed. */
 const NO_IMAGE = "no sandbox image to run the check in";
+
+/** Why the label checks cannot run: nothing on this host can ask GitHub. */
+const NO_CREDENTIAL = "no `gh` credential to read this repo's labels with";
 
 /**
  * One preflight check's verdict.
@@ -100,8 +104,9 @@ export async function runDoctorChecks({
     (version: string) => `${version} on this host's PATH`,
   );
 
+  let authenticated: string | undefined;
   if (installedGh) {
-    await record(
+    authenticated = await record(
       checks,
       "gh authenticated",
       () => ghAuthStatus(gh),
@@ -109,6 +114,15 @@ export async function runDoctorChecks({
     );
   } else {
     skip(checks, "gh authenticated", "no `gh` on this host to ask for a credential");
+  }
+
+  // Success, not a non-empty answer: older `gh` prints its auth status on
+  // stderr, and an empty stdout there must not read as no credential.
+  if (authenticated !== undefined) {
+    checks.push(...(await labelChecks(gh)));
+  } else {
+    skip(checks, "labels", NO_CREDENTIAL);
+    skip(checks, "triage labels", NO_CREDENTIAL);
   }
 
   if (!config) {
@@ -151,6 +165,61 @@ export async function runDoctorChecks({
   );
 
   return checks;
+}
+
+/**
+ * What this repo's label vocabulary looks like, read in one call and graded
+ * twice.
+ *
+ * A pass label nobody created is a failure: `gh` resolves every `--add-label`
+ * name against the repo's labels, so the pass would die mid-flight applying
+ * one. A triage label nobody created is only a warning — relay's own code
+ * never reads them, and `docs/agents/triage-labels.md` invites a repo to use
+ * its own vocabulary instead.
+ */
+async function labelChecks(gh: GhRunner): Promise<DoctorCheck[]> {
+  let existing: string[];
+  try {
+    existing = await ghLabelNames(gh);
+  } catch (error) {
+    const detail = reasonOf(error);
+    return [
+      { name: "labels", status: "failed", detail },
+      { name: "triage labels", status: "failed", detail },
+    ];
+  }
+
+  return [
+    labelCheck({ name: "labels", wanted: PASS_LABELS, existing, whenAbsent: "failed" }),
+    labelCheck({
+      name: "triage labels",
+      wanted: TRIAGE_LABELS,
+      existing,
+      whenAbsent: "warning",
+    }),
+  ];
+}
+
+function labelCheck({
+  name,
+  wanted,
+  existing,
+  whenAbsent,
+}: {
+  name: string;
+  wanted: readonly LabelSpec[];
+  existing: readonly string[];
+  whenAbsent: "failed" | "warning";
+}): DoctorCheck {
+  const missing = missingLabels({ wanted, existing });
+  if (missing.length === 0) {
+    return { name, status: "ok", detail: `this repo has all ${wanted.length}` };
+  }
+  return {
+    name,
+    status: whenAbsent,
+    detail: `this repo is missing ${missing.map((spec) => spec.name).join(", ")} — \`relay init\` creates them`,
+  };
 }
 
 /**
@@ -231,17 +300,13 @@ async function record<T>(
     checks.push({ name, status: statusOf(value), detail: describe(value) });
     return value;
   } catch (error) {
-    checks.push({ name, status: "failed", detail: reason(error) });
+    checks.push({ name, status: "failed", detail: reasonOf(error) });
     return undefined;
   }
 }
 
 function skip(checks: DoctorCheck[], name: string, why: string): void {
   checks.push({ name, status: "skipped", detail: why });
-}
-
-function reason(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function label(status: DoctorCheck["status"]): string {

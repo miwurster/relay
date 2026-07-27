@@ -145,8 +145,8 @@ The last block wins — a role that corrected itself means the correction.
 _Avoid_: output block, response payload
 
 **Init**:
-The one-off bootstrap that writes a repo's `relay.config.ts` and **sandbox recipe** from what it can detect, and names what is left to a human.
-It only ever writes those two files: it never touches the **tracker doc**, never creates labels, and never overwrites, so re-running it fills gaps rather than undoing hand-tuning.
+The one-off bootstrap that writes a repo's `relay.config.ts` and **sandbox recipe** from what it can detect, creates the label vocabulary the repo is missing, and names what is left to a human.
+It never touches the **tracker doc** and never overwrites — an existing file is kept and an existing label is left with the colour and description its maintainers gave it — so re-running it fills gaps rather than undoing hand-tuning ([ADR-0011](docs/adr/0011-init-creates-the-label-vocabulary.md)).
 It has no say in the **green gate** — that is the repo's docs' to declare and the **gate resolver**'s to read — so init names declaring it as one of the human steps left.
 _Avoid_: bootstrap, setup, scaffold
 
