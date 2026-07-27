@@ -22,6 +22,11 @@ export class ConfigError extends RelayError {}
 export class JiraError extends RelayError {}
 
 /**
+ * GitHub itself would not answer: a `gh` that failed, or an unexpected response.
+ */
+export class GitHubError extends RelayError {}
+
+/**
  * The sandbox could not be prepared or opened: an image that will not build, a
  * docker daemon that will not answer, or a worktree relay cannot create.
  */
