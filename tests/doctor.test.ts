@@ -2,12 +2,10 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { UNSET_GREEN_GATE } from "../src/config.js";
 import { type DoctorCheck, runDoctor, runDoctorChecks } from "../src/doctor.js";
 import { ExitCode } from "../src/exit-codes.js";
 
 const validConfig = `export default {
-  greenGate: "./mvnw verify",
   defaultBranch: "main",
   image: "registry.example.com/relay:1",
 };`;
@@ -96,7 +94,7 @@ describe("runDoctorChecks", () => {
     expect(checks.every((c) => c.status === "ok")).toBe(true);
   });
 
-  it("names the green gate and the resolved image so a human can eyeball them", async () => {
+  it("names the resolved image so a human can eyeball it", async () => {
     const checks = await runDoctorChecks({
       repoRoot: await repoWith(validConfig),
       env: await envWithSecrets(),
@@ -104,7 +102,6 @@ describe("runDoctorChecks", () => {
       gh: healthyGh().gh,
     });
 
-    expect(check(checks, "config").detail).toContain("./mvnw verify");
     expect(check(checks, "sandbox image").detail).toContain("registry.example.com/relay:1");
     expect(check(checks, "docker daemon").detail).toContain("29.6.2");
   });
@@ -127,7 +124,7 @@ describe("runDoctorChecks", () => {
 
   it("reports an invalid config and skips the checks that need it", async () => {
     const checks = await runDoctorChecks({
-      repoRoot: await repoWith(`export default { greenGate: "" };`),
+      repoRoot: await repoWith(`export default {};`),
       env: await envWithSecrets(),
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
@@ -138,27 +135,9 @@ describe("runDoctorChecks", () => {
     expect(check(checks, "docker daemon").status).toBe("skipped");
   });
 
-  it("fails the config check on a gate init left unset, and still runs the rest", async () => {
-    const checks = await runDoctorChecks({
-      repoRoot: await repoWith(`export default {
-        greenGate: ${JSON.stringify(UNSET_GREEN_GATE)},
-        defaultBranch: "main",
-      };`),
-      env: await envWithSecrets(),
-      docker: healthyDocker().docker,
-      gh: healthyGh().gh,
-    });
-
-    expect(check(checks, "config").status).toBe("failed");
-    expect(check(checks, "config").detail).toMatch(/relay init/i);
-    expect(check(checks, "secrets").status).toBe("ok");
-    expect(check(checks, "gh installed").status).toBe("ok");
-  });
-
   it("reports an unbuildable image and skips the daemon check that needs it", async () => {
     const checks = await runDoctorChecks({
       repoRoot: await repoWith(`export default {
-        greenGate: "./mvnw verify",
         defaultBranch: "main",
       };`),
       env: await envWithSecrets(),
@@ -208,7 +187,6 @@ describe("runDoctorChecks", () => {
 
   it("builds the repo's dockerfile rather than assuming an image is there", async () => {
     const root = await repoWith(`export default {
-      greenGate: "./mvnw verify",
       defaultBranch: "main",
     };`);
     await mkdir(join(root, "docker"), { recursive: true });
@@ -268,7 +246,7 @@ describe("runDoctorChecks", () => {
 
   it("reports the gh checks even when the config is invalid", async () => {
     const checks = await runDoctorChecks({
-      repoRoot: await repoWith(`export default { greenGate: "" };`),
+      repoRoot: await repoWith(`export default {};`),
       env: await envWithSecrets(),
       docker: healthyDocker().docker,
       gh: healthyGh().gh,

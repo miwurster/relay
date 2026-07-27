@@ -11,7 +11,6 @@ import { createHandover, HANDOVER_TAG } from "../src/handover.js";
 import { TRACKER_DOC_PATH } from "../src/tracker-doc.js";
 
 const config = relayConfigSchema.parse({
-  greenGate: "make test",
   defaultBranch: "main",
 });
 

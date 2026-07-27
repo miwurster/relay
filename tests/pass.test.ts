@@ -18,7 +18,6 @@ import type { Secrets } from "../src/secrets.js";
 import { TRACKER_DOC_PATH } from "../src/tracker-doc.js";
 
 const validConfig = `export default {
-  greenGate: "make test",
   defaultBranch: "main",
 };`;
 
@@ -98,7 +97,6 @@ const passSecrets: Secrets = {
 };
 
 const passConfig = relayConfigSchema.parse({
-  greenGate: "make test",
   defaultBranch: "main",
 });
 

@@ -8,10 +8,7 @@ import type { ResolvedGate } from "../src/crew.js";
 import { RoleError } from "../src/errors.js";
 import { createGreenGate, GATE_OUTPUT_TAIL, GATE_TAG } from "../src/green-gate.js";
 
-// Deliberately not the gate's command: the gate role must run what it is
-// handed, never what the config carries.
 const config = relayConfigSchema.parse({
-  greenGate: "echo unused",
   defaultBranch: "main",
 });
 

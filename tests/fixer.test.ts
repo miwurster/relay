@@ -9,7 +9,6 @@ import { RoleError } from "../src/errors.js";
 import { createFixer, FIX_TAG } from "../src/fixer.js";
 
 const config = relayConfigSchema.parse({
-  greenGate: "make test",
   defaultBranch: "main",
 });
 

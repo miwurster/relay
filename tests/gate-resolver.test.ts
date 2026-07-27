@@ -9,7 +9,6 @@ import { createGateResolver, RESOLVED_GATE_TAG } from "../src/gate-resolver.js";
 import { readResource } from "../src/resources.js";
 
 const config = relayConfigSchema.parse({
-  greenGate: "make test",
   defaultBranch: "main",
 });
 

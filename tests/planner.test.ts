@@ -11,7 +11,6 @@ import { readResource } from "../src/resources.js";
 import { TRACKER_DOC_PATH } from "../src/tracker-doc.js";
 
 const config = relayConfigSchema.parse({
-  greenGate: "make test",
   defaultBranch: "main",
 });
 

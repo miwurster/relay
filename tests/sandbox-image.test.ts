@@ -13,7 +13,6 @@ import {
 
 const config = (overrides: Record<string, unknown> = {}) =>
   relayConfigSchema.parse({
-    greenGate: "./mvnw verify",
     defaultBranch: "main",
     ...overrides,
   });

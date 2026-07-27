@@ -20,7 +20,6 @@ const plugins = [
 
 const config = (defaultBranch = "main") =>
   relayConfigSchema.parse({
-    greenGate: "./mvnw verify",
     defaultBranch,
   });
 

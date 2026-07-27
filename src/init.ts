@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { CONFIG_FILE_NAME, DEFAULT_DOCKERFILE_PATH, UNSET_GREEN_GATE } from "./config.js";
+import { CONFIG_FILE_NAME, DEFAULT_DOCKERFILE_PATH } from "./config.js";
 import { ConfigError } from "./errors.js";
 import { ExitCode } from "./exit-codes.js";
 import {
@@ -28,7 +28,7 @@ export interface InitOptions {
 
 /** What remains an operator's job once init has written what it could. */
 const MANUAL_STEPS = [
-  "confirm the green gate relay.config.ts detected (or fill it in if it's still the sentinel)",
+  "declare the green gate command in AGENTS.md",
   "create the label vocabulary: ready-for-agent, agent-in-progress, agent-in-review, agent-blocked",
   "provision a GH_TOKEN with repo access",
 ].join("\n  - ");
@@ -63,22 +63,17 @@ export async function runInitChecks({
 }: InitOptions = {}): Promise<InitVerdict[]> {
   await guardGitHubClone({ repoRoot, git });
 
-  const { stack, gate } = await detectStack(repoRoot);
+  const stack = detectStack(repoRoot);
 
-  return [
-    await writeConfigFile({ repoRoot, git, gate }),
-    await writeSandboxRecipe({ repoRoot, stack }),
-  ];
+  return [await writeConfigFile({ repoRoot, git }), await writeSandboxRecipe({ repoRoot, stack })];
 }
 
 async function writeConfigFile({
   repoRoot,
   git,
-  gate,
 }: {
   repoRoot: string;
   git: GitRunner;
-  gate: GateDetection;
 }): Promise<InitVerdict> {
   const configPath = join(repoRoot, CONFIG_FILE_NAME);
   if (existsSync(configPath)) {
@@ -86,15 +81,9 @@ async function writeConfigFile({
   }
 
   const branch = await defaultBranch({ repoRoot, git });
-  await writeFile(configPath, configSource({ gate, branch }), "utf8");
+  await writeFile(configPath, configSource({ branch }), "utf8");
 
-  return {
-    file: CONFIG_FILE_NAME,
-    outcome: "written",
-    detail: gate.detected
-      ? `detected green gate \`${gate.value}\` — confirm it`
-      : "green gate could not be detected — left as the sentinel `relay doctor` will refuse",
-  };
+  return { file: CONFIG_FILE_NAME, outcome: "written", detail: `defaultBranch \`${branch}\`` };
 }
 
 /** The three sandbox recipe templates shipped as resources, one per stack. */
@@ -159,68 +148,34 @@ async function guardGitHubClone({
   }
 }
 
-interface GateDetection {
-  value: string;
-  detected: boolean;
-}
-
 /** The language a sandbox recipe template is chosen for. */
 type Stack = "java" | "python" | "node";
 
-interface StackDetection {
-  stack: Stack | undefined;
-  gate: GateDetection;
-}
-
 /**
- * The stack and green gate detected from the repo's manifest, by fixed
- * precedence: Maven, then `uv`, then npm. A Maven or `uv` repo always yields
- * its command; a `package.json` with none of the preferred scripts still
- * yields the Node stack, but the sentinel gate rather than a guess. A repo
- * matching none of the three yields neither.
+ * The stack detected from the repo's manifest, by fixed precedence: Maven,
+ * then `uv`, then npm. A repo matching none of the three yields none.
  */
-async function detectStack(repoRoot: string): Promise<StackDetection> {
+function detectStack(repoRoot: string): Stack | undefined {
   if (existsSync(join(repoRoot, "pom.xml"))) {
-    return { stack: "java", gate: { value: "./mvnw verify", detected: true } };
+    return "java";
   }
   if (existsSync(join(repoRoot, "pyproject.toml"))) {
-    return { stack: "python", gate: { value: "uv run pytest", detected: true } };
+    return "python";
+  }
+  if (existsSync(join(repoRoot, "package.json"))) {
+    return "node";
   }
 
-  const packageJsonPath = join(repoRoot, "package.json");
-  if (existsSync(packageJsonPath)) {
-    const scripts = await readPackageScripts(packageJsonPath);
-    for (const name of ["verify", "ci", "test"]) {
-      if (scripts[name]) {
-        return { stack: "node", gate: { value: `npm run ${name}`, detected: true } };
-      }
-    }
-    return { stack: "node", gate: { value: UNSET_GREEN_GATE, detected: false } };
-  }
-
-  return { stack: undefined, gate: { value: UNSET_GREEN_GATE, detected: false } };
-}
-
-async function readPackageScripts(packageJsonPath: string): Promise<Record<string, string>> {
-  const raw = await readFile(packageJsonPath, "utf8");
-  const parsed: unknown = JSON.parse(raw);
-  if (parsed && typeof parsed === "object" && "scripts" in parsed) {
-    const scripts = (parsed as { scripts?: unknown }).scripts;
-    if (scripts && typeof scripts === "object") return scripts as Record<string, string>;
-  }
-  return {};
+  return undefined;
 }
 
 /**
- * `relay.config.ts` carrying only `greenGate` and `defaultBranch` — every
- * other field has a package default, and echoing them back out would freeze
- * them against future defaults.
+ * `relay.config.ts` carrying only `defaultBranch` — every other field has a
+ * package default, and echoing them back out would freeze them against
+ * future defaults.
  */
-function configSource({ gate, branch }: { gate: GateDetection; branch: string }): string {
-  const gateLine = gate.detected
-    ? `  // detected from the repo's manifest — confirm this is really your green gate\n  greenGate: ${JSON.stringify(gate.value)},`
-    : `  greenGate: ${JSON.stringify(gate.value)},`;
-  return `export default {\n${gateLine}\n  defaultBranch: ${JSON.stringify(branch)},\n};\n`;
+function configSource({ branch }: { branch: string }): string {
+  return `export default {\n  defaultBranch: ${JSON.stringify(branch)},\n};\n`;
 }
 
 function label(outcome: InitVerdict["outcome"]): string {

@@ -14,7 +14,6 @@ import { PLAN_TAG } from "../src/planner.js";
 import { FINDINGS_TAG } from "../src/reviewer.js";
 
 const config = relayConfigSchema.parse({
-  greenGate: "make test",
   defaultBranch: "main",
 });
 
@@ -143,13 +142,13 @@ describe("createCrew", () => {
       workItem: issue.number,
       branch,
     }).greenGate(1, {
-      command: config.greenGate,
+      command: "make test",
       provenance: "declared",
       source: "relay.config.ts",
     });
 
     expect(result.green).toBe(true);
-    expect(commands).toEqual([config.greenGate]);
+    expect(commands).toEqual(["make test"]);
   });
 
   it("reviews each lens of a scope in its own review run", async () => {

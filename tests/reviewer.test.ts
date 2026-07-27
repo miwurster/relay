@@ -10,7 +10,6 @@ import { createReviewer, FINDINGS_TAG } from "../src/reviewer.js";
 import { TRACKER_DOC_PATH } from "../src/tracker-doc.js";
 
 const config = relayConfigSchema.parse({
-  greenGate: "make test",
   defaultBranch: "main",
 });
 

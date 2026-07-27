@@ -61,7 +61,7 @@ export async function runDoctorChecks({
     checks,
     "config",
     () => loadConfig(repoRoot),
-    (loaded: RelayConfig) => `${CONFIG_FILE_NAME} is valid — green gate \`${loaded.greenGate}\``,
+    () => `${CONFIG_FILE_NAME} is valid`,
   );
 
   await record(

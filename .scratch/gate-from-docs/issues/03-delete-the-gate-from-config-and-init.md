@@ -10,13 +10,13 @@ No migration handling: no repo has a config with this field in it.
 
 **Blocked by:** 02.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The config schema has no gate field, and the sentinel constant and its refusal are gone.
-- [ ] The schema stays strict, so a config carrying the old field is refused — with no special-cased message, because no such repo exists.
-- [ ] A minimal valid config is `defaultBranch` alone, and every fixture across the suites reflects that.
-- [ ] Init detects no gate, and the config it writes carries `defaultBranch` and nothing else.
-- [ ] The config init writes round-trips: loading it yields the branch, and no gate.
-- [ ] Init's report tells the operator to declare their gate in `AGENTS.md` and names `relay doctor` as the next step.
-- [ ] Doctor's config check no longer names a gate command it cannot know.
-- [ ] `npm run verify` exits zero.
+- [x] The config schema has no gate field, and the sentinel constant and its refusal are gone.
+- [x] The schema stays strict, so a config carrying the old field is refused — with no special-cased message, because no such repo exists.
+- [x] A minimal valid config is `defaultBranch` alone, and every fixture across the suites reflects that.
+- [x] Init detects no gate, and the config it writes carries `defaultBranch` and nothing else.
+- [x] The config init writes round-trips: loading it yields the branch, and no gate.
+- [x] Init's report tells the operator to declare their gate in `AGENTS.md` and names `relay doctor` as the next step.
+- [x] Doctor's config check no longer names a gate command it cannot know.
+- [x] `npm run verify` exits zero.
