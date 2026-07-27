@@ -1,0 +1,19 @@
+# 01 — An unset green gate refuses to load
+
+**What to build:** an operator whose **green gate** could not be detected finds out the moment they run anything, with a message telling them what to fix.
+
+The config schema accepts any non-empty string for `greenGate`, so there is no way to write "not set yet" into a `relay.config.ts` without it becoming a command relay will happily run as the sole evidence for calling a branch green. **Init** needs exactly that: a value it can write when detection fails, which cannot be mistaken for a confirmed gate.
+
+A known sentinel constant fills the hole. The schema refuses it by name, with a message saying init left the gate unset and the operator has to fill it in. Because the refusal lives in the schema, both a real **pass** and **doctor** report it with no further work — doctor gains no new check, its existing config check just goes red.
+
+Nothing writes the sentinel yet. This is the prefactor that makes init's undetectable case safe.
+
+**Blocked by:** None — can start immediately.
+
+**Status:** ready-for-agent
+
+- [ ] A sentinel constant is exported from the config module for init to write later.
+- [ ] Loading a `relay.config.ts` whose `greenGate` is the sentinel fails with a message that names init as its origin and says to fill the gate in — not a generic schema error.
+- [ ] A config carrying any other non-empty gate still loads exactly as before.
+- [ ] Doctor reports a sentinel-carrying config as a failed config check, through its existing check rather than a new one, and still runs the checks that follow.
+- [ ] `npm run verify` exits zero.

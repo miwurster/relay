@@ -132,6 +132,17 @@ The `<tag>…</tag>` block a **role** ends its run with, holding the JSON answer
 The last block wins — a role that corrected itself means the correction.
 _Avoid_: output block, response payload
 
+**Init**:
+The one-off bootstrap that writes a repo's `relay.config.ts` and **sandbox recipe** from what it can detect, and names what is left to a human.
+It only ever writes those two files: it never touches the **tracker doc**, never creates labels, and never overwrites, so re-running it fills gaps rather than undoing hand-tuning.
+Detection is a convenience and never a claim to be right — an undetectable green gate is written as a value the config schema refuses, so it fails loudly rather than running as if confirmed.
+_Avoid_: bootstrap, setup, scaffold
+
+**Sandbox recipe**:
+The target repo's committed Dockerfile for the **sandbox**, which relay builds when no prebuilt image is configured.
+The repo owns it, because only the repo knows what its **green gate** needs — relay only requires the tooling a **pass** itself uses, and passes the host's UID and GID in as build arguments.
+_Avoid_: sandbox dockerfile, image recipe
+
 **Doctor**:
 The opt-in preflight that runs every setup check eagerly and reports them all, rather than failing on the first.
 _Avoid_: healthcheck, diagnostics
