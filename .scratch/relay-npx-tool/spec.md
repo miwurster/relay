@@ -1,6 +1,6 @@
 # Spec: relay — one-pass autonomous work-item runner (npx tool)
 
-Status: ready-for-agent
+Status: resolved
 
 Source map: `.scratch/relay-npx-tool/map.md` (13 resolved wayfinder tickets). This spec is the locked synthesis; the map's per-ticket files hold the deeper rationale.
 

@@ -1,6 +1,6 @@
 # Spec: relay speaks GitHub only
 
-Status: ready-for-agent
+Status: resolved
 
 Decisions this spec is written against: `.scratch/github-switch/decisions.md`.
 API facts it rests on: `.scratch/github-switch/research/01-github-api-shape.md`, verified against gh 2.96.0.

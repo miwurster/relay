@@ -1,6 +1,6 @@
 # Spec: `relay init` bootstraps a repo
 
-Status: ready-for-agent
+Status: resolved
 
 Vocabulary: `CONTEXT.md` — **Init**, **Sandbox recipe**, **Doctor**, **Tracker doc**, **Green gate**, **Pass**, **Sandbox**.
 Architecture it rests on: [ADR-0007](../../docs/adr/0007-one-forge-one-tracker-no-abstraction.md) (GitHub is hardcoded, no adapter).
