@@ -75,7 +75,7 @@ Do not soft-wrap sentences across multiple lines.
 
 ### Issue tracker
 
-Local markdown — issues live as files under `.scratch/<feature-slug>/` in this repo. See `docs/agents/issue-tracker.md`.
+Issues live as GitHub issues for this repo (`miwurster/relay`). Use the `gh` CLI. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
