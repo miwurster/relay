@@ -6,9 +6,7 @@ import { ConfigError } from "../src/errors.js";
 import { loadSecrets, secretsFilePath } from "../src/secrets.js";
 
 const complete = {
-  ATLASSIAN_SA_EMAIL: "relay@kipu-quantum.com",
-  ATLASSIAN_SA_TOKEN: "sa-token",
-  GITLAB_TOKEN: "gl-token",
+  GH_TOKEN: "gh-token",
   CLAUDE_CODE_OAUTH_TOKEN: "oauth-token",
 };
 
@@ -37,18 +35,12 @@ describe("secretsFilePath", () => {
 describe("loadSecrets", () => {
   it("reads every secret from the home-dir file", async () => {
     const home = await configHomeWith(`# relay credentials
-ATLASSIAN_SA_EMAIL=relay@kipu-quantum.com
-ATLASSIAN_SA_TOKEN="sa-token"
+GH_TOKEN="gh-token"
 
-GITLAB_TOKEN='gl-token'
 ANTHROPIC_API_KEY=api-key
 `);
     const secrets = await loadSecrets(envWith({ XDG_CONFIG_HOME: home }));
-    expect(secrets.atlassian).toEqual({
-      email: "relay@kipu-quantum.com",
-      token: "sa-token",
-    });
-    expect(secrets.gitlabToken).toBe("gl-token");
+    expect(secrets.githubToken).toBe("gh-token");
     expect(secrets.claude).toEqual({
       variable: "ANTHROPIC_API_KEY",
       token: "api-key",
@@ -61,14 +53,14 @@ ANTHROPIC_API_KEY=api-key
         .map(([key, value]) => `${key}=${value}`)
         .join("\n"),
     );
-    const secrets = await loadSecrets(envWith({ XDG_CONFIG_HOME: home, GITLAB_TOKEN: "from-env" }));
-    expect(secrets.gitlabToken).toBe("from-env");
+    const secrets = await loadSecrets(envWith({ XDG_CONFIG_HOME: home, GH_TOKEN: "from-env" }));
+    expect(secrets.githubToken).toBe("from-env");
   });
 
   it("resolves from the environment alone when no file exists", async () => {
     const home = await mkdtemp(join(tmpdir(), "relay-secrets-"));
     const secrets = await loadSecrets(envWith({ XDG_CONFIG_HOME: home, ...complete }));
-    expect(secrets.atlassian.token).toBe("sa-token");
+    expect(secrets.githubToken).toBe("gh-token");
   });
 
   it("prefers the OAuth token over an API key when both are present", async () => {
@@ -81,20 +73,17 @@ ANTHROPIC_API_KEY=api-key
 
   it("reports every missing secret at once", async () => {
     const home = await mkdtemp(join(tmpdir(), "relay-secrets-"));
-    const failure = loadSecrets(
-      envWith({ XDG_CONFIG_HOME: home, ATLASSIAN_SA_EMAIL: "relay@kipu-quantum.com" }),
-    );
+    const failure = loadSecrets(envWith({ XDG_CONFIG_HOME: home }));
     await expect(failure).rejects.toThrow(ConfigError);
-    await expect(failure).rejects.toThrow(/ATLASSIAN_SA_TOKEN/);
-    await expect(failure).rejects.toThrow(/GITLAB_TOKEN/);
+    await expect(failure).rejects.toThrow(/GH_TOKEN/);
     await expect(failure).rejects.toThrow(/CLAUDE_CODE_OAUTH_TOKEN/);
   });
 
   it("treats a blank value as missing", async () => {
-    const home = await configHomeWith("GITLAB_TOKEN=   ");
-    const { GITLAB_TOKEN: _blank, ...rest } = complete;
+    const home = await configHomeWith("GH_TOKEN=   ");
+    const { GH_TOKEN: _blank, ...rest } = complete;
     await expect(loadSecrets(envWith({ XDG_CONFIG_HOME: home, ...rest }))).rejects.toThrow(
-      /GITLAB_TOKEN/,
+      /GH_TOKEN/,
     );
   });
 });

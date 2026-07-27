@@ -10,13 +10,11 @@ export interface ClaudeCredential {
 }
 
 /**
- * Every credential a pass needs. The Atlassian service-account pair is used
- * host-side (REST basic auth) and in the sandbox (MCP bearer); the GitLab and
- * Claude credentials are injected into the sandbox only.
+ * Every credential a pass needs: the GitHub token `gh` authenticates with, and
+ * the Claude credential the sandbox's roles run on.
  */
 export interface Secrets {
-  atlassian: { email: string; token: string };
-  gitlabToken: string;
+  githubToken: string;
   claude: ClaudeCredential;
 }
 
@@ -40,25 +38,19 @@ export async function loadSecrets(env: NodeJS.ProcessEnv = process.env): Promise
   const fromFile = await readEnvFile(secretsFilePath(env));
   const resolve = (name: string) => value(env[name], fromFile[name]);
 
-  const { email, token, gitlabToken, claude } = requireAll(
+  return requireAll(
     {
-      email: resolve("ATLASSIAN_SA_EMAIL"),
-      token: resolve("ATLASSIAN_SA_TOKEN"),
-      gitlabToken: resolve("GITLAB_TOKEN"),
+      githubToken: resolve("GH_TOKEN"),
       claude: resolveClaudeCredential(env, fromFile),
     },
     {
-      email: "ATLASSIAN_SA_EMAIL",
-      token: "ATLASSIAN_SA_TOKEN",
-      gitlabToken: "GITLAB_TOKEN",
+      githubToken: "GH_TOKEN",
       claude: "CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY",
     },
     (missing) =>
       `Missing secret(s): ${missing.join(", ")}. ` +
       `Set them as environment variables or in ${secretsFilePath(env)}.`,
   );
-
-  return { atlassian: { email, token }, gitlabToken, claude };
 }
 
 function resolveClaudeCredential(

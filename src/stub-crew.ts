@@ -8,8 +8,9 @@ import type { Crew } from "./crew.js";
 export function createStubCrew(): Crew {
   return {
     async plan(issue) {
-      log("planner", `would plan ${issue.key}`);
-      return { kind: "plan", tickets: [{ key: issue.key, summary: "the work item itself" }] };
+      const number = String(issue.number);
+      log("planner", `would plan #${number}`);
+      return { kind: "plan", tickets: [{ key: number, summary: "the work item itself" }] };
     },
 
     async implement(ticket) {

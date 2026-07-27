@@ -5,22 +5,21 @@ import type { Sandbox, SandboxRunOptions, SandboxRunResult } from "@ai-hero/sand
 import { beforeEach, describe, expect, it } from "vitest";
 import { relayConfigSchema } from "../src/config.js";
 import { RoleError } from "../src/errors.js";
-import type { JiraIssue } from "../src/jira.js";
+import type { GitHubIssue } from "../src/github.js";
 import { createPlanner, PLAN_TAG } from "../src/planner.js";
 import { TRACKER_DOC_PATH } from "../src/tracker-doc.js";
 
 const config = relayConfigSchema.parse({
   greenGate: "make test",
   defaultBranch: "main",
-  jira: { baseUrl: "https://example.atlassian.net" },
 });
 
-const issue: JiraIssue = {
-  key: "PSD-7",
-  issueType: "Story",
+const issue: GitHubIssue = {
+  number: 7,
   labels: ["ready-for-agent"],
-  isDone: false,
+  isOpen: true,
   blockedBy: [],
+  subIssues: [],
 };
 
 /** A sandbox whose only real behaviour is the stdout the planner run returns. */
@@ -102,7 +101,10 @@ describe("createPlanner", () => {
     expect(
       run?.agent.buildPrintCommand({ prompt: "", dangerouslySkipPermissions: true }).command,
     ).toContain(`--model '${config.models.planner}'`);
-    expect(run?.promptArgs).toEqual({ WORK_ITEM_KEY: issue.key, TRACKER_DOC: TRACKER_DOC_PATH });
+    expect(run?.promptArgs).toEqual({
+      WORK_ITEM_KEY: String(issue.number),
+      TRACKER_DOC: TRACKER_DOC_PATH,
+    });
     expect(run?.prompt).toContain("{{WORK_ITEM_KEY}}");
     expect(run?.prompt).toContain("{{TRACKER_DOC}}");
     expect(run?.prompt).toContain(`<${PLAN_TAG}>`);

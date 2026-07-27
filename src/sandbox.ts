@@ -1,7 +1,4 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { createSandbox, type CreateSandboxOptions, type Sandbox } from "@ai-hero/sandcastle";
 import { docker as dockerSandbox } from "@ai-hero/sandcastle/sandboxes/docker";
@@ -15,12 +12,6 @@ import { resolveSandboxImage } from "./sandbox-image.js";
 import type { Secrets } from "./secrets.js";
 import { resolveSkillPlugins, type SkillPlugin } from "./skills.js";
 
-/** The remote Atlassian MCP server the in-sandbox roles reach Jira through. */
-export const ATLASSIAN_MCP_URL = "https://mcp.atlassian.com/v1/mcp";
-
-/** Where the mounted Atlassian MCP config appears inside the sandbox. */
-export const SANDBOX_MCP_CONFIG_PATH = "/opt/relay/mcp/atlassian.json";
-
 /**
  * A fresh git worktree does not populate submodules, and a target repo that
  * keeps generated resources in one fails to build without them.
@@ -29,7 +20,7 @@ const SUBMODULE_INIT = "git submodule update --init --recursive";
 
 const execFileAsync = promisify(execFile);
 
-/** An open sandbox and the teardown that also removes its host-side MCP config. */
+/** An open sandbox and its teardown. */
 export interface RelaySandbox {
   readonly sandbox: Sandbox;
   close(): Promise<void>;
@@ -44,35 +35,6 @@ export interface HostFacts {
   socketGid: number;
   testcontainersHost: string;
   plugins: readonly SkillPlugin[];
-  mcpConfigDir: string;
-}
-
-/**
- * The Atlassian MCP config the sandbox roles run with.
- *
- * The service-account bearer is referenced as an environment variable rather
- * than written out, so the token exists in the sandbox's environment only and
- * never on disk. Passing the header suppresses the interactive OAuth flow,
- * which is what makes the remote server usable headless.
- */
-export function atlassianMcpConfig(): string {
-  const config = {
-    mcpServers: {
-      atlassian: {
-        type: "http",
-        url: ATLASSIAN_MCP_URL,
-        headers: { Authorization: "Bearer ${ATLASSIAN_SA_TOKEN}" },
-      },
-    },
-  };
-  return `${JSON.stringify(config, undefined, 2)}\n`;
-}
-
-/** Write the MCP config to a fresh host directory and return that directory. */
-export async function writeMcpConfigDir(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), "relay-mcp-"));
-  await writeFile(join(dir, "atlassian.json"), atlassianMcpConfig(), "utf8");
-  return dir;
 }
 
 /**
@@ -80,13 +42,7 @@ export async function writeMcpConfigDir(): Promise<string> {
  * image, so skills stay at the operator's installed version and credentials
  * stay out of the image.
  */
-export function sandboxMounts({
-  plugins,
-  mcpConfigDir,
-}: {
-  plugins: readonly SkillPlugin[];
-  mcpConfigDir: string;
-}) {
+export function sandboxMounts({ plugins }: { plugins: readonly SkillPlugin[] }) {
   return [
     { hostPath: DOCKER_SOCKET_PATH, sandboxPath: DOCKER_SOCKET_PATH },
     ...plugins.map((plugin) => ({
@@ -94,14 +50,16 @@ export function sandboxMounts({
       sandboxPath: plugin.sandboxPath,
       readonly: true,
     })),
-    { hostPath: mcpConfigDir, sandboxPath: dirname(SANDBOX_MCP_CONFIG_PATH), readonly: true },
   ];
 }
 
 /**
  * The sandbox environment: the host address Testcontainers must dial, and the
- * credentials the in-sandbox tools authenticate with (MCP bearer, `glab`,
- * `claude`).
+ * credentials the in-sandbox tools authenticate with (`gh`, `claude`).
+ *
+ * The GitHub token travels as `GH_TOKEN` — the variable `gh` prefers, and the
+ * one that cannot collide with what GitHub Actions injects — and reaches the
+ * sandbox as an environment variable only, never as a file on its disk.
  */
 export function sandboxEnv({
   secrets,
@@ -112,8 +70,7 @@ export function sandboxEnv({
 }): Record<string, string> {
   return {
     TESTCONTAINERS_HOST_OVERRIDE: testcontainersHost,
-    ATLASSIAN_SA_TOKEN: secrets.atlassian.token,
-    GITLAB_TOKEN: secrets.gitlabToken,
+    GH_TOKEN: secrets.githubToken,
     [secrets.claude.variable]: secrets.claude.token,
   };
 }
@@ -167,7 +124,7 @@ export function sandboxOptions({
     sandbox: dockerSandbox({
       imageName: host.image,
       groups: [host.socketGid],
-      mounts: sandboxMounts({ plugins: host.plugins, mcpConfigDir: host.mcpConfigDir }),
+      mounts: sandboxMounts({ plugins: host.plugins }),
       env: sandboxEnv({ secrets, testcontainersHost: host.testcontainersHost }),
     }),
   };
@@ -176,7 +133,7 @@ export function sandboxOptions({
 /**
  * Open the pass's sandbox: resolve the image prebuilt-ref-first, detect what
  * only the host can tell us (socket group, Testcontainers host), mount the
- * installed skills and the MCP config, and create the worktree.
+ * installed skills, and create the worktree.
  */
 export async function openSandbox({
   repoRoot,
@@ -192,38 +149,27 @@ export async function openSandbox({
   // Operator setup first: a plugin the host has not installed must not cost a
   // whole image build before it is reported.
   const plugins = await resolveSkillPlugins();
-  const mcpConfigDir = await writeMcpConfigDir();
-  const removeMcpConfig = () => rm(mcpConfigDir, { recursive: true, force: true });
 
-  try {
-    const [image, testcontainersHost] = await Promise.all([
-      resolveSandboxImage({ repoRoot, config }),
-      resolveTestcontainersHost(),
-    ]);
-    const socketGid = await detectDockerSocketGid({ image });
+  const [image, testcontainersHost] = await Promise.all([
+    resolveSandboxImage({ repoRoot, config }),
+    resolveTestcontainersHost(),
+  ]);
+  const socketGid = await detectDockerSocketGid({ image });
 
-    const sandbox = await createSandbox(
-      sandboxOptions({
-        repoRoot,
-        config,
-        secrets,
-        branch,
-        host: { image, socketGid, testcontainersHost, plugins, mcpConfigDir },
-      }),
-    );
+  const sandbox = await createSandbox(
+    sandboxOptions({
+      repoRoot,
+      config,
+      secrets,
+      branch,
+      host: { image, socketGid, testcontainersHost, plugins },
+    }),
+  );
 
-    return {
-      sandbox,
-      close: async () => {
-        try {
-          await sandbox.close();
-        } finally {
-          await removeMcpConfig();
-        }
-      },
-    };
-  } catch (error) {
-    await removeMcpConfig();
-    throw error;
-  }
+  return {
+    sandbox,
+    close: async () => {
+      await sandbox.close();
+    },
+  };
 }

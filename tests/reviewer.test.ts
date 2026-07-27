@@ -12,7 +12,6 @@ import { TRACKER_DOC_PATH } from "../src/tracker-doc.js";
 const config = relayConfigSchema.parse({
   greenGate: "make test",
   defaultBranch: "main",
-  jira: { baseUrl: "https://example.atlassian.net" },
 });
 
 const ticketScope: ReviewScope = {
@@ -151,7 +150,7 @@ describe("createReviewer", () => {
     expect(runs[0]?.prompt).toContain("kipu-all:kipu-code-review");
   });
 
-  it("sends the spec lenses to the tracker for the intent, with the tracker MCP wired", async () => {
+  it("sends the spec lenses to the tracker doc for the intent", async () => {
     const { review, runs } = reviewing(taggedFindings("[]"));
 
     await review("fastSpecReview", ticketScope);
@@ -159,7 +158,6 @@ describe("createReviewer", () => {
 
     expect(commandOf(runs[0])).toContain(`--model '${config.models.fastSpecReview}'`);
     expect(commandOf(runs[1])).toContain(`--model '${config.models.inDepthSpecReview}'`);
-    expect(commandOf(runs[0])).toContain("--mcp-config");
     expect(runs[0]?.promptArgs).toEqual({
       SCOPE: "ticket",
       KEY: "PSD-8",

@@ -8,7 +8,7 @@ import type {
   TicketRef,
 } from "./crew.js";
 import { ExitCode } from "./exit-codes.js";
-import type { JiraIssue } from "./jira.js";
+import type { GitHubIssue } from "./github.js";
 
 /** The lenses that read one ticket's change, right after it was implemented. */
 const PER_TICKET_LENSES: ReviewLens[] = ["fastCodeReview", "fastSpecReview"];
@@ -31,7 +31,7 @@ export const MAX_GATE_FIX_ATTEMPTS = 2;
  * the gate → fixer loop, then handover. Every exit path ends at the same
  * handover call, so no outcome can skip it.
  */
-export async function runHarness(crew: Crew, issue: JiraIssue): Promise<Outcome> {
+export async function runHarness(crew: Crew, issue: GitHubIssue): Promise<Outcome> {
   const outcome = await runLegs(crew, issue);
   await crew.handover(outcome);
   return outcome;
@@ -42,7 +42,7 @@ export function exitCodeFor(outcome: Outcome): ExitCode {
   return outcome.kind === "success" ? ExitCode.Success : ExitCode.Blocked;
 }
 
-async function runLegs(crew: Crew, issue: JiraIssue): Promise<Outcome> {
+async function runLegs(crew: Crew, issue: GitHubIssue): Promise<Outcome> {
   const plan = await crew.plan(issue);
   if (plan.kind === "under-specified") {
     return { kind: "early-bail", reason: plan.reason };
@@ -51,7 +51,7 @@ async function runLegs(crew: Crew, issue: JiraIssue): Promise<Outcome> {
   const blocked = await implementTickets(crew, plan.tickets);
   if (blocked) return blocked;
 
-  await reviewAndFix(crew, WHOLE_BRANCH_LENSES, { kind: "branch", workItem: issue.key });
+  await reviewAndFix(crew, WHOLE_BRANCH_LENSES, { kind: "branch", workItem: String(issue.number) });
   // Every ticket was implemented by now, so the branch carries work whenever
   // the plan had a ticket at all.
   return await driveGate(crew, plan.tickets.length > 0);

@@ -13,15 +13,15 @@ import type {
 } from "../src/crew.js";
 import { ExitCode } from "../src/exit-codes.js";
 import { exitCodeFor, MAX_GATE_FIX_ATTEMPTS, runHarness } from "../src/harness.js";
-import type { JiraIssue } from "../src/jira.js";
+import type { GitHubIssue } from "../src/github.js";
 import { createStubCrew } from "../src/stub-crew.js";
 
-const issue: JiraIssue = {
-  key: "PSD-1",
-  issueType: "Story",
+const issue: GitHubIssue = {
+  number: 1,
   labels: ["ready-for-agent"],
-  isDone: false,
+  isOpen: true,
   blockedBy: [],
+  subIssues: [],
 };
 
 const ticket = (key: string): TicketRef => ({ key, summary: `work on ${key}` });

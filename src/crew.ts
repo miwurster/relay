@@ -1,10 +1,10 @@
 import type { Sandbox } from "@ai-hero/sandcastle";
 import type { RelayConfig } from "./config.js";
 import { createFixer } from "./fixer.js";
+import type { GitHubIssue } from "./github.js";
 import { createGreenGate } from "./green-gate.js";
 import { createHandover } from "./handover.js";
 import { createImplementer } from "./implementer.js";
-import type { JiraIssue } from "./jira.js";
 import { createPlanner } from "./planner.js";
 import { createReviewer } from "./reviewer.js";
 
@@ -85,7 +85,7 @@ export type Outcome =
  * nothing between them but the small values in this file.
  */
 export interface Crew {
-  plan(issue: JiraIssue): Promise<PlanResult>;
+  plan(issue: GitHubIssue): Promise<PlanResult>;
   implement(ticket: TicketRef): Promise<ImplementResult>;
   review(lens: ReviewLens, scope: ReviewScope): Promise<Finding[]>;
   fix(findings: readonly Finding[], target: FixTarget): Promise<void>;

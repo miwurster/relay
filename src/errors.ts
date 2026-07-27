@@ -17,11 +17,6 @@ export class RelayError extends Error {
 export class ConfigError extends RelayError {}
 
 /**
- * Jira itself would not answer: bad credentials, or an unexpected response.
- */
-export class JiraError extends RelayError {}
-
-/**
  * GitHub itself would not answer: a `gh` that failed, or an unexpected response.
  */
 export class GitHubError extends RelayError {}
@@ -39,7 +34,7 @@ export class SandboxError extends RelayError {}
 export class RoleError extends RelayError {}
 
 /**
- * No pass can start: the work item relay was pointed at fails an eligibility
- * gate, or is of a type relay never runs.
+ * No pass can start: the work item relay was pointed at cannot be named, or
+ * fails an eligibility gate.
  */
 export class SelectionError extends RelayError {}

@@ -51,8 +51,12 @@ export const runGh: GhRunner = async (args) => {
   return stdout.trim();
 };
 
-/** The label that marks an item as agent-grabbable. Never bypassed. */
-const READY_LABEL = "ready-for-agent";
+/**
+ * The label that marks an item as agent-grabbable. Never bypassed — the
+ * frontier query filters on it and the eligibility check gates on it, so both
+ * read the one constant rather than agreeing by coincidence.
+ */
+export const READY_LABEL = "ready-for-agent";
 
 /**
  * The frontier page size. `gh` defaults to 30, which would silently truncate a

@@ -8,7 +8,6 @@ import { loadConfig } from "../src/config.js";
 const minimalConfig = `export default {
   greenGate: "./mvnw verify -DexcludedGroups=e2e",
   defaultBranch: "main",
-  jira: { baseUrl: "https://kipu-quantum.atlassian.net" },
 };`;
 
 async function repoWith(configSource: string | undefined): Promise<string> {
@@ -24,7 +23,6 @@ describe("loadConfig", () => {
     const config = await loadConfig(await repoWith(minimalConfig));
     expect(config.greenGate).toBe("./mvnw verify -DexcludedGroups=e2e");
     expect(config.defaultBranch).toBe("main");
-    expect(config.jira.baseUrl).toBe("https://kipu-quantum.atlassian.net");
   });
 
   it("applies the package defaults a repo did not override", async () => {
@@ -45,7 +43,6 @@ describe("loadConfig", () => {
       defaultBranch: "trunk",
       branchPrefix: "relay/",
       image: "registry.example.com/relay:1",
-      jira: { baseUrl: "https://example.atlassian.net" },
       models: { implementer: "claude-opus-4-8" },
     };`);
     const config = await loadConfig(root);
@@ -69,7 +66,6 @@ describe("loadConfig", () => {
     const root = await repoWith(`export default {
       greenGate: "make test",
       defaultBranch: "main",
-      jira: { baseUrl: "https://example.atlassian.net" },
       projectKey: "PSD",
     };`);
     await expect(loadConfig(root)).rejects.toThrow(ConfigError);
@@ -79,8 +75,17 @@ describe("loadConfig", () => {
     const root = await repoWith(`export default {
       greenGate: "make test",
       defaultBranch: "main",
-      jira: { baseUrl: "https://example.atlassian.net", token: "shh" },
+      githubToken: "shh",
     };`);
     await expect(loadConfig(root)).rejects.toThrow(ConfigError);
+  });
+
+  it("names a leftover jira block, so migrating a repo cannot half-succeed", async () => {
+    const root = await repoWith(`export default {
+      greenGate: "make test",
+      defaultBranch: "main",
+      jira: { baseUrl: "https://example.atlassian.net" },
+    };`);
+    await expect(loadConfig(root)).rejects.toThrow(/jira/);
   });
 });

@@ -3,20 +3,20 @@ import { createCrew as createRelayCrew, type Crew } from "./crew.js";
 import { SandboxError } from "./errors.js";
 import { ExitCode } from "./exit-codes.js";
 import { passOutputDir } from "./findings-file.js";
+import { createGitHubClient, type GitHubClient, type GitHubIssue } from "./github.js";
 import { exitCodeFor, runHarness } from "./harness.js";
-import { createJiraClient, type JiraClient, type JiraIssue } from "./jira.js";
 import { branchExists, openSandbox, passBranch, type RelaySandbox } from "./sandbox.js";
 import { loadSecrets, type Secrets } from "./secrets.js";
-import { loadTrackerScope } from "./tracker-doc.js";
-import { selectWorkItem } from "./work-item.js";
+import { requireTrackerDoc } from "./tracker-doc.js";
+import { selectWorkItem, workItemNumber } from "./work-item.js";
 
 /** The one work item's pass, and the two seams tests replace. */
 export interface PassRun {
   repoRoot: string;
   config: RelayConfig;
   secrets: Secrets;
-  issue: JiraIssue;
-  jira: JiraClient;
+  issue: GitHubIssue;
+  github: GitHubClient;
   open?: typeof openSandbox;
   createCrew?: (sandbox: RelaySandbox, branch: string) => Crew;
 }
@@ -24,55 +24,53 @@ export interface PassRun {
 /**
  * Run one pass over a single work item, then hand off to a human.
  *
- * The pass fails fast on an invalid config or an unresolvable secret before
- * any sandbox work starts; deeper tool, auth and docker failures surface
- * lazily where they are first used.
+ * The pass fails fast on an invalid config, an unresolvable secret or a missing
+ * tracker doc before any sandbox work starts; deeper tool, auth and docker
+ * failures surface lazily where they are first used.
  */
 export async function runPass(workItem: string | undefined): Promise<ExitCode> {
   const repoRoot = process.cwd();
   const config = await loadConfig(repoRoot);
   const secrets = await loadSecrets();
-  const scope = await loadTrackerScope(repoRoot);
+  await requireTrackerDoc(repoRoot);
 
-  const jira = createJiraClient({
-    baseUrl: config.jira.baseUrl,
-    email: secrets.atlassian.email,
-    token: secrets.atlassian.token,
-  });
-
-  const selection = await selectWorkItem(jira, scope, workItem);
+  const github = createGitHubClient();
+  const selection = await selectWorkItem(
+    github,
+    workItem === undefined ? undefined : workItemNumber(workItem),
+  );
   if (selection.kind === "nothing-to-do") {
-    console.log(`relay: nothing to do — no ready work item for ${scope.repoLabel}`);
+    console.log("relay: nothing to do — no eligible ready-for-agent issue in this repo");
     return ExitCode.Success;
   }
 
-  return await runPassOnItem({ repoRoot, config, secrets, issue: selection.issue, jira });
+  return await runPassOnItem({ repoRoot, config, secrets, issue: selection.issue, github });
 }
 
 /**
  * Open the sandbox, run the crew in it, and dispose of it whatever happens.
  *
- * A crash is reported to Jira on the way out and then rethrown, so the caller
- * maps it to the error exit code. Relay never transitions the item back: it
- * stays In Progress, which is what a re-run after a crash expects to find.
+ * A crash is reported on the item on the way out and then rethrown, so the
+ * caller maps it to the error exit code. relay never unlabels the item: it
+ * stays held, which is what a re-run after a crash expects to find.
  */
 export async function runPassOnItem({
   repoRoot,
   config,
   secrets,
   issue,
-  jira,
+  github,
   open = openSandbox,
   createCrew = (opened, branch) =>
     createRelayCrew({
       sandbox: opened.sandbox,
       config,
-      outputDir: passOutputDir(repoRoot, issue.key),
-      workItem: issue.key,
+      outputDir: passOutputDir(repoRoot, String(issue.number)),
+      workItem: String(issue.number),
       branch,
     }),
 }: PassRun): Promise<ExitCode> {
-  const branch = passBranch(config, issue.key);
+  const branch = passBranch(config, String(issue.number));
   await refuseOnBranchCollision(repoRoot, branch);
 
   let opened: RelaySandbox | undefined;
@@ -83,7 +81,7 @@ export async function runPassOnItem({
     const outcome = await runHarness(createCrew(opened, branch), issue);
     return exitCodeFor(outcome);
   } catch (error) {
-    await reportCrash(jira, issue, branch, error);
+    await reportCrash(github, issue, branch, error);
     throw error;
   } finally {
     await opened?.close();
@@ -100,23 +98,23 @@ async function refuseOnBranchCollision(repoRoot: string, branch: string): Promis
 }
 
 /**
- * Best-effort: a crashed pass is still worth a note on the item, but a Jira
+ * Best-effort: a crashed pass is still worth a note on the item, but a GitHub
  * that will not take the comment must not replace the original failure.
  */
 async function reportCrash(
-  jira: JiraClient,
-  issue: JiraIssue,
+  github: GitHubClient,
+  issue: GitHubIssue,
   branch: string,
   error: unknown,
 ): Promise<void> {
   const reason = error instanceof Error ? error.message : String(error);
   try {
-    await jira.addComment(
-      issue.key,
+    await github.addComment(
+      issue.number,
       `relay crashed during its pass on ${branch}: ${reason}\n\n` +
-        "The item is left In Progress and the sandbox was disposed of.",
+        "The item is left labelled `agent-in-progress` and the sandbox was disposed of.",
     );
   } catch (commentError) {
-    console.error(`relay: could not comment the crash on ${issue.key}:`, commentError);
+    console.error(`relay: could not comment the crash on #${issue.number}:`, commentError);
   }
 }

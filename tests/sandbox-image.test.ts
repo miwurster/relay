@@ -15,7 +15,6 @@ const config = (overrides: Record<string, unknown> = {}) =>
   relayConfigSchema.parse({
     greenGate: "./mvnw verify",
     defaultBranch: "main",
-    jira: { baseUrl: "https://example.atlassian.net" },
     ...overrides,
   });
 

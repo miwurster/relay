@@ -2,7 +2,7 @@ import type { Sandbox } from "@ai-hero/sandcastle";
 import { z } from "zod";
 import type { RelayConfig } from "./config.js";
 import type { Crew, PlanResult } from "./crew.js";
-import type { JiraIssue } from "./jira.js";
+import type { GitHubIssue } from "./github.js";
 import { runRole } from "./run-role.js";
 import { TRACKER_DOC_PATH } from "./tracker-doc.js";
 
@@ -41,7 +41,7 @@ export function createPlanner({
   config: RelayConfig;
   outputDir: string;
 }): Crew["plan"] {
-  return async function plan(issue: JiraIssue): Promise<PlanResult> {
+  return async function plan(issue: GitHubIssue): Promise<PlanResult> {
     return await runRole({
       sandbox,
       config,
@@ -49,7 +49,7 @@ export function createPlanner({
       outputDir,
       model: config.models.planner,
       prompt: PLANNER_PROMPT,
-      promptArgs: { WORK_ITEM_KEY: issue.key, TRACKER_DOC: TRACKER_DOC_PATH },
+      promptArgs: { WORK_ITEM_KEY: String(issue.number), TRACKER_DOC: TRACKER_DOC_PATH },
       tag: PLAN_TAG,
       schema: planSchema,
     });

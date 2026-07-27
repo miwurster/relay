@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ConfigError } from "../src/errors.js";
-import { TRACKER_DOC_PATH, loadTrackerScope } from "../src/tracker-doc.js";
+import { TRACKER_DOC_PATH, requireTrackerDoc } from "../src/tracker-doc.js";
 
 async function repoWithTrackerDoc(contents?: string): Promise<string> {
   const repoRoot = await mkdtemp(join(tmpdir(), "relay-tracker-"));
@@ -15,36 +15,17 @@ async function repoWithTrackerDoc(contents?: string): Promise<string> {
   return repoRoot;
 }
 
-const trackerDoc = `# Issue tracker: Jira
+describe("requireTrackerDoc", () => {
+  it("passes on a repo that commits the doc, whatever it says", async () => {
+    const repoRoot = await repoWithTrackerDoc("# Issue tracker: GitHub\n");
 
-Issues and specs for this repo live in Jira, reached through the **Atlassian MCP**.
-
-## Setup constants
-
-- **Jira project key:** \`PSD\` — every issue for this repo is created in this project.
-- **Repo label:** \`repo:qc-catalog\` — the only thing that scopes work to this repo.
-- **Cloud id:** \`35183b42-c98a-4cd0-a8a7-32a27ea7856e\` — the site id.
-`;
-
-describe("loadTrackerScope", () => {
-  it("reads the project key and repo label from the setup constants", async () => {
-    const repoRoot = await repoWithTrackerDoc(trackerDoc);
-
-    await expect(loadTrackerScope(repoRoot)).resolves.toEqual({
-      projectKey: "PSD",
-      repoLabel: "repo:qc-catalog",
-    });
+    await expect(requireTrackerDoc(repoRoot)).resolves.toBeUndefined();
   });
 
-  it("fails when the tracker doc is absent", async () => {
+  it("fails with the path when the tracker doc is absent", async () => {
     const repoRoot = await repoWithTrackerDoc();
 
-    await expect(loadTrackerScope(repoRoot)).rejects.toThrow(ConfigError);
-  });
-
-  it("names every missing constant at once", async () => {
-    const repoRoot = await repoWithTrackerDoc("# Issue tracker: Local Markdown\n");
-
-    await expect(loadTrackerScope(repoRoot)).rejects.toThrow(/Jira project key.*Repo label/s);
+    await expect(requireTrackerDoc(repoRoot)).rejects.toThrow(ConfigError);
+    await expect(requireTrackerDoc(repoRoot)).rejects.toThrow(/issue-tracker\.md/);
   });
 });

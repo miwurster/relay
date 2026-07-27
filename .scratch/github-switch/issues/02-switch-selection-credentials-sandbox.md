@@ -14,17 +14,17 @@ A blocked-by *count* must never be trusted — GitHub's includes closed blockers
 
 **Blocked by:** 01.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] An auto-pick takes the longest-waiting eligible item; an empty frontier is a clean nothing-to-do, not a failure.
-- [ ] Each gate is covered at the high seam with a faked client: the ready label, the `agent-in-progress` hold, a closed issue, and an open blocker.
-- [ ] A **closed** blocker is ignored, so a finished dependency does not hold work back forever.
-- [ ] A blocker in **another repository** is honoured, identified from its `url`.
-- [ ] An explicitly-named item faces the same gates with no override, and each failure names the gate it failed.
-- [ ] `TrackerScope` and the tracker doc's setup-constant parser are gone. The tracker-doc module keeps only the doc's path and an existence check, so a missing doc still fails the pass early with a clear error.
-- [ ] `Secrets` is one GitHub token plus the Claude credential. The Atlassian pair and the GitLab token are gone; the home-dir file, environment-variable precedence and the single aggregated error are unchanged.
-- [ ] The sandbox environment carries the token as `GH_TOKEN` — not `GITHUB_TOKEN` — and no Atlassian or GitLab variable. The token is never written to the sandbox's disk.
-- [ ] The Atlassian MCP config generation, its temp directory, its bind mount and its teardown are all deleted.
-- [ ] The repo config schema has no `jira` block, and because it is strict, a leftover one fails loudly with a message an operator can act on.
-- [ ] The crash comment says the item is left labelled `agent-in-progress`, not "In Progress".
-- [ ] The Jira module and its tests are deleted, and `npm run verify` exits zero.
+- [x] An auto-pick takes the longest-waiting eligible item; an empty frontier is a clean nothing-to-do, not a failure.
+- [x] Each gate is covered at the high seam with a faked client: the ready label, the `agent-in-progress` hold, a closed issue, and an open blocker.
+- [x] A **closed** blocker is ignored, so a finished dependency does not hold work back forever.
+- [x] A blocker in **another repository** is honoured, identified from its `url`.
+- [x] An explicitly-named item faces the same gates with no override, and each failure names the gate it failed.
+- [x] `TrackerScope` and the tracker doc's setup-constant parser are gone. The tracker-doc module keeps only the doc's path and an existence check, so a missing doc still fails the pass early with a clear error.
+- [x] `Secrets` is one GitHub token plus the Claude credential. The Atlassian pair and the GitLab token are gone; the home-dir file, environment-variable precedence and the single aggregated error are unchanged.
+- [x] The sandbox environment carries the token as `GH_TOKEN` — not `GITHUB_TOKEN` — and no Atlassian or GitLab variable. The token is never written to the sandbox's disk.
+- [x] The Atlassian MCP config generation, its temp directory, its bind mount and its teardown are all deleted.
+- [x] The repo config schema has no `jira` block, and because it is strict, a leftover one fails loudly with a message an operator can act on.
+- [x] The crash comment says the item is left labelled `agent-in-progress`, not "In Progress".
+- [x] The Jira module and its tests are deleted, and `npm run verify` exits zero.

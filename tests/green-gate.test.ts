@@ -10,7 +10,6 @@ import { createGreenGate, GATE_OUTPUT_TAIL, GATE_TAG } from "../src/green-gate.j
 const config = relayConfigSchema.parse({
   greenGate: "./mvnw verify -DexcludedGroups=e2e",
   defaultBranch: "main",
-  jira: { baseUrl: "https://example.atlassian.net" },
 });
 
 interface GateRun {

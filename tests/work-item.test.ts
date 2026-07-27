@@ -1,147 +1,157 @@
 import { describe, expect, it } from "vitest";
 import { SelectionError } from "../src/errors.js";
-import type { JiraClient, JiraIssue } from "../src/jira.js";
-import type { TrackerScope } from "../src/tracker-doc.js";
-import { frontierJql, selectWorkItem } from "../src/work-item.js";
+import type { GitHubClient, GitHubIssue } from "../src/github.js";
+import { selectWorkItem, workItemNumber } from "../src/work-item.js";
 
-const scope: TrackerScope = { projectKey: "PSD", repoLabel: "repo:qc-catalog" };
-
-function issue(overrides: Partial<JiraIssue> = {}): JiraIssue {
+function issue(overrides: Partial<GitHubIssue> = {}): GitHubIssue {
   return {
-    key: "PSD-1",
-    issueType: "Story",
-    labels: ["repo:qc-catalog", "ready-for-agent"],
-    isDone: false,
+    number: 1,
+    labels: ["ready-for-agent"],
+    isOpen: true,
     blockedBy: [],
+    subIssues: [],
     ...overrides,
   };
 }
 
-/** A fake standing in for the whole Jira seam: no sandbox, no network. */
-function fakeJira(issues: JiraIssue[]): JiraClient & { queries: string[] } {
-  const queries: string[] = [];
+function blocker(overrides: Partial<GitHubIssue["blockedBy"][number]> = {}) {
+  return { number: 3, repository: "kipu/qc-catalog", isOpen: true, ...overrides };
+}
+
+/** A fake standing in for the whole GitHub seam: no `gh`, no network. */
+function fakeGitHub(issues: GitHubIssue[]): GitHubClient & { frontierScans: number } {
   return {
-    queries,
-    async search(jql) {
-      queries.push(jql);
+    frontierScans: 0,
+    async frontier() {
+      this.frontierScans += 1;
+      // Whatever the query answered, eligibility gates it: the query is only a
+      // prefilter, and both paths run the same gates.
       return issues;
     },
-    async getIssue(key) {
-      return issues.find((candidate) => candidate.key === key);
+    async getIssue(number) {
+      return issues.find((candidate) => candidate.number === number);
     },
     async addComment() {
-      // The frontier never comments; the handover does.
+      // Selection never comments; the handover does.
     },
   };
 }
 
-describe("frontierJql", () => {
-  it("narrows to the runnable types, ordered priority DESC then created ASC", () => {
-    expect(frontierJql(scope)).toBe(
-      'project = PSD AND labels = "repo:qc-catalog" AND labels = "ready-for-agent"' +
-        " AND statusCategory != Done" +
-        " AND issuetype in (Story, Bug, Vulnerability)" +
-        " ORDER BY priority DESC, created ASC",
-    );
-  });
-
-  it("scopes to the repo the tracker doc names, not the git remote", () => {
-    const jql = frontierJql({ projectKey: "ABC", repoLabel: "repo:other" });
-
-    expect(jql).toContain("project = ABC");
-    expect(jql).toContain('labels = "repo:other"');
-  });
-});
-
 describe("auto-pick", () => {
-  it("takes the first frontier item, since Jira applied the ordering", async () => {
-    const jira = fakeJira([issue({ key: "PSD-9" }), issue({ key: "PSD-2" })]);
+  it("takes the first frontier item, since GitHub applied the ordering", async () => {
+    const github = fakeGitHub([issue({ number: 9 }), issue({ number: 2 })]);
 
-    const selection = await selectWorkItem(jira, scope);
+    const selection = await selectWorkItem(github);
 
-    expect(selection).toEqual({ kind: "work-item", issue: issue({ key: "PSD-9" }) });
-    expect(jira.queries).toEqual([frontierJql(scope)]);
+    expect(selection).toEqual({ kind: "work-item", issue: issue({ number: 9 }) });
+    expect(github.frontierScans).toBe(1);
   });
 
   it("skips a candidate with an open blocker", async () => {
-    const blocked = issue({ key: "PSD-9", blockedBy: [{ key: "PSD-3", isDone: false }] });
-    const ready = issue({ key: "PSD-2", blockedBy: [{ key: "PSD-1", isDone: true }] });
+    const blocked = issue({ number: 9, blockedBy: [blocker()] });
+    const ready = issue({ number: 2, blockedBy: [blocker({ isOpen: false })] });
 
-    const selection = await selectWorkItem(fakeJira([blocked, ready]), scope);
+    const selection = await selectWorkItem(fakeGitHub([blocked, ready]));
+
+    expect(selection).toEqual({ kind: "work-item", issue: ready });
+  });
+
+  it("skips a held candidate so two passes never race on it", async () => {
+    const held = issue({ number: 9, labels: ["ready-for-agent", "agent-in-progress"] });
+    const ready = issue({ number: 2 });
+
+    const selection = await selectWorkItem(fakeGitHub([held, ready]));
+
+    expect(selection).toEqual({ kind: "work-item", issue: ready });
+  });
+
+  it("skips a closed candidate, so finished work is never re-run", async () => {
+    const closed = issue({ number: 9, isOpen: false });
+    const ready = issue({ number: 2 });
+
+    const selection = await selectWorkItem(fakeGitHub([closed, ready]));
 
     expect(selection).toEqual({ kind: "work-item", issue: ready });
   });
 
   it("resolves an empty frontier to nothing-to-do", async () => {
-    await expect(selectWorkItem(fakeJira([]), scope)).resolves.toEqual({
-      kind: "nothing-to-do",
-    });
+    await expect(selectWorkItem(fakeGitHub([]))).resolves.toEqual({ kind: "nothing-to-do" });
   });
 
   it("resolves to nothing-to-do when every candidate is blocked", async () => {
-    const blocked = issue({ blockedBy: [{ key: "PSD-3", isDone: false }] });
+    const blocked = issue({ blockedBy: [blocker()] });
 
-    await expect(selectWorkItem(fakeJira([blocked]), scope)).resolves.toEqual({
+    await expect(selectWorkItem(fakeGitHub([blocked]))).resolves.toEqual({
       kind: "nothing-to-do",
     });
   });
 });
 
-describe("explicit key", () => {
+describe("an explicitly named item", () => {
   it("runs an item that passes every gate", async () => {
-    const target = issue({ key: "PSD-7", issueType: "Vulnerability" });
+    const target = issue({ number: 7 });
 
-    const selection = await selectWorkItem(fakeJira([target]), scope, "PSD-7");
+    const selection = await selectWorkItem(fakeGitHub([target]), 7);
 
     expect(selection).toEqual({ kind: "work-item", issue: target });
   });
 
-  it("never searches the frontier", async () => {
-    const jira = fakeJira([issue({ key: "PSD-7" })]);
+  it("never scans the frontier", async () => {
+    const github = fakeGitHub([issue({ number: 7 })]);
 
-    await selectWorkItem(jira, scope, "PSD-7");
+    await selectWorkItem(github, 7);
 
-    expect(jira.queries).toEqual([]);
-  });
-
-  it("refuses a Task", async () => {
-    const jira = fakeJira([issue({ key: "PSD-7", issueType: "Task" })]);
-
-    await expect(selectWorkItem(jira, scope, "PSD-7")).rejects.toThrow(
-      /PSD-7 is a Task — relay only runs Story, Bug, Vulnerability\./,
-    );
+    expect(github.frontierScans).toBe(0);
   });
 
   it.each([
+    ["an untriaged item", { labels: [] }, /not labelled ready-for-agent/],
     [
-      "another repo's item",
-      { labels: ["repo:other", "ready-for-agent"] },
-      /not labelled repo:qc-catalog/,
+      "a held item",
+      { labels: ["ready-for-agent", "agent-in-progress"] },
+      /already held.*agent-in-progress/,
     ],
-    ["an untriaged item", { labels: ["repo:qc-catalog"] }, /not labelled ready-for-agent/],
-    ["a done item", { isDone: true }, /already done/],
-    ["a blocked item", { blockedBy: [{ key: "PSD-3", isDone: false }] }, /blocked by PSD-3/],
-  ])("breaks the pass on %s", async (_name, overrides, reason) => {
-    const jira = fakeJira([issue({ key: "PSD-7", ...overrides })]);
+    ["a closed item", { isOpen: false }, /is closed/],
+    ["a blocked item", { blockedBy: [blocker()] }, /blocked by kipu\/qc-catalog#3/],
+  ])("breaks the pass on %s, naming the gate it failed", async (_name, overrides, reason) => {
+    const github = fakeGitHub([issue({ number: 7, ...overrides })]);
 
-    await expect(selectWorkItem(jira, scope, "PSD-7")).rejects.toThrow(reason);
+    await expect(selectWorkItem(github, 7)).rejects.toThrow(reason);
   });
 
-  it("breaks the pass on an item outside the scoped project", async () => {
-    const jira = fakeJira([issue({ key: "ABC-7" })]);
+  it("honours a blocker in another repository", async () => {
+    const other = blocker({ number: 4, repository: "kipu/other" });
+    const github = fakeGitHub([issue({ number: 7, blockedBy: [other] })]);
 
-    await expect(selectWorkItem(jira, scope, "ABC-7")).rejects.toThrow(/not in project PSD/);
+    await expect(selectWorkItem(github, 7)).rejects.toThrow(/blocked by kipu\/other#4/);
+  });
+
+  it("ignores a closed blocker, so a finished dependency never holds work back", async () => {
+    const target = issue({ number: 7, blockedBy: [blocker({ isOpen: false })] });
+
+    await expect(selectWorkItem(fakeGitHub([target]), 7)).resolves.toEqual({
+      kind: "work-item",
+      issue: target,
+    });
   });
 
   it("breaks the pass with a SelectionError, never a silent skip", async () => {
-    const jira = fakeJira([issue({ key: "PSD-7", issueType: "Task" })]);
+    const github = fakeGitHub([issue({ number: 7, labels: [] })]);
 
-    await expect(selectWorkItem(jira, scope, "PSD-7")).rejects.toBeInstanceOf(SelectionError);
+    await expect(selectWorkItem(github, 7)).rejects.toBeInstanceOf(SelectionError);
   });
 
-  it("breaks the pass on an unknown key", async () => {
-    await expect(selectWorkItem(fakeJira([]), scope, "PSD-404")).rejects.toThrow(
-      /PSD-404 does not exist/,
-    );
+  it("breaks the pass on an unknown number", async () => {
+    await expect(selectWorkItem(fakeGitHub([]), 404)).rejects.toThrow(/#404 does not exist/);
+  });
+});
+
+describe("workItemNumber", () => {
+  it("reads the number an operator named", () => {
+    expect(workItemNumber("42")).toBe(42);
+  });
+
+  it.each(["", "PSD-1", "42.5", "-1", "0"])("rejects %o before any tracker call", (argument) => {
+    expect(() => workItemNumber(argument)).toThrow(SelectionError);
   });
 });

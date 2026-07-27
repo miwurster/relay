@@ -11,7 +11,6 @@ import { createFixer, FIX_TAG } from "../src/fixer.js";
 const config = relayConfigSchema.parse({
   greenGate: "make test",
   defaultBranch: "main",
-  jira: { baseUrl: "https://example.atlassian.net" },
 });
 
 const ticketTarget: FixTarget = { kind: "ticket", ticket: { key: "PSD-8", summary: "the schema" } };

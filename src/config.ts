@@ -31,9 +31,9 @@ const modelsSchema = z
  * The typed config surface the host harness reads.
  *
  * Strict on purpose: it carries **no secrets** (those resolve from the
- * home-dir file at runtime) and **no tracker ids** (project key, cloud id and
- * repo label live in the repo's `docs/agents/issue-tracker.md`), so an unknown
- * key is a mistake worth failing on.
+ * home-dir file at runtime) and **no tracker ids** (`gh` infers the repo from
+ * the clone's remote), so an unknown key is a mistake worth failing on — which
+ * is also how a repo's leftover `jira` block reports itself.
  */
 export const relayConfigSchema = z.strictObject({
   /**
@@ -46,9 +46,6 @@ export const relayConfigSchema = z.strictObject({
   greenGate: z.string().min(1),
   /** The branch a pass branches from. */
   defaultBranch: z.string().min(1),
-  jira: z.strictObject({
-    baseUrl: z.url(),
-  }),
   /** A prebuilt sandbox image; when absent relay builds from `dockerfile`. */
   image: z.string().min(1).optional(),
   /** Repo-relative path to the sandbox Dockerfile, used when `image` is unset. */

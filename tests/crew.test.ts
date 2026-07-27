@@ -8,22 +8,21 @@ import { createCrew } from "../src/crew.js";
 import { FIX_TAG } from "../src/fixer.js";
 import { HANDOVER_TAG } from "../src/handover.js";
 import { IMPLEMENT_TAG } from "../src/implementer.js";
-import type { JiraIssue } from "../src/jira.js";
+import type { GitHubIssue } from "../src/github.js";
 import { PLAN_TAG } from "../src/planner.js";
 import { FINDINGS_TAG } from "../src/reviewer.js";
 
 const config = relayConfigSchema.parse({
   greenGate: "make test",
   defaultBranch: "main",
-  jira: { baseUrl: "https://example.atlassian.net" },
 });
 
-const issue: JiraIssue = {
-  key: "PSD-7",
-  issueType: "Story",
+const issue: GitHubIssue = {
+  number: 7,
   labels: ["ready-for-agent"],
-  isDone: false,
+  isOpen: true,
   blockedBy: [],
+  subIssues: [],
 };
 
 const branch = "agent/PSD-7";
@@ -48,7 +47,7 @@ describe("createCrew", () => {
       },
     } as unknown as Sandbox;
 
-    const crew = createCrew({ sandbox, config, outputDir, workItem: issue.key, branch });
+    const crew = createCrew({ sandbox, config, outputDir, workItem: String(issue.number), branch });
     const plan = await crew.plan(issue);
 
     expect(plan).toEqual({ kind: "plan", tickets: [{ key: "PSD-8", summary: "it" }] });
@@ -70,7 +69,7 @@ describe("createCrew", () => {
         return { stdout: "9e4d1a0\n", stderr: "", exitCode: 0 };
       },
     } as unknown as Sandbox;
-    const crew = createCrew({ sandbox, config, outputDir, workItem: issue.key, branch });
+    const crew = createCrew({ sandbox, config, outputDir, workItem: String(issue.number), branch });
 
     await crew.implement({ key: "PSD-8", summary: "the schema" });
     const result = await crew.implement({ key: "PSD-9", summary: "the endpoint" });
@@ -91,7 +90,7 @@ describe("createCrew", () => {
         };
       },
     } as unknown as Sandbox;
-    const crew = createCrew({ sandbox, config, outputDir, workItem: issue.key, branch });
+    const crew = createCrew({ sandbox, config, outputDir, workItem: String(issue.number), branch });
 
     await crew.fix([{ source: "fastCodeReview", ticket: "PSD-8", summary: "src/a.ts:3 dead" }], {
       kind: "ticket",
@@ -114,7 +113,7 @@ describe("createCrew", () => {
       sandbox,
       config,
       outputDir,
-      workItem: issue.key,
+      workItem: String(issue.number),
       branch,
     }).greenGate(1);
 
@@ -138,7 +137,7 @@ describe("createCrew", () => {
         return { stdout: "", stderr: "", exitCode: 0 };
       },
     } as unknown as Sandbox;
-    const crew = createCrew({ sandbox, config, outputDir, workItem: issue.key, branch });
+    const crew = createCrew({ sandbox, config, outputDir, workItem: String(issue.number), branch });
 
     const findings = await crew.review("fastCodeReview", {
       kind: "ticket",
@@ -164,11 +163,14 @@ describe("createCrew", () => {
         };
       },
     } as unknown as Sandbox;
-    const crew = createCrew({ sandbox, config, outputDir, workItem: issue.key, branch });
+    const crew = createCrew({ sandbox, config, outputDir, workItem: String(issue.number), branch });
 
     await crew.handover({ kind: "success" });
 
     expect(runs.map((run) => run.name)).toEqual(["handover"]);
-    expect(runs[0]?.promptArgs).toMatchObject({ WORK_ITEM_KEY: issue.key, BRANCH: branch });
+    expect(runs[0]?.promptArgs).toMatchObject({
+      WORK_ITEM_KEY: String(issue.number),
+      BRANCH: branch,
+    });
   });
 });

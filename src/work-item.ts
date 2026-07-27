@@ -1,98 +1,84 @@
 import { SelectionError } from "./errors.js";
-import type { JiraClient, JiraIssue } from "./jira.js";
-import type { TrackerScope } from "./tracker-doc.js";
+import { READY_LABEL, type GitHubBlocker, type GitHubClient, type GitHubIssue } from "./github.js";
 
-/** The issue types relay is allowed to run a pass over. */
-const RUNNABLE_TYPES = ["Story", "Bug", "Vulnerability"] as const;
-
-/** The label that marks an item as agent-grabbable. Never bypassed. */
-const READY_LABEL = "ready-for-agent";
+/** The label a running pass holds an item with. A held item is someone's run. */
+const HELD_LABEL = "agent-in-progress";
 
 /** Either the one item this pass runs, or an empty frontier. */
-export type Selection = { kind: "work-item"; issue: JiraIssue } | { kind: "nothing-to-do" };
+export type Selection = { kind: "work-item"; issue: GitHubIssue } | { kind: "nothing-to-do" };
 
 /**
- * The frontier query: this repo's eligible items, most important and
- * longest-waiting first. Ordering is Jira's, so the first candidate that
- * passes every gate wins.
- *
- * A prefilter only — `eligibilityFailure` decides eligibility for both paths, so the
- * two can never disagree about what relay is allowed to run.
+ * The issue number an operator named, rejected here rather than at the tracker:
+ * a call that cannot name an issue is not worth making.
  */
-export function frontierJql(scope: TrackerScope): string {
-  return (
-    `project = ${scope.projectKey}` +
-    ` AND labels = "${scope.repoLabel}"` +
-    ` AND labels = "${READY_LABEL}"` +
-    " AND statusCategory != Done" +
-    ` AND issuetype in (${RUNNABLE_TYPES.join(", ")})` +
-    " ORDER BY priority DESC, created ASC"
-  );
+export function workItemNumber(argument: string): number {
+  const number = Number(argument);
+  if (!Number.isInteger(number) || number <= 0) {
+    throw new SelectionError(`${argument} is not a GitHub issue number.`);
+  }
+  return number;
 }
 
 /**
  * Resolve the one work item this pass runs.
  *
- * With no key, the first frontier item wins, and an empty frontier is a clean
- * nothing-to-do. With a key, that item is held to the same gates with no
- * override — any failure breaks the pass loudly rather than skipping on.
+ * With no number, the first eligible frontier item wins — the frontier is
+ * ordered longest-waiting first — and an empty frontier is a clean
+ * nothing-to-do. With a number, that item is held to the same gates with no
+ * override: any failure breaks the pass loudly rather than skipping on.
  */
-export async function selectWorkItem(
-  client: JiraClient,
-  scope: TrackerScope,
-  workItem?: string,
-): Promise<Selection> {
+export async function selectWorkItem(client: GitHubClient, workItem?: number): Promise<Selection> {
   return workItem === undefined
-    ? await autoPick(client, scope)
-    : { kind: "work-item", issue: await pickByKey(client, scope, workItem) };
+    ? await autoPick(client)
+    : { kind: "work-item", issue: await pickByNumber(client, workItem) };
 }
 
-async function autoPick(client: JiraClient, scope: TrackerScope): Promise<Selection> {
-  const candidates = await client.search(frontierJql(scope));
-  const issue = candidates.find((candidate) => eligibilityFailure(candidate, scope) === undefined);
+async function autoPick(client: GitHubClient): Promise<Selection> {
+  const candidates = await client.frontier();
+  const issue = candidates.find((candidate) => eligibilityFailure(candidate) === undefined);
   return issue ? { kind: "work-item", issue } : { kind: "nothing-to-do" };
 }
 
-async function pickByKey(client: JiraClient, scope: TrackerScope, key: string): Promise<JiraIssue> {
-  const issue = await client.getIssue(key);
-  if (!issue) throw new SelectionError(`${key} does not exist or is not visible.`);
-  const failure = eligibilityFailure(issue, scope);
-  if (failure) throw new SelectionError(`${issue.key} ${failure}`);
+async function pickByNumber(client: GitHubClient, number: number): Promise<GitHubIssue> {
+  const issue = await client.getIssue(number);
+  if (!issue) throw new SelectionError(`#${number} does not exist or is not visible.`);
+  const failure = eligibilityFailure(issue);
+  if (failure) throw new SelectionError(`#${issue.number} ${failure}`);
   return issue;
 }
 
 /**
- * The first check the item fails, phrased as a reason, or `undefined` when it
- * passes them all. Types come first: running the wrong type of work is the one
- * failure relay must never get close to.
+ * The first gate the item fails, phrased as a reason, or `undefined` when it
+ * passes them all. The one eligibility check both paths run, so an auto-pick
+ * and a named item can never disagree about what relay is allowed to run.
  */
-function eligibilityFailure(issue: JiraIssue, scope: TrackerScope): string | undefined {
-  if (!isRunnableType(issue)) {
-    return `is a ${issue.issueType} — relay only runs ${RUNNABLE_TYPES.join(", ")}.`;
-  }
-  if (!issue.key.startsWith(`${scope.projectKey}-`)) {
-    return `is not in project ${scope.projectKey}.`;
-  }
-  if (!issue.labels.includes(scope.repoLabel)) {
-    return `is not labelled ${scope.repoLabel}, so it is not this repo's work.`;
-  }
+function eligibilityFailure(issue: GitHubIssue): string | undefined {
   if (!issue.labels.includes(READY_LABEL)) {
     return `is not labelled ${READY_LABEL}.`;
   }
-  if (issue.isDone) {
-    return "is already done.";
+  if (issue.labels.includes(HELD_LABEL)) {
+    return `is already held by a pass, labelled ${HELD_LABEL}.`;
+  }
+  if (!issue.isOpen) {
+    return "is closed.";
   }
   const blockers = openBlockers(issue);
   if (blockers.length > 0) {
-    return `is blocked by ${blockers.map((blocker) => blocker.key).join(", ")}.`;
+    return `is blocked by ${blockers.map(nameOf).join(", ")}.`;
   }
   return undefined;
 }
 
-function isRunnableType(issue: JiraIssue): boolean {
-  return RUNNABLE_TYPES.some((type) => type === issue.issueType);
+/**
+ * relay's own open-blocker filter. A blocked-by count is never trusted, since
+ * GitHub's includes closed blockers and a finished dependency must not hold
+ * work back forever.
+ */
+function openBlockers(issue: GitHubIssue): GitHubBlocker[] {
+  return issue.blockedBy.filter((blocker) => blocker.isOpen);
 }
 
-function openBlockers(issue: JiraIssue) {
-  return issue.blockedBy.filter((blocker) => !blocker.isDone);
+/** Repo-qualified, so a blocker in another repository reads as one. */
+function nameOf(blocker: GitHubBlocker): string {
+  return `${blocker.repository}#${blocker.number}`;
 }

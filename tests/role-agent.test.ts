@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { roleAgent } from "../src/role-agent.js";
-import { SANDBOX_MCP_CONFIG_PATH } from "../src/sandbox.js";
 import { SANDBOX_PLUGIN_ROOT } from "../src/skills.js";
 
 const printCommand = () =>
@@ -16,8 +15,8 @@ describe("roleAgent", () => {
     expect(command).toContain(`--plugin-dir ${SANDBOX_PLUGIN_ROOT}/caveman`);
   });
 
-  it("loads the mounted Atlassian MCP config", () => {
-    expect(printCommand().command).toContain(`--mcp-config ${SANDBOX_MCP_CONFIG_PATH}`);
+  it("wires no MCP server, since the tracker is reached with `gh`", () => {
+    expect(printCommand().command).not.toContain("--mcp-config");
   });
 
   it("keeps the underlying claude invocation intact", () => {

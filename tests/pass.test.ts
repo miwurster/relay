@@ -10,7 +10,7 @@ import { relayConfigSchema } from "../src/config.js";
 import type { Crew } from "../src/crew.js";
 import { ConfigError, SandboxError } from "../src/errors.js";
 import { ExitCode } from "../src/exit-codes.js";
-import type { JiraClient, JiraIssue } from "../src/jira.js";
+import type { GitHubClient, GitHubIssue } from "../src/github.js";
 import { type PassRun, runPass, runPassOnItem } from "../src/pass.js";
 import type { RelaySandbox } from "../src/sandbox.js";
 import { createStubCrew } from "../src/stub-crew.js";
@@ -20,23 +20,9 @@ import { TRACKER_DOC_PATH } from "../src/tracker-doc.js";
 const validConfig = `export default {
   greenGate: "make test",
   defaultBranch: "main",
-  jira: { baseUrl: "https://example.atlassian.net" },
 };`;
 
-const trackerDoc = `# Issue tracker: Jira
-
-## Setup constants
-
-- **Jira project key:** \`PSD\`
-- **Repo label:** \`repo:qc-catalog\`
-`;
-
-const secrets = [
-  "ATLASSIAN_SA_EMAIL=relay@kipu-quantum.com",
-  "ATLASSIAN_SA_TOKEN=sa-token",
-  "GITLAB_TOKEN=gl-token",
-  "CLAUDE_CODE_OAUTH_TOKEN=oauth-token",
-];
+const secrets = ["GH_TOKEN=gh-token", "CLAUDE_CODE_OAUTH_TOKEN=oauth-token"];
 
 /** A repo root with a valid config, made the process's working directory. */
 async function repoWithValidConfig(): Promise<string> {
@@ -44,6 +30,12 @@ async function repoWithValidConfig(): Promise<string> {
   await writeFile(join(root, "relay.config.ts"), validConfig, "utf8");
   vi.spyOn(process, "cwd").mockReturnValue(root);
   return root;
+}
+
+/** The tracker doc every tracker-facing role is told to read first. */
+async function withTrackerDoc(root: string): Promise<void> {
+  await mkdir(join(root, TRACKER_DOC_PATH, ".."), { recursive: true });
+  await writeFile(join(root, TRACKER_DOC_PATH), "# Issue tracker: GitHub\n", "utf8");
 }
 
 /** Every secret present, resolved from the environment rather than a file. */
@@ -65,81 +57,73 @@ describe("runPass", () => {
   it("fails fast when the repo has no config", async () => {
     const empty = await mkdtemp(join(tmpdir(), "relay-pass-"));
     vi.spyOn(process, "cwd").mockReturnValue(empty);
-    await expect(runPass("PSD-1")).rejects.toThrow(ConfigError);
+    await expect(runPass("1")).rejects.toThrow(ConfigError);
   });
 
   it("fails fast when a secret cannot be resolved", async () => {
     await repoWithValidConfig();
     vi.stubEnv("XDG_CONFIG_HOME", await mkdtemp(join(tmpdir(), "relay-empty-home-")));
-    await expect(runPass("PSD-1")).rejects.toThrow(/Missing secret/);
+    await expect(runPass("1")).rejects.toThrow(/Missing secret/);
   });
 
-  it("fails when the repo has no tracker doc to scope selection with", async () => {
+  it("fails when the repo commits no tracker doc, before reaching GitHub", async () => {
     await repoWithValidConfig();
     await withSecrets();
 
-    await expect(runPass("PSD-1")).rejects.toThrow(/issue-tracker\.md/);
+    await expect(runPass("1")).rejects.toThrow(/issue-tracker\.md/);
   });
 
-  it("resolves the tracker scope before reaching Jira", async () => {
+  it("rejects an argument that names no issue", async () => {
     const root = await repoWithValidConfig();
-    await mkdir(join(root, TRACKER_DOC_PATH, ".."), { recursive: true });
-    await writeFile(join(root, TRACKER_DOC_PATH), trackerDoc, "utf8");
+    await withTrackerDoc(root);
     await withSecrets();
-    // No network in tests: the pass gets as far as its first Jira call.
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response(null, { status: 401 })),
-    );
 
-    await expect(runPass("PSD-1")).rejects.toThrow(/Jira 401/);
+    await expect(runPass("PSD-1")).rejects.toThrow(/not a GitHub issue number/);
   });
 });
 
 const execFileAsync = promisify(execFile);
 
-const issue: JiraIssue = {
-  key: "PSD-1",
-  issueType: "Story",
+const issue: GitHubIssue = {
+  number: 1,
   labels: ["ready-for-agent"],
-  isDone: false,
+  isOpen: true,
   blockedBy: [],
+  subIssues: [],
 };
 
 const passSecrets: Secrets = {
-  atlassian: { email: "relay@kipu-quantum.com", token: "sa-token" },
-  gitlabToken: "gl-token",
+  githubToken: "gh-token",
   claude: { variable: "CLAUDE_CODE_OAUTH_TOKEN", token: "oauth-token" },
 };
 
 const passConfig = relayConfigSchema.parse({
   greenGate: "make test",
   defaultBranch: "main",
-  jira: { baseUrl: "https://example.atlassian.net" },
 });
 
-/** A Jira that records the crash comment and answers nothing else. */
-function fakeJira() {
-  const comments: { key: string; text: string }[] = [];
-  const jira: JiraClient = {
-    async search() {
+/** A GitHub that records the crash comment and answers nothing else. */
+function fakeGitHub() {
+  const comments: { number: number; text: string }[] = [];
+  const github: GitHubClient = {
+    async frontier() {
       return [];
     },
     async getIssue() {
       return issue;
     },
-    async addComment(key, text) {
-      comments.push({ key, text });
+    async addComment(number, text) {
+      comments.push({ number, text });
     },
   };
-  return { jira, comments };
+  return { github, comments };
 }
 
 /** A sandbox that records its disposal and never touches docker. */
 function fakeSandbox() {
   let closed = false;
   const opened: RelaySandbox = {
-    sandbox: { branch: "agent/PSD-1" } as Sandbox,
+    sandbox: { branch: "agent/1" } as Sandbox,
     close: async () => {
       closed = true;
     },
@@ -168,7 +152,7 @@ async function commit(root: string): Promise<void> {
 }
 
 /** Run one pass over the fake item, varying only what a test cares about. */
-async function runOnePass(overrides: Partial<PassRun> & { jira: JiraClient }) {
+async function runOnePass(overrides: Partial<PassRun> & { github: GitHubClient }) {
   return await runPassOnItem({
     repoRoot: await gitRepo(),
     config: passConfig,
@@ -193,22 +177,22 @@ function crashingCrew(): Crew {
 /** The exit code the CLI ends on for a pass that throws. */
 async function exitCodeOf(run: () => Promise<ExitCode>): Promise<ExitCode> {
   vi.spyOn(console, "error").mockImplementation(() => {});
-  return await runCli(["PSD-1"], { runPass: run, runDoctor: async () => ExitCode.Success });
+  return await runCli(["1"], { runPass: run, runDoctor: async () => ExitCode.Success });
 }
 
 describe("runPassOnItem", () => {
   it("maps a reviewable pass to exit 0 and disposes of the sandbox", async () => {
-    const { jira } = fakeJira();
+    const { github } = fakeGitHub();
     const sandbox = fakeSandbox();
 
-    const code = await runOnePass({ jira, open: sandbox.open });
+    const code = await runOnePass({ github, open: sandbox.open });
 
     expect(code).toBe(ExitCode.Success);
     expect(sandbox.wasClosed()).toBe(true);
   });
 
   it("maps a blocked pass to exit 1", async () => {
-    const { jira } = fakeJira();
+    const { github } = fakeGitHub();
     const bailingCrew: Crew = {
       ...createStubCrew(),
       async plan() {
@@ -216,30 +200,30 @@ describe("runPassOnItem", () => {
       },
     };
 
-    const code = await runOnePass({ jira, createCrew: () => bailingCrew });
+    const code = await runOnePass({ github, createCrew: () => bailingCrew });
 
     expect(code).toBe(ExitCode.Blocked);
   });
 
   it("on a crash comments on the item, disposes of the sandbox, and rethrows", async () => {
-    const { jira, comments } = fakeJira();
+    const { github, comments } = fakeGitHub();
     const sandbox = fakeSandbox();
 
     await expect(
-      runOnePass({ jira, open: sandbox.open, createCrew: crashingCrew }),
+      runOnePass({ github, open: sandbox.open, createCrew: crashingCrew }),
     ).rejects.toThrow("the sandbox died");
 
     expect(sandbox.wasClosed()).toBe(true);
     expect(comments).toHaveLength(1);
-    expect(comments[0]?.text).toMatch(/the sandbox died[\s\S]*left In Progress/);
+    expect(comments[0]?.text).toMatch(/the sandbox died[\s\S]*left labelled `agent-in-progress`/);
   });
 
   it("comments too when the sandbox never opened", async () => {
-    const { jira, comments } = fakeJira();
+    const { github, comments } = fakeGitHub();
 
     await expect(
       runOnePass({
-        jira,
+        github,
         open: async () => {
           throw new SandboxError("docker is not running");
         },
@@ -249,14 +233,14 @@ describe("runPassOnItem", () => {
     expect(comments[0]?.text).toMatch(/docker is not running/);
   });
 
-  it("keeps a failed pass failing when Jira will not take the crash comment", async () => {
-    const { jira } = fakeJira();
-    jira.addComment = async () => {
-      throw new Error("Jira 500");
+  it("keeps a failed pass failing when GitHub will not take the crash comment", async () => {
+    const { github } = fakeGitHub();
+    github.addComment = async () => {
+      throw new Error("gh: HTTP 500");
     };
     vi.spyOn(console, "error").mockImplementation(() => {});
 
-    await expect(runOnePass({ jira, createCrew: crashingCrew })).rejects.toThrow(
+    await expect(runOnePass({ github, createCrew: crashingCrew })).rejects.toThrow(
       "the sandbox died",
     );
   });
@@ -264,24 +248,24 @@ describe("runPassOnItem", () => {
   it("refuses to run when the pass branch already exists, without opening a sandbox", async () => {
     const root = await gitRepo();
     await commit(root);
-    await execFileAsync("git", ["branch", "agent/PSD-1"], { cwd: root });
-    const { jira } = fakeJira();
+    await execFileAsync("git", ["branch", "agent/1"], { cwd: root });
+    const { github } = fakeGitHub();
     const open = vi.fn();
 
-    await expect(runOnePass({ jira, repoRoot: root, open })).rejects.toThrow(
-      /agent\/PSD-1 already exists/,
+    await expect(runOnePass({ github, repoRoot: root, open })).rejects.toThrow(
+      /agent\/1 already exists/,
     );
 
     expect(open).not.toHaveBeenCalled();
     // The refusal never touches the branch it refused over.
-    const { stdout } = await execFileAsync("git", ["rev-parse", "agent/PSD-1"], { cwd: root });
+    const { stdout } = await execFileAsync("git", ["rev-parse", "agent/1"], { cwd: root });
     expect(stdout.trim()).toHaveLength(40);
   });
 
   it("maps a crash to exit 2", async () => {
-    const { jira } = fakeJira();
+    const { github } = fakeGitHub();
 
-    const code = await exitCodeOf(() => runOnePass({ jira, createCrew: crashingCrew }));
+    const code = await exitCodeOf(() => runOnePass({ github, createCrew: crashingCrew }));
 
     expect(code).toBe(ExitCode.Error);
   });
@@ -289,10 +273,10 @@ describe("runPassOnItem", () => {
   it("maps a branch collision to exit 2", async () => {
     const root = await gitRepo();
     await commit(root);
-    await execFileAsync("git", ["branch", "agent/PSD-1"], { cwd: root });
-    const { jira } = fakeJira();
+    await execFileAsync("git", ["branch", "agent/1"], { cwd: root });
+    const { github } = fakeGitHub();
 
-    const code = await exitCodeOf(() => runOnePass({ jira, repoRoot: root }));
+    const code = await exitCodeOf(() => runOnePass({ github, repoRoot: root }));
 
     expect(code).toBe(ExitCode.Error);
   });

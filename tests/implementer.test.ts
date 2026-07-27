@@ -12,7 +12,6 @@ import { TRACKER_DOC_PATH } from "../src/tracker-doc.js";
 const config = relayConfigSchema.parse({
   greenGate: "make test",
   defaultBranch: "main",
-  jira: { baseUrl: "https://example.atlassian.net" },
 });
 
 const ticket: TicketRef = { key: "PSD-8", summary: "the schema" };

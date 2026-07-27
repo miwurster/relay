@@ -8,14 +8,11 @@ import { ExitCode } from "../src/exit-codes.js";
 const validConfig = `export default {
   greenGate: "./mvnw verify",
   defaultBranch: "main",
-  jira: { baseUrl: "https://example.atlassian.net" },
   image: "registry.example.com/relay:1",
 };`;
 
 const completeSecrets = {
-  ATLASSIAN_SA_EMAIL: "relay@kipu-quantum.com",
-  ATLASSIAN_SA_TOKEN: "sa-token",
-  GITLAB_TOKEN: "gl-token",
+  GH_TOKEN: "gh-token",
   CLAUDE_CODE_OAUTH_TOKEN: "oauth-token",
 };
 
@@ -84,7 +81,7 @@ describe("runDoctorChecks", () => {
 
   it("reports a missing secret without stopping at the first failure", async () => {
     const env = await envWithSecrets();
-    delete env["GITLAB_TOKEN"];
+    delete env["GH_TOKEN"];
 
     const checks = await runDoctorChecks({
       repoRoot: await repoWith(validConfig),
@@ -93,7 +90,7 @@ describe("runDoctorChecks", () => {
     });
 
     expect(check(checks, "secrets").status).toBe("failed");
-    expect(check(checks, "secrets").detail).toContain("GITLAB_TOKEN");
+    expect(check(checks, "secrets").detail).toContain("GH_TOKEN");
     expect(check(checks, "docker daemon").status).toBe("ok");
   });
 
@@ -114,7 +111,6 @@ describe("runDoctorChecks", () => {
       repoRoot: await repoWith(`export default {
         greenGate: "./mvnw verify",
         defaultBranch: "main",
-        jira: { baseUrl: "https://example.atlassian.net" },
       };`),
       env: await envWithSecrets(),
       docker: healthyDocker().docker,
@@ -162,7 +158,6 @@ describe("runDoctorChecks", () => {
     const root = await repoWith(`export default {
       greenGate: "./mvnw verify",
       defaultBranch: "main",
-      jira: { baseUrl: "https://example.atlassian.net" },
     };`);
     await mkdir(join(root, "docker"), { recursive: true });
     await writeFile(join(root, "docker/relay.Dockerfile"), "FROM scratch\n", "utf8");
@@ -187,7 +182,7 @@ describe("runDoctor", () => {
 
   it("exits with the error code when any check fails", async () => {
     const env = await envWithSecrets();
-    delete env["ATLASSIAN_SA_TOKEN"];
+    delete env["GH_TOKEN"];
 
     const code = await runDoctor({
       repoRoot: await repoWith(validConfig),
