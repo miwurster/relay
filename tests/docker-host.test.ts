@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertGhInSandbox,
   detectDockerSocketGid,
   dockerDaemonVersionInSandbox,
   resolveTestcontainersHost,
@@ -48,6 +49,23 @@ describe("detectDockerSocketGid", () => {
     const { docker } = fakeDocker([""]);
     await expect(detectDockerSocketGid({ image: "relay:local", docker })).rejects.toThrow(
       SandboxError,
+    );
+  });
+});
+
+describe("assertGhInSandbox", () => {
+  it("runs gh in the image and passes when it answers", async () => {
+    const { docker, calls } = fakeDocker(["gh version 2.63.2"]);
+    await expect(assertGhInSandbox({ image: "relay:local", docker })).resolves.toBeUndefined();
+    expect(calls[0]).toEqual(["run", "--rm", "--entrypoint", "gh", "relay:local", "--version"]);
+  });
+
+  it("fails with the image name and what the operator must install", async () => {
+    const docker = async () => {
+      throw new SandboxError("docker run failed: executable file `gh` not found");
+    };
+    await expect(assertGhInSandbox({ image: "relay:local", docker })).rejects.toThrow(
+      /relay:local.*Dockerfile/s,
     );
   });
 });

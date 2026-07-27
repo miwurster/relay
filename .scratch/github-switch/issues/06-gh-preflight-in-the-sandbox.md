@@ -8,9 +8,9 @@ So relay checks for it before the first leg runs.
 
 **Blocked by:** 02.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] A sandbox whose `gh` check fails stops the pass before the first leg, with an error naming the image and telling the operator to install `gh` in their Dockerfile.
-- [ ] A sandbox with `gh` present runs on unchanged.
-- [ ] The check is covered through the existing sandbox-run seam, with no live container needed.
-- [ ] `npm run verify` exits zero.
+- [x] A sandbox whose `gh` check fails stops the pass before the first leg, with an error naming the image and telling the operator to install `gh` in their Dockerfile.
+- [x] A sandbox with `gh` present runs on unchanged.
+- [x] The check is covered through the existing sandbox-run seam, with no live container needed.
+- [x] `npm run verify` exits zero.

@@ -4,6 +4,7 @@ import { createSandbox, type CreateSandboxOptions, type Sandbox } from "@ai-hero
 import { docker as dockerSandbox } from "@ai-hero/sandcastle/sandboxes/docker";
 import type { RelayConfig } from "./config.js";
 import {
+  assertGhInSandbox,
   detectDockerSocketGid,
   DOCKER_SOCKET_PATH,
   resolveTestcontainersHost,
@@ -131,9 +132,9 @@ export function sandboxOptions({
 }
 
 /**
- * Open the pass's sandbox: resolve the image prebuilt-ref-first, detect what
- * only the host can tell us (socket group, Testcontainers host), mount the
- * installed skills, and create the worktree.
+ * Open the pass's sandbox: resolve the image prebuilt-ref-first, prove it can
+ * talk to the tracker, detect what only the host can tell us (socket group,
+ * Testcontainers host), mount the installed skills, and create the worktree.
  */
 export async function openSandbox({
   repoRoot,
@@ -154,6 +155,8 @@ export async function openSandbox({
     resolveSandboxImage({ repoRoot, config }),
     resolveTestcontainersHost(),
   ]);
+  // Before the first leg: a tracker-less image must not cost a whole pass.
+  await assertGhInSandbox({ image });
   const socketGid = await detectDockerSocketGid({ image });
 
   const sandbox = await createSandbox(

@@ -63,6 +63,34 @@ export async function detectDockerSocketGid({
 }
 
 /**
+ * Prove the sandbox image has a working `gh`.
+ *
+ * The image is built from the target repo's Dockerfile, which relay does not
+ * own, so a missing `gh` is an operator mistake rather than a bug. Every
+ * tracker-facing leg needs it and the handover needs it most — and that is the
+ * last leg, after all the expensive work — so the pass asks first.
+ */
+export async function assertGhInSandbox({
+  image,
+  docker = runDocker,
+}: {
+  image: string;
+  docker?: DockerRunner;
+}): Promise<void> {
+  try {
+    // The image idles on its entrypoint, so `gh` must replace it.
+    await docker(["run", "--rm", "--entrypoint", "gh", image, "--version"]);
+  } catch (cause) {
+    const reason = cause instanceof Error ? cause.message : String(cause);
+    throw new SandboxError(
+      `The sandbox image ${image} has no working \`gh\`, which every tracker-facing ` +
+        "leg of a pass needs. Install the GitHub CLI in the repo's sandbox Dockerfile. " +
+        reason,
+    );
+  }
+}
+
+/**
  * The daemon's version as read from inside the sandbox image **by the image's
  * own non-root user**, with the socket's group added the way a pass adds it.
  *
