@@ -13,7 +13,7 @@ There is no REST client and no `fetch`.
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] The frontier is fetched in **one** runner call, whose `--json` field list names fields `gh` actually supports.
 - [x] Blocked-by entries carry state, mapping `gh`'s upper-case `"OPEN"`/`"CLOSED"` correctly. No filtering happens here — that is eligibility's job in 02.
