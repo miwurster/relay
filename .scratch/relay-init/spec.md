@@ -1,6 +1,8 @@
 # Spec: `relay init` bootstraps a repo
 
-Status: resolved
+Status: resolved — its green-gate design is superseded by [ADR-0009](../../docs/adr/0009-the-repos-docs-declare-the-green-gate.md).
+The gate is no longer a config field, so init neither detects it nor writes a sentinel; the repo's docs declare it and relay reads it from there.
+Read every gate paragraph below as a record of what was built and then removed, not as setup an operator should follow.
 
 Vocabulary: `CONTEXT.md` — **Init**, **Sandbox recipe**, **Doctor**, **Tracker doc**, **Green gate**, **Pass**, **Sandbox**.
 Architecture it rests on: [ADR-0007](../../docs/adr/0007-one-forge-one-tracker-no-abstraction.md) (GitHub is hardcoded, no adapter).

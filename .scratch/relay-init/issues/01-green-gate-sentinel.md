@@ -10,7 +10,11 @@ Nothing writes the sentinel yet. This is the prefactor that makes init's undetec
 
 **Blocked by:** None — can start immediately.
 
-**Status:** resolved
+**Status:** wontfix
+
+**Why:** [ADR-0009](../../../docs/adr/0009-the-repos-docs-declare-the-green-gate.md) took the green gate out of `relay.config.ts` altogether — the repo's own docs declare it, and relay reads it from there.
+A config field that no longer exists cannot carry a sentinel, so the hole this ticket filled is gone rather than fixed.
+The guarantee it bought — relay never runs a command nobody chose — is given up deliberately, and replaced by visibility: doctor's `gate` warning before a pass, and the handover's provenance line after one.
 
 - [x] A sentinel constant is exported from the config module for init to write later.
 - [x] Loading a `relay.config.ts` whose `greenGate` is the sentinel fails with a message that names init as its origin and says to fill the gate in — not a generic schema error.

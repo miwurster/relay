@@ -53,7 +53,7 @@ It is accepted rather than closed because the `GH_TOKEN` a **pass** already carr
 ### Confirmation
 
 `src/sandbox.ts` names the Docker sandbox directly and passes the host repo root as `cwd`.
-`docs/migrating-a-repo-to-relay.md` states what the sandbox can reach on the host, so an adopter meets it before the first pass.
+`README.md`'s getting-started guide states what the sandbox can reach on the host, so an adopter meets it before the first pass.
 
 ## Pros and Cons of the Options
 
