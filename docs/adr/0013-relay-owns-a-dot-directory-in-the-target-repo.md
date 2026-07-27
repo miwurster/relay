@@ -1,4 +1,4 @@
-# 0012. relay owns a dot-directory in the target repo
+# 0013. relay owns a dot-directory in the target repo
 
 - **Status:** accepted
 - **Date:** 2026-07-27

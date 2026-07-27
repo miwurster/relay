@@ -158,7 +158,7 @@ _Avoid_: sandbox dockerfile, image recipe
 
 **Relay directory**:
 `.relay/` in the target repo, holding the two files relay asks a repo to commit — its config and its **sandbox recipe**.
-Relay-owned on purpose: a recipe under the repo's `docker/` and a config at its root sit in namespaces the repo owns ([ADR-0012](docs/adr/0012-relay-owns-a-dot-directory-in-the-target-repo.md)).
+Relay-owned on purpose: a recipe under the repo's `docker/` and a config at its root sit in namespaces the repo owns ([ADR-0013](docs/adr/0013-relay-owns-a-dot-directory-in-the-target-repo.md)).
 It holds nothing generated — a **pass**'s worktree is gitignored scratch and stays at `.sandcastle/worktrees/`.
 _Avoid_: config directory, dotfolder
 

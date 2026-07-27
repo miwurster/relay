@@ -33,7 +33,7 @@ It never overwrites, never stages, and never commits, so running it again only f
 - One `.gitignore` line for `.sandcastle/`, where a pass cuts its git worktree.
   That path is fixed and lives inside your repo, so without the line every pass shows up in `git status` as untracked noise.
 
-Both written files live in `.relay/`, a directory relay owns, so nothing of relay's lands in a namespace your repo owns ([ADR-0012](adr/0012-relay-owns-a-dot-directory-in-the-target-repo.md)).
+Both written files live in `.relay/`, a directory relay owns, so nothing of relay's lands in a namespace your repo owns ([ADR-0013](adr/0013-relay-owns-a-dot-directory-in-the-target-repo.md)).
 Commit them.
 
 `init` refuses before writing anything if the directory is not a git repo, or if its `origin` is not GitHub.

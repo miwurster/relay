@@ -9,7 +9,7 @@ import { ConfigError } from "./errors.js";
  *
  * relay's, not the repo's: a recipe under the repo's `docker/` and a config at
  * its root sit in namespaces the repo owns
- * ([ADR-0012](../docs/adr/0012-relay-owns-a-dot-directory-in-the-target-repo.md)).
+ * ([ADR-0013](../docs/adr/0013-relay-owns-a-dot-directory-in-the-target-repo.md)).
  */
 export const RELAY_DIR = ".relay";
 
