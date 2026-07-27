@@ -49,7 +49,14 @@ Option C is not a middle ground but the sum of both costs: two tracker models, t
 ### Confirmation
 
 No `Tracker` or `Forge` interface exists, and `src/github.ts` is the only module that talks to the tracker host-side.
-`git grep -i 'jira\|gitlab\|glab\|merge request'` returns nothing outside `docs/adr/` and `.scratch/`, where the history is supposed to mention them.
+`git grep -i 'jira\|gitlab\|glab\|merge request'` returns nothing outside `docs/adr/` and `.scratch/`, where the history is supposed to mention them, and where the mention is load-bearing rather than leftover:
+
+- **relay's own CI and release** — `.gitlab-ci.yml`, `.fossa.yml`, `.releaserc.json` and `docs/release.md`.
+  relay is itself hosted on GitLab.
+  Where relay is published is not what tracker it speaks, and moving it is a separate change.
+- **the migration guardrail** — `src/config.ts` and its test, which exist to reject a leftover `jira` block loudly so a repo cannot half-migrate.
+- **the migration checklist** — `docs/migrating-a-repo-to-relay.md`, which is written for a repo that is still on the old systems and must name what it is telling the operator to remove.
+- **negative assertions** — tests asserting the old vocabulary is *absent*, which must name it to forbid it.
 
 ## Pros and Cons of the Options
 

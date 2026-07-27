@@ -165,7 +165,7 @@ describe("workItemNumber", () => {
     "4#2",
     "42#",
     "https://github.com/kipu/qc-catalog/pull/42",
-    "https://gitlab.com/kipu/qc-catalog/issues/42",
+    "https://example.com/kipu/qc-catalog/issues/42",
   ])("rejects %o before any tracker call", (argument) => {
     expect(() => workItemNumber(argument)).toThrow(SelectionError);
   });

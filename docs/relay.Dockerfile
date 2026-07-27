@@ -2,8 +2,8 @@
 #
 # relay builds it with `--build-arg AGENT_UID/AGENT_GID` set to the host's, so
 # bind-mounted files keep their ownership and sandcastle's image-UID preflight
-# passes. Skills, the Atlassian MCP config and the docker socket are mounted at
-# runtime and must never be baked in.
+# passes. Skills and the docker socket are mounted at runtime and must never be
+# baked in.
 #
 # A repo owning its own recipe should keep it at CI parity — this file only
 # guarantees the tooling relay itself needs.
@@ -12,7 +12,7 @@ FROM eclipse-temurin:21-jdk
 ARG AGENT_UID=1000
 ARG AGENT_GID=1000
 ARG NODE_MAJOR=22
-ARG GLAB_VERSION=1.109.0
+ARG GH_VERSION=2.96.0
 
 # docker-ce-cli only: the daemon is the host's, reached over the mounted socket
 # (docker-outside-of-Docker), which is what the Testcontainers tier needs.
@@ -31,12 +31,14 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends docker-ce-cli nodejs \
     && rm -rf /var/lib/apt/lists/*
 
+# relay preflights `gh` inside the sandbox before the first leg, so an image
+# without it fails the pass in seconds.
 RUN arch="$(dpkg --print-architecture)" \
-    && curl -fsSL -o /tmp/glab.deb \
-        "https://gitlab.com/api/v4/projects/gitlab-org%2Fcli/packages/generic/glab/${GLAB_VERSION}/glab_${GLAB_VERSION}_linux_${arch}.deb" \
-    && dpkg -i /tmp/glab.deb \
-    && rm /tmp/glab.deb \
-    && glab --version
+    && curl -fsSL -o /tmp/gh.deb \
+        "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${arch}.deb" \
+    && dpkg -i /tmp/gh.deb \
+    && rm /tmp/gh.deb \
+    && gh --version
 
 # The agent user carries the host's UID/GID. GID 20 (macOS "staff") and other
 # low GIDs often already exist in the base image, so reuse the group if present.
