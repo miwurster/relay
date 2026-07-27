@@ -1,4 +1,3 @@
-import type { RelayConfig } from "./config.js";
 import type {
   Crew,
   Finding,
@@ -33,12 +32,8 @@ export const MAX_GATE_FIX_ATTEMPTS = 2;
  * the gate → fixer loop, then handover. Every exit path ends at the same
  * handover call, so no outcome can skip it.
  */
-export async function runHarness(
-  crew: Crew,
-  issue: GitHubIssue,
-  config: RelayConfig,
-): Promise<Outcome> {
-  const { outcome, committed } = await runLegs(crew, issue, config);
+export async function runHarness(crew: Crew, issue: GitHubIssue): Promise<Outcome> {
+  const { outcome, committed } = await runLegs(crew, issue);
   await crew.handover(outcome, committed);
   return outcome;
 }
@@ -54,14 +49,11 @@ interface LegsResult {
   committed: TicketRef[];
 }
 
-async function runLegs(crew: Crew, issue: GitHubIssue, config: RelayConfig): Promise<LegsResult> {
+async function runLegs(crew: Crew, issue: GitHubIssue): Promise<LegsResult> {
   // Resolved once per pass, ahead of the planner, so the same command answers
-  // every attempt of the gate loop below.
-  const gate: ResolvedGate = {
-    command: config.greenGate,
-    provenance: "declared",
-    source: "relay.config.ts",
-  };
+  // every attempt of the gate loop below — and so even a pass the planner bails
+  // on has read the repo's docs for its gate.
+  const gate: ResolvedGate = await crew.resolveGate();
 
   const plan = await crew.plan(issue);
   if (plan.kind === "under-specified") {

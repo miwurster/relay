@@ -31,6 +31,7 @@ describe("loadConfig", () => {
     expect(config.roleTimeoutMs).toBe(45 * 60 * 1000);
     expect(config.dockerfile).toBe("docker/relay.Dockerfile");
     expect(config.image).toBeUndefined();
+    expect(config.models.gateResolver).toBe("claude-haiku-4-5");
     expect(config.models.planner).toBe("claude-opus-4-8");
     expect(config.models.implementer).toBe("claude-sonnet-5");
     expect(config.models.inDepthCodeReview).toBe("claude-fable-5");
@@ -43,9 +44,10 @@ describe("loadConfig", () => {
       defaultBranch: "trunk",
       branchPrefix: "relay/",
       image: "registry.example.com/relay:1",
-      models: { implementer: "claude-opus-4-8" },
+      models: { implementer: "claude-opus-4-8", gateResolver: "claude-sonnet-5" },
     };`);
     const config = await loadConfig(root);
+    expect(config.models.gateResolver).toBe("claude-sonnet-5");
     expect(config.branchPrefix).toBe("relay/");
     expect(config.image).toBe("registry.example.com/relay:1");
     expect(config.models.implementer).toBe("claude-opus-4-8");

@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { relayConfigSchema } from "../src/config.js";
 import type {
   Crew,
   Finding,
@@ -26,12 +25,13 @@ const issue: GitHubIssue = {
   subIssues: [],
 };
 
-const config = relayConfigSchema.parse({
-  greenGate: "make test",
-  defaultBranch: "main",
-});
+const resolvedGate: ResolvedGate = {
+  command: "npm run verify",
+  provenance: "declared",
+  source: "AGENTS.md, under Verifying",
+};
 
-const run = (crew: Crew) => runHarness(crew, issue, config);
+const run = (crew: Crew) => runHarness(crew, issue);
 
 const ticket = (number: number): TicketRef => ({ number, summary: `work on #${number}` });
 
@@ -50,6 +50,10 @@ function recordingCrew(overrides: Partial<Crew> = {}) {
   let handedOverTickets: readonly TicketRef[] = [];
 
   const crew: Crew = {
+    async resolveGate(): Promise<ResolvedGate> {
+      calls.push("resolveGate");
+      return resolvedGate;
+    },
     async plan(): Promise<PlanResult> {
       calls.push("plan");
       return { kind: "plan", tickets: [ticket(1)] };
@@ -102,6 +106,7 @@ describe("runHarness", () => {
 
     expect(outcome).toEqual({ kind: "success", detail: "green" });
     expect(calls).toEqual([
+      "resolveGate",
       "plan",
       "implement:1",
       "review:fastCodeReview:1",
@@ -220,9 +225,9 @@ describe("runHarness", () => {
     expect(attempts).toEqual([1, 2, 3]);
   });
 
-  it("hands the same resolved gate to every attempt of the loop", async () => {
+  it("resolves the gate once and hands that same one to every attempt of the loop", async () => {
     const gates: ResolvedGate[] = [];
-    const { crew } = recordingCrew({
+    const { crew, calls } = recordingCrew({
       async greenGate(_attempt, gate) {
         gates.push(gate);
         return { green: false, detail: "still red" };
@@ -233,11 +238,8 @@ describe("runHarness", () => {
 
     expect(gates).toHaveLength(3);
     expect(new Set(gates)).toEqual(new Set([gates[0]]));
-    expect(gates[0]).toEqual({
-      command: config.greenGate,
-      provenance: "declared",
-      source: "relay.config.ts",
-    });
+    expect(gates[0]).toEqual(resolvedGate);
+    expect(calls.filter((call) => call === "resolveGate")).toHaveLength(1);
   });
 
   it("gives up after two fixer attempts and mid-blocks on a red gate", async () => {
@@ -266,7 +268,7 @@ describe("runHarness", () => {
     const outcome = await run(crew);
 
     expect(outcome).toEqual({ kind: "early-bail", reason: "no acceptance criteria" });
-    expect(calls).toEqual(["plan", "handover:early-bail"]);
+    expect(calls).toEqual(["resolveGate", "plan", "handover:early-bail"]);
   });
 
   it("collapses a role that needs input into a mid-block handover, never a pause", async () => {
@@ -285,7 +287,7 @@ describe("runHarness", () => {
 
     expect(outcome).toEqual({ kind: "mid-block", reason: "which queue does this drain?" });
     expect(committed()).toEqual([]);
-    expect(calls).toEqual(["plan", "implement:1", "handover:mid-block"]);
+    expect(calls).toEqual(["resolveGate", "plan", "implement:1", "handover:mid-block"]);
   });
 
   it("hands the handover the tickets committed before a block, and no more", async () => {
@@ -331,7 +333,7 @@ describe("runHarness", () => {
   });
 
   it("runs end to end on the stub crew", async () => {
-    const outcome = await runHarness(createStubCrew(), issue, config);
+    const outcome = await runHarness(createStubCrew(), issue);
 
     expect(outcome).toEqual({ kind: "success", detail: "stub gate is always green" });
   });

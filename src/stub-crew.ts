@@ -7,6 +7,11 @@ import type { Crew } from "./crew.js";
  */
 export function createStubCrew(): Crew {
   return {
+    async resolveGate() {
+      log("gateResolver", "would read the repo's docs for its green gate");
+      return { command: "true", provenance: "inferred", source: "the stub crew" };
+    },
+
     async plan(issue) {
       log("planner", `would plan #${issue.number}`);
       return { kind: "plan", tickets: [{ number: issue.number, summary: "the work item itself" }] };

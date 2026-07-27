@@ -1,6 +1,7 @@
 import type { Sandbox } from "@ai-hero/sandcastle";
 import type { RelayConfig } from "./config.js";
 import { createFixer } from "./fixer.js";
+import { createGateResolver } from "./gate-resolver.js";
 import type { GitHubIssue } from "./github.js";
 import { createGreenGate } from "./green-gate.js";
 import { createHandover } from "./handover.js";
@@ -98,6 +99,11 @@ export type Outcome =
  * nothing between them but the small values in this file.
  */
 export interface Crew {
+  /**
+   * Resolve the gate the pass verifies with, from the repo's own docs. Run once,
+   * as the pass's first leg, so every later leg means the same command by green.
+   */
+  resolveGate(): Promise<ResolvedGate>;
   plan(issue: GitHubIssue): Promise<PlanResult>;
   implement(ticket: TicketRef): Promise<ImplementResult>;
   review(lens: ReviewLens, scope: ReviewScope): Promise<Finding[]>;
@@ -136,6 +142,7 @@ export function createCrew({
   branch: string;
 }): Crew {
   return {
+    resolveGate: createGateResolver({ sandbox, config, outputDir }),
     plan: createPlanner({ sandbox, config, outputDir }),
     implement: createImplementer({ sandbox, config, outputDir }),
     review: createReviewer({ sandbox, config, outputDir }),

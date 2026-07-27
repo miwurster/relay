@@ -12,9 +12,10 @@ import { readTaggedOutput } from "./tagged-output.js";
  *
  * `read-only` is the reviewers' rule and `must-commit` is the builders'; a leg
  * that reported it did nothing leaves `any`, since there is nothing to commit.
- * `no-commits` is for a leg that judges rather than changes but runs the repo's
- * build while it does: its artefacts leave the worktree dirty through no fault
- * of its own, so only a commit is worth failing on.
+ * `no-commits` is for a leg that changes nothing but cannot be held to a clean
+ * worktree either — because the repo's build dirtied it while the leg judged,
+ * or because the leg ran before anything could have dirtied it — so only a
+ * commit is worth failing on.
  */
 export type BranchRule = "read-only" | "no-commits" | "must-commit" | "any";
 

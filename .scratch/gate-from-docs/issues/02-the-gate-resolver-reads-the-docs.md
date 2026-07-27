@@ -15,17 +15,17 @@ Inference is that session's judgement, not relay code. The resolver never blocks
 
 **Blocked by:** 01.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The resolver is a role of the crew, run by the harness as the pass's first leg — before the planner, and therefore before the **held** label.
-- [ ] It runs on its own entry in the per-role model map, defaulting to a cheap model, and an operator can override it like any other role's.
-- [ ] Its answer is read from a tagged block and validated; a missing or malformed block fails as a role error, never as a bad command.
-- [ ] A repo whose `AGENTS.md` declares a gate resolves to that command with provenance `declared` and a `source` naming the file.
-- [ ] A repo whose `CLAUDE.md` only `@`-includes `AGENTS.md` still resolves the declaration behind the include.
-- [ ] A repo declaring a command whose target does not exist falls through to inference, and `source` says that is what happened.
-- [ ] A repo whose docs declare nothing resolves to an inferred gate rather than blocking the pass.
-- [ ] The resolver may not commit, and is not failed for a worktree it did not dirty.
-- [ ] The resolved gate is what the gate loop runs, and it is resolved exactly once per pass.
-- [ ] An `early-bail` pass still resolved its gate first, since resolution precedes the planner.
-- [ ] Nothing in the pass reads the config's gate field any more.
-- [ ] `npm run verify` exits zero.
+- [x] The resolver is a role of the crew, run by the harness as the pass's first leg — before the planner, and therefore before the **held** label.
+- [x] It runs on its own entry in the per-role model map, defaulting to a cheap model, and an operator can override it like any other role's.
+- [x] Its answer is read from a tagged block and validated; a missing or malformed block fails as a role error, never as a bad command.
+- [x] A repo whose `AGENTS.md` declares a gate resolves to that command with provenance `declared` and a `source` naming the file.
+- [x] A repo whose `CLAUDE.md` only `@`-includes `AGENTS.md` still resolves the declaration behind the include.
+- [x] A repo declaring a command whose target does not exist falls through to inference, and `source` says that is what happened.
+- [x] A repo whose docs declare nothing resolves to an inferred gate rather than blocking the pass.
+- [x] The resolver may not commit, and is not failed for a worktree it did not dirty.
+- [x] The resolved gate is what the gate loop runs, and it is resolved exactly once per pass.
+- [x] An `early-bail` pass still resolved its gate first, since resolution precedes the planner.
+- [x] Nothing in the pass reads the config's gate field any more.
+- [x] `npm run verify` exits zero.

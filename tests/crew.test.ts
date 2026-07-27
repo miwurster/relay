@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { relayConfigSchema } from "../src/config.js";
 import { createCrew } from "../src/crew.js";
 import { FIX_TAG } from "../src/fixer.js";
+import { RESOLVED_GATE_TAG } from "../src/gate-resolver.js";
 import { HANDOVER_TAG } from "../src/handover.js";
 import { IMPLEMENT_TAG } from "../src/implementer.js";
 import type { GitHubIssue } from "../src/github.js";
@@ -34,6 +35,32 @@ beforeEach(async () => {
 });
 
 describe("createCrew", () => {
+  it("resolves the gate by running the gate resolver role in the pass's sandbox", async () => {
+    const runs: SandboxRunOptions[] = [];
+    const sandbox = {
+      async run(options: SandboxRunOptions): Promise<SandboxRunResult> {
+        runs.push(options);
+        return {
+          iterations: [],
+          commits: [],
+          stdout:
+            `<${RESOLVED_GATE_TAG}>{"command":"npm run verify","provenance":"declared",` +
+            `"source":"AGENTS.md"}</${RESOLVED_GATE_TAG}>`,
+        };
+      },
+    } as unknown as Sandbox;
+
+    const crew = createCrew({ sandbox, config, outputDir, workItem: issue.number, branch });
+    const gate = await crew.resolveGate();
+
+    expect(gate).toEqual({
+      command: "npm run verify",
+      provenance: "declared",
+      source: "AGENTS.md",
+    });
+    expect(runs.map((run) => run.name)).toEqual(["gate-resolver"]);
+  });
+
   it("plans by running the planner role in the pass's sandbox", async () => {
     const runs: SandboxRunOptions[] = [];
     const sandbox = {

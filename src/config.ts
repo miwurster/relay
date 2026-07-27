@@ -24,6 +24,8 @@ export const DEFAULT_DOCKERFILE_PATH = "docker/relay.Dockerfile";
  */
 const modelsSchema = z
   .strictObject({
+    /** Reading three docs and a manifest is the cheapest judgement of the pass. */
+    gateResolver: z.string().default("claude-haiku-4-5"),
     planner: z.string().default("claude-opus-4-8"),
     implementer: z.string().default("claude-sonnet-5"),
     fastCodeReview: z.string().default("claude-opus-4-8"),
