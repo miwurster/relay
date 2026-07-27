@@ -13,7 +13,7 @@ export interface CliHandlers {
 /**
  * Resolve the single positional argument into a command.
  *
- * `doctor` runs the preflight; any other value is a work-item key to run a pass
+ * `doctor` runs the preflight; any other value names the work item to run a pass
  * over; no argument means auto-pick the next ready item.
  */
 export function parseArgs(argv: readonly string[]): Command {

@@ -14,7 +14,7 @@ const config = relayConfigSchema.parse({
   defaultBranch: "main",
 });
 
-const ticket: TicketRef = { key: "PSD-8", summary: "the schema" };
+const ticket: TicketRef = { number: 8, summary: "the schema" };
 
 /** What the branch is at before the implementer runs. */
 const HEAD_SHA = "9e4d1a0";
@@ -64,11 +64,11 @@ describe("createImplementer", () => {
     await implement(ticket);
 
     const written = await readFile(
-      join(outputDir, `implementer-${ticket.key}.status.json`),
+      join(outputDir, `implementer-${ticket.number}.status.json`),
       "utf8",
     );
     expect(JSON.parse(written)).toMatchObject({
-      role: `implementer-${ticket.key}`,
+      role: `implementer-${ticket.number}`,
       answer: { kind: "done" },
     });
   });
@@ -125,11 +125,11 @@ describe("createImplementer", () => {
       run?.agent.buildPrintCommand({ prompt: "", dangerouslySkipPermissions: true }).command,
     ).toContain(`--model '${config.models.implementer}'`);
     expect(run?.promptArgs).toEqual({
-      TICKET_KEY: ticket.key,
+      TICKET: `#${ticket.number}`,
       TICKET_SUMMARY: ticket.summary,
       TRACKER_DOC: TRACKER_DOC_PATH,
     });
-    expect(run?.prompt).toContain("{{TICKET_KEY}}");
+    expect(run?.prompt).toContain("{{TICKET}}");
     expect(run?.prompt).toContain("{{TICKET_SUMMARY}}");
     expect(run?.prompt).toContain("{{TRACKER_DOC}}");
     expect(run?.prompt).toContain(`<${IMPLEMENT_TAG}>`);

@@ -10,9 +10,9 @@ Doing this in one pass here is what lets 04 and 05 touch their prompts without c
 
 **Blocked by:** 02.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] All three forms — bare number, `#`-prefixed, full issue URL — normalise to the same number, with an unparseable argument rejected before any tracker call.
-- [ ] The pass branch is the prefix plus the number, and relay still refuses to reuse an existing branch.
-- [ ] No prompt mentions a tracker key, and no code names one.
-- [ ] `npm run verify` exits zero.
+- [x] All three forms — bare number, `#`-prefixed, full issue URL — normalise to the same number, with an unparseable argument rejected before any tracker call.
+- [x] The pass branch is the prefix plus the number, and relay still refuses to reuse an existing branch.
+- [x] No prompt mentions a tracker key, and no code names one.
+- [x] `npm run verify` exits zero.

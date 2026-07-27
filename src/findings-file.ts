@@ -3,8 +3,8 @@ import { join } from "node:path";
 import type { Finding } from "./crew.js";
 
 /** The directory one pass writes its role artefacts to, on the host. */
-export function passOutputDir(repoRoot: string, workItemKey: string): string {
-  return join(repoRoot, ".relay", workItemKey);
+export function passOutputDir(repoRoot: string, workItem: number): string {
+  return join(repoRoot, ".relay", String(workItem));
 }
 
 /**

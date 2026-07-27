@@ -147,11 +147,26 @@ describe("an explicitly named item", () => {
 });
 
 describe("workItemNumber", () => {
-  it("reads the number an operator named", () => {
-    expect(workItemNumber("42")).toBe(42);
+  it.each([
+    ["a bare number", "42"],
+    ["a #-prefixed number", "#42"],
+    ["a full issue URL", "https://github.com/kipu/qc-catalog/issues/42"],
+  ])("resolves %s to the same item", (_form, argument) => {
+    expect(workItemNumber(argument)).toBe(42);
   });
 
-  it.each(["", "PSD-1", "42.5", "-1", "0"])("rejects %o before any tracker call", (argument) => {
+  it.each([
+    "",
+    "#",
+    "PSD-1",
+    "42.5",
+    "-1",
+    "0",
+    "4#2",
+    "42#",
+    "https://github.com/kipu/qc-catalog/pull/42",
+    "https://gitlab.com/kipu/qc-catalog/issues/42",
+  ])("rejects %o before any tracker call", (argument) => {
     expect(() => workItemNumber(argument)).toThrow(SelectionError);
   });
 });

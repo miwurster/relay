@@ -14,8 +14,8 @@ const config = relayConfigSchema.parse({
   defaultBranch: "main",
 });
 
-const workItem = "PSD-7";
-const branch = "agent/PSD-7";
+const workItem = 7;
+const branch = "agent/7";
 
 /** A sandbox whose handover run has a fixed stdout and commit count. */
 function handing({ stdout = "", commits = [] as { sha: string }[] } = {}) {
@@ -72,7 +72,7 @@ describe("createHandover", () => {
       OUTCOME: "success",
       REASON: "The green gate is green.",
       MERGE_REQUEST: "required",
-      WORK_ITEM_KEY: workItem,
+      WORK_ITEM: `#${workItem}`,
       BRANCH: branch,
       TRACKER_DOC: TRACKER_DOC_PATH,
     });

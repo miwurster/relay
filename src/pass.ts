@@ -65,12 +65,12 @@ export async function runPassOnItem({
     createRelayCrew({
       sandbox: opened.sandbox,
       config,
-      outputDir: passOutputDir(repoRoot, String(issue.number)),
-      workItem: String(issue.number),
+      outputDir: passOutputDir(repoRoot, issue.number),
+      workItem: issue.number,
       branch,
     }),
 }: PassRun): Promise<ExitCode> {
-  const branch = passBranch(config, String(issue.number));
+  const branch = passBranch(config, issue.number);
   await refuseOnBranchCollision(repoRoot, branch);
 
   let opened: RelaySandbox | undefined;

@@ -54,12 +54,12 @@ export function createImplementer({
     const result = await runRole({
       sandbox,
       config,
-      name: `implementer-${ticket.key}`,
+      name: `implementer-${ticket.number}`,
       outputDir,
       model: config.models.implementer,
       prompt: IMPLEMENTER_PROMPT,
       promptArgs: {
-        TICKET_KEY: ticket.key,
+        TICKET: `#${ticket.number}`,
         TICKET_SUMMARY: ticket.summary,
         TRACKER_DOC: TRACKER_DOC_PATH,
       },

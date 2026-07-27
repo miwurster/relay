@@ -77,8 +77,8 @@ export function sandboxEnv({
 }
 
 /** The branch one pass runs on. */
-export function passBranch(config: RelayConfig, workItemKey: string): string {
-  return `${config.branchPrefix}${workItemKey}`;
+export function passBranch(config: RelayConfig, workItem: number): string {
+  return `${config.branchPrefix}${workItem}`;
 }
 
 /**

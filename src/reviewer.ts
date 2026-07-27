@@ -35,12 +35,12 @@ const LENSES: Record<ReviewLens, { prompt: string; args: Record<string, string> 
 interface ReviewTarget {
   /** What the scope is called in the run's name and its findings file. */
   name: string;
-  /** The key whose intent the change is measured against. */
-  key: string;
+  /** The issue whose intent the change is measured against, as the prompt names it. */
+  item: string;
   /** What the reviewed diff starts at. */
   base: string;
   /** The ticket a finding is about; absent for the whole branch. */
-  ticket?: string;
+  ticket?: number;
 }
 
 /**
@@ -70,7 +70,7 @@ export function createReviewer({
       outputDir,
       model: config.models[lens],
       prompt: lensRun.prompt,
-      promptArgs: { SCOPE: scope.kind, KEY: target.key, BASE: target.base, ...lensRun.args },
+      promptArgs: { SCOPE: scope.kind, ITEM: target.item, BASE: target.base, ...lensRun.args },
       tag: FINDINGS_TAG,
       schema: findingsSchema,
       // A lens that changed the branch broke the one rule every lens runs
@@ -91,8 +91,13 @@ export function createReviewer({
  */
 function describeScope(scope: ReviewScope, config: RelayConfig): ReviewTarget {
   return scope.kind === "ticket"
-    ? { name: scope.ticket.key, key: scope.ticket.key, base: scope.base, ticket: scope.ticket.key }
-    : { name: "branch", key: scope.workItem, base: config.defaultBranch };
+    ? {
+        name: String(scope.ticket.number),
+        item: `#${scope.ticket.number}`,
+        base: scope.base,
+        ticket: scope.ticket.number,
+      }
+    : { name: "branch", item: `#${scope.workItem}`, base: config.defaultBranch };
 }
 
 function toFinding(lens: ReviewLens, target: ReviewTarget, summary: string): Finding {

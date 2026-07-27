@@ -79,7 +79,11 @@ function describeLeg(target: FixTarget, config: RelayConfig): FixLeg {
   const { fixer, fixerEscalated } = config.models;
   switch (target.kind) {
     case "ticket":
-      return { name: target.ticket.key, scope: `ticket ${target.ticket.key}`, model: fixer };
+      return {
+        name: String(target.ticket.number),
+        scope: `ticket #${target.ticket.number}`,
+        model: fixer,
+      };
     case "branch":
       return { name: "branch", scope: "the whole branch", model: fixer };
     case "gate":

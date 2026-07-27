@@ -25,7 +25,7 @@ const issue: GitHubIssue = {
   subIssues: [],
 };
 
-const branch = "agent/PSD-7";
+const branch = "agent/7";
 
 let outputDir: string;
 
@@ -42,15 +42,15 @@ describe("createCrew", () => {
         return {
           iterations: [],
           commits: [],
-          stdout: `<${PLAN_TAG}>{"kind":"plan","tickets":[{"key":"PSD-8","summary":"it"}]}</${PLAN_TAG}>`,
+          stdout: `<${PLAN_TAG}>{"kind":"plan","tickets":[{"number":8,"summary":"it"}]}</${PLAN_TAG}>`,
         };
       },
     } as unknown as Sandbox;
 
-    const crew = createCrew({ sandbox, config, outputDir, workItem: String(issue.number), branch });
+    const crew = createCrew({ sandbox, config, outputDir, workItem: issue.number, branch });
     const plan = await crew.plan(issue);
 
-    expect(plan).toEqual({ kind: "plan", tickets: [{ key: "PSD-8", summary: "it" }] });
+    expect(plan).toEqual({ kind: "plan", tickets: [{ number: 8, summary: "it" }] });
     expect(runs.map((run) => run.name)).toEqual(["planner"]);
   });
 
@@ -69,13 +69,13 @@ describe("createCrew", () => {
         return { stdout: "9e4d1a0\n", stderr: "", exitCode: 0 };
       },
     } as unknown as Sandbox;
-    const crew = createCrew({ sandbox, config, outputDir, workItem: String(issue.number), branch });
+    const crew = createCrew({ sandbox, config, outputDir, workItem: issue.number, branch });
 
-    await crew.implement({ key: "PSD-8", summary: "the schema" });
-    const result = await crew.implement({ key: "PSD-9", summary: "the endpoint" });
+    await crew.implement({ number: 8, summary: "the schema" });
+    const result = await crew.implement({ number: 9, summary: "the endpoint" });
 
     expect(result).toEqual({ kind: "done", base: "9e4d1a0" });
-    expect(runs.map((run) => run.name)).toEqual(["implementer-PSD-8", "implementer-PSD-9"]);
+    expect(runs.map((run) => run.name)).toEqual(["implementer-8", "implementer-9"]);
   });
 
   it("fixes a scope's merged findings in one fixer run", async () => {
@@ -90,14 +90,14 @@ describe("createCrew", () => {
         };
       },
     } as unknown as Sandbox;
-    const crew = createCrew({ sandbox, config, outputDir, workItem: String(issue.number), branch });
+    const crew = createCrew({ sandbox, config, outputDir, workItem: issue.number, branch });
 
-    await crew.fix([{ source: "fastCodeReview", ticket: "PSD-8", summary: "src/a.ts:3 dead" }], {
+    await crew.fix([{ source: "fastCodeReview", ticket: 8, summary: "src/a.ts:3 dead" }], {
       kind: "ticket",
-      ticket: { key: "PSD-8", summary: "the schema" },
+      ticket: { number: 8, summary: "the schema" },
     });
 
-    expect(runs.map((run) => run.name)).toEqual(["fixer-PSD-8"]);
+    expect(runs.map((run) => run.name)).toEqual(["fixer-8"]);
   });
 
   it("gates by running the repo's own command in the pass's sandbox", async () => {
@@ -113,7 +113,7 @@ describe("createCrew", () => {
       sandbox,
       config,
       outputDir,
-      workItem: String(issue.number),
+      workItem: issue.number,
       branch,
     }).greenGate(1);
 
@@ -137,18 +137,18 @@ describe("createCrew", () => {
         return { stdout: "", stderr: "", exitCode: 0 };
       },
     } as unknown as Sandbox;
-    const crew = createCrew({ sandbox, config, outputDir, workItem: String(issue.number), branch });
+    const crew = createCrew({ sandbox, config, outputDir, workItem: issue.number, branch });
 
     const findings = await crew.review("fastCodeReview", {
       kind: "ticket",
-      ticket: { key: "PSD-8", summary: "the schema" },
+      ticket: { number: 8, summary: "the schema" },
       base: "abc1234",
     });
 
     expect(findings).toEqual([
-      { source: "fastCodeReview", ticket: "PSD-8", summary: "src/a.ts:3 duplicated parsing" },
+      { source: "fastCodeReview", ticket: 8, summary: "src/a.ts:3 duplicated parsing" },
     ]);
-    expect(runs.map((run) => run.name)).toEqual(["fastCodeReview-PSD-8"]);
+    expect(runs.map((run) => run.name)).toEqual(["fastCodeReview-8"]);
   });
 
   it("hands the pass over on the item and branch it ran on", async () => {
@@ -163,13 +163,13 @@ describe("createCrew", () => {
         };
       },
     } as unknown as Sandbox;
-    const crew = createCrew({ sandbox, config, outputDir, workItem: String(issue.number), branch });
+    const crew = createCrew({ sandbox, config, outputDir, workItem: issue.number, branch });
 
     await crew.handover({ kind: "success" });
 
     expect(runs.map((run) => run.name)).toEqual(["handover"]);
     expect(runs[0]?.promptArgs).toMatchObject({
-      WORK_ITEM_KEY: String(issue.number),
+      WORK_ITEM: `#${issue.number}`,
       BRANCH: branch,
     });
   });

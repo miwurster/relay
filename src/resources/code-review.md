@@ -7,7 +7,7 @@ The other lens of this pass, `kipu-all:kipu-spec-review`, owns that question; do
 
 ## 1. The diff you are reviewing
 
-`git diff {{BASE}}...HEAD` — the **{{SCOPE}}** scope of **{{KEY}}**, and the whole of what you review.
+`git diff {{BASE}}...HEAD` — the **{{SCOPE}}** scope of **{{ITEM}}**, and the whole of what you review.
 Nothing outside that diff is yours to judge, however much you would like to.
 
 ## 2. Review it

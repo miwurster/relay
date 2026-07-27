@@ -8,13 +8,21 @@ const HELD_LABEL = "agent-in-progress";
 export type Selection = { kind: "work-item"; issue: GitHubIssue } | { kind: "nothing-to-do" };
 
 /**
- * The issue number an operator named, rejected here rather than at the tracker:
- * a call that cannot name an issue is not worth making.
+ * The three forms an operator has an issue to hand in: the number as they would
+ * type it, `#42` as pasted from a comment, and the URL their browser gives them.
+ * Anchored, so nothing but one of those three forms gets through.
+ */
+const NAMED_ISSUE = /^(?:#|https:\/\/github\.com\/[^/]+\/[^/]+\/issues\/)?(\d+)$/;
+
+/**
+ * The issue number an operator named, whichever form they used. Rejected here
+ * rather than at the tracker: a call that cannot name an issue is not worth
+ * making.
  */
 export function workItemNumber(argument: string): number {
-  const number = Number(argument);
+  const number = Number(NAMED_ISSUE.exec(argument)?.[1]);
   if (!Number.isInteger(number) || number <= 0) {
-    throw new SelectionError(`${argument} is not a GitHub issue number.`);
+    throw new SelectionError(`${argument} does not name a GitHub issue: use 42, #42 or its URL.`);
   }
   return number;
 }

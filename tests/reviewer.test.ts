@@ -16,10 +16,10 @@ const config = relayConfigSchema.parse({
 
 const ticketScope: ReviewScope = {
   kind: "ticket",
-  ticket: { key: "PSD-8", summary: "the schema" },
+  ticket: { number: 8, summary: "the schema" },
   base: "c0ffee",
 };
-const branchScope: ReviewScope = { kind: "branch", workItem: "PSD-7" };
+const branchScope: ReviewScope = { kind: "branch", workItem: 7 };
 
 let outputDir: string;
 
@@ -66,8 +66,8 @@ describe("createReviewer", () => {
     );
 
     await expect(review("fastCodeReview", ticketScope)).resolves.toEqual([
-      { source: "fastCodeReview", ticket: "PSD-8", summary: "src/a.ts:3 duplicated parsing" },
-      { source: "fastCodeReview", ticket: "PSD-8", summary: "src/b.ts:9 dead branch" },
+      { source: "fastCodeReview", ticket: 8, summary: "src/a.ts:3 duplicated parsing" },
+      { source: "fastCodeReview", ticket: 8, summary: "src/b.ts:9 dead branch" },
     ]);
   });
 
@@ -117,8 +117,8 @@ describe("createReviewer", () => {
     await review("fastSpecReview", ticketScope);
     await review("inDepthSpecReview", branchScope);
 
-    await expect(findingsFile("PSD-8-fastSpecReview.json")).resolves.toEqual([
-      { source: "fastSpecReview", ticket: "PSD-8", summary: "src/a.ts:3 duplicated parsing" },
+    await expect(findingsFile("8-fastSpecReview.json")).resolves.toEqual([
+      { source: "fastSpecReview", ticket: 8, summary: "src/a.ts:3 duplicated parsing" },
     ]);
     await expect(findingsFile("branch-inDepthSpecReview.json")).resolves.toEqual([
       { source: "inDepthSpecReview", summary: "src/a.ts:3 duplicated parsing" },
@@ -137,13 +137,13 @@ describe("createReviewer", () => {
     expect(commandOf(runs[1])).toContain(`--model '${config.models.inDepthCodeReview}'`);
     expect(runs[0]?.promptArgs).toEqual({
       SCOPE: "ticket",
-      KEY: "PSD-8",
+      ITEM: "#8",
       BASE: "c0ffee",
       DEPTH: "fast",
     });
     expect(runs[1]?.promptArgs).toEqual({
       SCOPE: "branch",
-      KEY: "PSD-7",
+      ITEM: "#7",
       BASE: config.defaultBranch,
       DEPTH: "full",
     });
@@ -160,7 +160,7 @@ describe("createReviewer", () => {
     expect(commandOf(runs[1])).toContain(`--model '${config.models.inDepthSpecReview}'`);
     expect(runs[0]?.promptArgs).toEqual({
       SCOPE: "ticket",
-      KEY: "PSD-8",
+      ITEM: "#8",
       BASE: "c0ffee",
       TRACKER_DOC: TRACKER_DOC_PATH,
     });
@@ -174,7 +174,7 @@ describe("createReviewer", () => {
     await review("fastCodeReview", ticketScope);
     await review("inDepthCodeReview", branchScope);
 
-    expect(runs[0]?.name).toBe("fastCodeReview-PSD-8");
+    expect(runs[0]?.name).toBe("fastCodeReview-8");
     expect(runs[1]?.name).toBe("inDepthCodeReview-branch");
   });
 

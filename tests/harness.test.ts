@@ -24,9 +24,9 @@ const issue: GitHubIssue = {
   subIssues: [],
 };
 
-const ticket = (key: string): TicketRef => ({ key, summary: `work on ${key}` });
+const ticket = (number: number): TicketRef => ({ number, summary: `work on #${number}` });
 
-const finding = (source: Finding["source"], summary: string, ticket?: string): Finding => ({
+const finding = (source: Finding["source"], summary: string, ticket?: number): Finding => ({
   source,
   summary,
   ...(ticket ? { ticket } : {}),
@@ -42,14 +42,14 @@ function recordingCrew(overrides: Partial<Crew> = {}) {
   const crew: Crew = {
     async plan(): Promise<PlanResult> {
       calls.push("plan");
-      return { kind: "plan", tickets: [ticket("PSD-1")] };
+      return { kind: "plan", tickets: [ticket(1)] };
     },
     async implement(ref): Promise<ImplementResult> {
-      calls.push(`implement:${ref.key}`);
+      calls.push(`implement:${ref.number}`);
       return { kind: "done", base: "c0ffee" };
     },
     async review(lens: ReviewLens, scope: ReviewScope): Promise<Finding[]> {
-      calls.push(`review:${lens}:${scope.kind === "ticket" ? scope.ticket.key : "branch"}`);
+      calls.push(`review:${lens}:${scope.kind === "ticket" ? scope.ticket.number : "branch"}`);
       return [];
     },
     async fix(findings, target): Promise<void> {
@@ -76,7 +76,7 @@ describe("runHarness", () => {
     const { crew, calls } = recordingCrew({
       async plan() {
         calls.push("plan");
-        return { kind: "plan", tickets: [ticket("PSD-1"), ticket("PSD-2")] };
+        return { kind: "plan", tickets: [ticket(1), ticket(2)] };
       },
     });
 
@@ -85,12 +85,12 @@ describe("runHarness", () => {
     expect(outcome).toEqual({ kind: "success" });
     expect(calls).toEqual([
       "plan",
-      "implement:PSD-1",
-      "review:fastCodeReview:PSD-1",
-      "review:fastSpecReview:PSD-1",
-      "implement:PSD-2",
-      "review:fastCodeReview:PSD-2",
-      "review:fastSpecReview:PSD-2",
+      "implement:1",
+      "review:fastCodeReview:1",
+      "review:fastSpecReview:1",
+      "implement:2",
+      "review:fastCodeReview:2",
+      "review:fastSpecReview:2",
       "review:inDepthCodeReview:branch",
       "review:inDepthSpecReview:branch",
       "gate",
@@ -128,23 +128,23 @@ describe("runHarness", () => {
     const { crew, fixed } = recordingCrew({
       async review(lens, scope) {
         if (scope.kind !== "ticket") return [];
-        return [finding(lens, "same problem", scope.ticket.key)];
+        return [finding(lens, "same problem", scope.ticket.number)];
       },
     });
 
     await runHarness(crew, issue);
 
     expect(fixed[0]).toEqual([
-      finding("fastCodeReview", "same problem", "PSD-1"),
-      finding("fastSpecReview", "same problem", "PSD-1"),
+      finding("fastCodeReview", "same problem", 1),
+      finding("fastSpecReview", "same problem", 1),
     ]);
   });
 
   it("tells each fixer leg what it is fixing", async () => {
     const { crew, fixTargets } = recordingCrew({
       async review(lens, scope) {
-        const ticketKey = scope.kind === "ticket" ? scope.ticket.key : undefined;
-        return [finding(lens, "same problem", ticketKey)];
+        const ticketNumber = scope.kind === "ticket" ? scope.ticket.number : undefined;
+        return [finding(lens, "same problem", ticketNumber)];
       },
       async greenGate() {
         return { green: false, detail: "still red" };
@@ -154,7 +154,7 @@ describe("runHarness", () => {
     await runHarness(crew, issue);
 
     expect(fixTargets).toEqual([
-      { kind: "ticket", ticket: ticket("PSD-1") },
+      { kind: "ticket", ticket: ticket(1) },
       { kind: "branch" },
       { kind: "gate", attempt: 1 },
       { kind: "gate", attempt: 2 },
@@ -235,10 +235,10 @@ describe("runHarness", () => {
     const { crew, calls } = recordingCrew({
       async plan() {
         calls.push("plan");
-        return { kind: "plan", tickets: [ticket("PSD-1"), ticket("PSD-2")] };
+        return { kind: "plan", tickets: [ticket(1), ticket(2)] };
       },
       async implement(ref) {
-        calls.push(`implement:${ref.key}`);
+        calls.push(`implement:${ref.number}`);
         return { kind: "needs-input", reason: "which queue does this drain?" };
       },
     });
@@ -250,16 +250,16 @@ describe("runHarness", () => {
       reason: "which queue does this drain?",
       hasWork: false,
     });
-    expect(calls).toEqual(["plan", "implement:PSD-1", "handover:mid-block"]);
+    expect(calls).toEqual(["plan", "implement:1", "handover:mid-block"]);
   });
 
   it("reports a block after an implemented ticket as work the handover has to publish", async () => {
     const { crew } = recordingCrew({
       async plan() {
-        return { kind: "plan", tickets: [ticket("PSD-1"), ticket("PSD-2")] };
+        return { kind: "plan", tickets: [ticket(1), ticket(2)] };
       },
       async implement(ref) {
-        return ref.key === "PSD-2"
+        return ref.number === 2
           ? { kind: "needs-input", reason: "which queue does this drain?" }
           : { kind: "done", base: "c0ffee" };
       },

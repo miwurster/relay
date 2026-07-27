@@ -10,7 +10,7 @@ import { createReviewer } from "./reviewer.js";
 
 /** One ticket of the pass's plan: the unit an implementer leg runs over. */
 export interface TicketRef {
-  key: string;
+  number: number;
   summary: string;
 }
 
@@ -37,7 +37,7 @@ export type FindingSource = ReviewLens | "greenGate";
 export interface Finding {
   source: FindingSource;
   /** The ticket the finding is about; absent for whole-branch findings. */
-  ticket?: string;
+  ticket?: number;
   summary: string;
 }
 
@@ -50,13 +50,13 @@ export interface GateResult {
 /**
  * What the reviewers look at: one ticket's change, or the whole branch.
  *
- * Each arm carries the key whose intent the change is measured against — the
+ * Each arm carries the issue whose intent the change is measured against — the
  * ticket's own brief, or the work item the whole branch belongs to. A ticket
  * also carries the commit its own change starts at, since the branch already
  * holds every earlier ticket of the pass.
  */
 export type ReviewScope =
-  { kind: "ticket"; ticket: TicketRef; base: string } | { kind: "branch"; workItem: string };
+  { kind: "ticket"; ticket: TicketRef; base: string } | { kind: "branch"; workItem: number };
 
 /**
  * What one fixer leg is fixing: a ticket's own lenses, the whole-branch lenses,
@@ -111,8 +111,8 @@ export function createCrew({
   sandbox: Sandbox;
   config: RelayConfig;
   outputDir: string;
-  /** The key of the work item this pass runs over. */
-  workItem: string;
+  /** The issue number of the work item this pass runs over. */
+  workItem: number;
   /** The branch the pass commits to, and the handover publishes. */
   branch: string;
 }): Crew {

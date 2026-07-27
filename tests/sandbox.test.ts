@@ -54,7 +54,7 @@ describe("sandboxEnv", () => {
 
 describe("passBranch", () => {
   it("prefixes the work item with the configured branch prefix", () => {
-    expect(passBranch(config(), "123")).toBe("agent/123");
+    expect(passBranch(config(), 123)).toBe("agent/123");
   });
 });
 

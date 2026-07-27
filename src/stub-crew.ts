@@ -8,18 +8,17 @@ import type { Crew } from "./crew.js";
 export function createStubCrew(): Crew {
   return {
     async plan(issue) {
-      const number = String(issue.number);
-      log("planner", `would plan #${number}`);
-      return { kind: "plan", tickets: [{ key: number, summary: "the work item itself" }] };
+      log("planner", `would plan #${issue.number}`);
+      return { kind: "plan", tickets: [{ number: issue.number, summary: "the work item itself" }] };
     },
 
     async implement(ticket) {
-      log("implementer", `would implement ${ticket.key}`);
+      log("implementer", `would implement #${ticket.number}`);
       return { kind: "done", base: "HEAD" };
     },
 
     async review(lens, scope) {
-      const target = scope.kind === "ticket" ? scope.ticket.key : "the branch";
+      const target = scope.kind === "ticket" ? `#${scope.ticket.number}` : "the branch";
       log(lens, `would review ${target}`);
       return [];
     },

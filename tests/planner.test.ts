@@ -51,28 +51,28 @@ describe("createPlanner", () => {
   it("returns the tickets the planner ordered", async () => {
     const { plan } = planning(
       taggedPlan(
-        '{"kind":"plan","tickets":[{"key":"PSD-8","summary":"the schema"},' +
-          '{"key":"PSD-9","summary":"the endpoint"}]}',
+        '{"kind":"plan","tickets":[{"number":8,"summary":"the schema"},' +
+          '{"number":9,"summary":"the endpoint"}]}',
       ),
     );
 
     await expect(plan(issue)).resolves.toEqual({
       kind: "plan",
       tickets: [
-        { key: "PSD-8", summary: "the schema" },
-        { key: "PSD-9", summary: "the endpoint" },
+        { number: 8, summary: "the schema" },
+        { number: 9, summary: "the endpoint" },
       ],
     });
   });
 
   it("passes a bail to a human straight through", async () => {
     const { plan } = planning(
-      taggedPlan('{"kind":"under-specified","reason":"PSD-8 says nothing about the change"}'),
+      taggedPlan('{"kind":"under-specified","reason":"#8 says nothing about the change"}'),
     );
 
     await expect(plan(issue)).resolves.toEqual({
       kind: "under-specified",
-      reason: "PSD-8 says nothing about the change",
+      reason: "#8 says nothing about the change",
     });
   });
 
@@ -90,7 +90,7 @@ describe("createPlanner", () => {
 
   it("runs one-shot on the planner's model, over the work item and the tracker doc", async () => {
     const { plan, runs } = planning(
-      taggedPlan('{"kind":"plan","tickets":[{"key":"PSD-7","summary":"the item itself"}]}'),
+      taggedPlan('{"kind":"plan","tickets":[{"number":7,"summary":"the item itself"}]}'),
     );
 
     await plan(issue);
@@ -102,10 +102,10 @@ describe("createPlanner", () => {
       run?.agent.buildPrintCommand({ prompt: "", dangerouslySkipPermissions: true }).command,
     ).toContain(`--model '${config.models.planner}'`);
     expect(run?.promptArgs).toEqual({
-      WORK_ITEM_KEY: String(issue.number),
+      WORK_ITEM: `#${issue.number}`,
       TRACKER_DOC: TRACKER_DOC_PATH,
     });
-    expect(run?.prompt).toContain("{{WORK_ITEM_KEY}}");
+    expect(run?.prompt).toContain("{{WORK_ITEM}}");
     expect(run?.prompt).toContain("{{TRACKER_DOC}}");
     expect(run?.prompt).toContain(`<${PLAN_TAG}>`);
   });

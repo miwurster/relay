@@ -19,7 +19,9 @@ const planSchema = z.discriminatedUnion("kind", [
     kind: z.literal("plan"),
     // A plan with no tickets is not a plan: an item with no related tickets is
     // its own singleton, which the planner is told to return instead.
-    tickets: z.array(z.object({ key: z.string().min(1), summary: z.string().min(1) })).min(1),
+    tickets: z
+      .array(z.object({ number: z.number().int().positive(), summary: z.string().min(1) }))
+      .min(1),
   }),
   z.object({ kind: z.literal("under-specified"), reason: z.string().min(1) }),
 ]);
@@ -49,7 +51,7 @@ export function createPlanner({
       outputDir,
       model: config.models.planner,
       prompt: PLANNER_PROMPT,
-      promptArgs: { WORK_ITEM_KEY: String(issue.number), TRACKER_DOC: TRACKER_DOC_PATH },
+      promptArgs: { WORK_ITEM: `#${issue.number}`, TRACKER_DOC: TRACKER_DOC_PATH },
       tag: PLAN_TAG,
       schema: planSchema,
     });

@@ -51,7 +51,7 @@ async function runLegs(crew: Crew, issue: GitHubIssue): Promise<Outcome> {
   const blocked = await implementTickets(crew, plan.tickets);
   if (blocked) return blocked;
 
-  await reviewAndFix(crew, WHOLE_BRANCH_LENSES, { kind: "branch", workItem: String(issue.number) });
+  await reviewAndFix(crew, WHOLE_BRANCH_LENSES, { kind: "branch", workItem: issue.number });
   // Every ticket was implemented by now, so the branch carries work whenever
   // the plan had a ticket at all.
   return await driveGate(crew, plan.tickets.length > 0);

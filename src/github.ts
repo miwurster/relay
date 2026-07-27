@@ -112,7 +112,7 @@ const FIELDS = "number,state,labels,blockedBy,subIssues";
  * truncates the backlog server-side, so sorting afterwards would keep the
  * newest 100 and drop exactly the items the frontier's head should hold.
  *
- * The key is issue creation time, the only age GitHub can sort on. Humans
+ * It sorts on issue creation time, the only age GitHub can sort on. Humans
  * steer by when they apply the ready label, which no `gh` field carries, so a
  * long-open issue labelled today outranks a newer one labelled last week.
  */

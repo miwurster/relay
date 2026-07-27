@@ -7,14 +7,14 @@ The other lens of this pass, `kipu-all:kipu-code-review`, owns code quality; do 
 
 ## 1. Fetch the intent from the tracker
 
-Read `{{TRACKER_DOC}}` in this worktree for how to reach the tracker, then read the intent for **{{KEY}}** there.
+Read `{{TRACKER_DOC}}` in this worktree for how to reach the tracker, then read the intent for **{{ITEM}}** there.
 The tracker is the single source of truth for what was asked, so never measure the change against a copy of the intent you found in the worktree.
 
 Your scope is **{{SCOPE}}**:
 
-- **ticket** — the intent is {{KEY}}'s own brief: its description and its acceptance criteria.
+- **ticket** — the intent is {{ITEM}}'s own brief: its description and its acceptance criteria.
   This is the skill's `ticket` scope.
-- **branch** — the intent is the work item {{KEY}} as a whole: its description plus the tickets under it, per the relation model the tracker doc describes.
+- **branch** — the intent is the work item {{ITEM}} as a whole: its description plus the tickets under it, per the relation model the tracker doc describes.
   This is the skill's `spec` scope.
   The tickets are the plan and the item is the requirement, so judge the change against the item as a whole rather than ticket by ticket.
 
@@ -41,7 +41,7 @@ The fixer that acts on your findings is a cold session that sees only what you w
 End your run by emitting exactly one `<relay-findings>` block and nothing after it: a JSON array of one-line findings.
 
 <relay-findings>
-["missing: {{KEY}} asks for the retry cap to be configurable; src/worker.ts:31 hardcodes 3", "extra: src/worker.ts:80 adds a metrics hook nothing asked for — drop it"]
+["missing: {{ITEM}} asks for the retry cap to be configurable; src/worker.ts:31 hardcodes 3", "extra: src/worker.ts:80 adds a metrics hook nothing asked for — drop it"]
 </relay-findings>
 
 A change that built what was asked:

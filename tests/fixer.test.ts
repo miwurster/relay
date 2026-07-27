@@ -13,12 +13,12 @@ const config = relayConfigSchema.parse({
   defaultBranch: "main",
 });
 
-const ticketTarget: FixTarget = { kind: "ticket", ticket: { key: "PSD-8", summary: "the schema" } };
+const ticketTarget: FixTarget = { kind: "ticket", ticket: { number: 8, summary: "the schema" } };
 const branchTarget: FixTarget = { kind: "branch" };
 
 const findings: Finding[] = [
-  { source: "fastCodeReview", ticket: "PSD-8", summary: "src/a.ts:3 duplicated parsing" },
-  { source: "fastSpecReview", ticket: "PSD-8", summary: "src/a.ts:3 parses twice" },
+  { source: "fastCodeReview", ticket: 8, summary: "src/a.ts:3 duplicated parsing" },
+  { source: "fastSpecReview", ticket: 8, summary: "src/a.ts:3 parses twice" },
 ];
 
 /** A sandbox whose only real behaviour is the stdout one fixer run returns. */
@@ -57,7 +57,7 @@ describe("createFixer", () => {
 
     expect(runs).toHaveLength(1);
     expect(runs[0]?.promptArgs).toEqual({
-      SCOPE: "ticket PSD-8",
+      SCOPE: "ticket #8",
       FINDINGS: JSON.stringify(findings, undefined, 2),
     });
   });
@@ -101,7 +101,7 @@ describe("createFixer", () => {
     await fix(findings, branchTarget);
     await fix(findings, { kind: "gate", attempt: 2 });
 
-    expect(runs.map((run) => run.name)).toEqual(["fixer-PSD-8", "fixer-branch", "fixer-gate-2"]);
+    expect(runs.map((run) => run.name)).toEqual(["fixer-8", "fixer-branch", "fixer-gate-2"]);
     expect(runs[1]?.promptArgs?.SCOPE).toBe("the whole branch");
     expect(runs[2]?.promptArgs?.SCOPE).toBe("the green gate, fix attempt 2");
   });

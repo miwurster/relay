@@ -78,7 +78,7 @@ describe("runPass", () => {
     await withTrackerDoc(root);
     await withSecrets();
 
-    await expect(runPass("PSD-1")).rejects.toThrow(/not a GitHub issue number/);
+    await expect(runPass("PSD-1")).rejects.toThrow(/does not name a GitHub issue/);
   });
 });
 

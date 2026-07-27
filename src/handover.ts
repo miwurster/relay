@@ -37,7 +37,7 @@ export function createHandover({
   sandbox: Sandbox;
   config: RelayConfig;
   outputDir: string;
-  workItem: string;
+  workItem: number;
   branch: string;
 }): Crew["handover"] {
   return async function handover(outcome: Outcome): Promise<void> {
@@ -56,7 +56,7 @@ export function createHandover({
         // Told, never inferred: relay holds the leg to this below, so the leg
         // has to be reading the same verdict relay is about to judge it on.
         MERGE_REQUEST: leg.mergeRequest,
-        WORK_ITEM_KEY: workItem,
+        WORK_ITEM: `#${workItem}`,
         BRANCH: branch,
         TRACKER_DOC: TRACKER_DOC_PATH,
       },

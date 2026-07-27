@@ -26,7 +26,7 @@ describe("runCli", () => {
     runDoctor: vi.fn(async () => ExitCode.Success),
   });
 
-  it("dispatches a work-item key to runPass and returns its exit code", async () => {
+  it("dispatches a named work item to runPass and returns its exit code", async () => {
     const h = handlers();
     const code = await runCli(["PROJ-123"], h);
     expect(h.runPass).toHaveBeenCalledWith("PROJ-123");
