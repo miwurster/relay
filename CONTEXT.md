@@ -24,12 +24,12 @@ Legs share only the worktree's files and git history, so anything one leg must t
 _Avoid_: subagent, child agent
 
 **Role**:
-A kind of **leg**: planner, implementer, reviewer, fixer, **green gate**, handover.
+A kind of **leg**: **gate resolver**, planner, implementer, reviewer, fixer, **green gate**, handover.
 A role is a prompt, a model, a tagged answer, and a rule about what it may leave on the branch.
 _Avoid_: agent, worker, actor
 
 **Crew**:
-The six **roles** one pass runs, as one interface.
+The seven **roles** one pass runs, as one interface.
 _Avoid_: pipeline, team, orchestrator
 
 **Lens**:
@@ -67,8 +67,19 @@ _Avoid_: issue, comment, remark
 **Green gate**:
 The repo's own command whose exit code decides whether the branch is green, and the **role** that runs it and triages a red result.
 Green means every check the repo judges a branch on — static analysis as much as tests — not tests alone.
-relay never parses the command's output.
+The command is never configured: the **gate resolver** reads it from the repo's docs, so what relay verifies with and what the docs tell a contributor to run are the same sentence.
+relay never parses the command's output, and has no opinion on what the command covers.
 _Avoid_: quality gate, CI check, test gate
+
+**Gate resolver**:
+The **pass**'s first **leg**: it reads the repo's own docs and answers with the **green gate** command, once, for every attempt of that pass.
+It never blocks — a gate no doc declares is inferred from the build manifest instead, and the answer carries its **provenance** either way.
+_Avoid_: gate detection, gate config, gate lookup
+
+**Provenance**:
+Where a **gate resolver**'s answer came from: `declared` when a doc named it, `inferred` when the resolver fell back to the manifest.
+It is on the record of every **pass** — the **handover** names it, and the **doctor** warns on an inferred gate before a pass ever runs — because an inferred gate is a command no human chose.
+_Avoid_: source, origin, confidence
 
 **Handover**:
 The pass's last **leg**: it publishes the branch as a pull request when the **outcome** is owed one, and tells the human what state the work is in.
@@ -135,7 +146,7 @@ _Avoid_: output block, response payload
 **Init**:
 The one-off bootstrap that writes a repo's `relay.config.ts` and **sandbox recipe** from what it can detect, and names what is left to a human.
 It only ever writes those two files: it never touches the **tracker doc**, never creates labels, and never overwrites, so re-running it fills gaps rather than undoing hand-tuning.
-Detection is a convenience and never a claim to be right — an undetectable green gate is written as a value the config schema refuses, so it fails loudly rather than running as if confirmed.
+It has no say in the **green gate** — that is the repo's docs' to declare and the **gate resolver**'s to read — so init names declaring it as one of the human steps left.
 _Avoid_: bootstrap, setup, scaffold
 
 **Sandbox recipe**:
