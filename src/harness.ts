@@ -1,8 +1,10 @@
+import type { RelayConfig } from "./config.js";
 import type {
   Crew,
   Finding,
   FixTarget,
   Outcome,
+  ResolvedGate,
   ReviewLens,
   ReviewScope,
   TicketRef,
@@ -31,8 +33,12 @@ export const MAX_GATE_FIX_ATTEMPTS = 2;
  * the gate → fixer loop, then handover. Every exit path ends at the same
  * handover call, so no outcome can skip it.
  */
-export async function runHarness(crew: Crew, issue: GitHubIssue): Promise<Outcome> {
-  const { outcome, committed } = await runLegs(crew, issue);
+export async function runHarness(
+  crew: Crew,
+  issue: GitHubIssue,
+  config: RelayConfig,
+): Promise<Outcome> {
+  const { outcome, committed } = await runLegs(crew, issue, config);
   await crew.handover(outcome, committed);
   return outcome;
 }
@@ -48,7 +54,15 @@ interface LegsResult {
   committed: TicketRef[];
 }
 
-async function runLegs(crew: Crew, issue: GitHubIssue): Promise<LegsResult> {
+async function runLegs(crew: Crew, issue: GitHubIssue, config: RelayConfig): Promise<LegsResult> {
+  // Resolved once per pass, ahead of the planner, so the same command answers
+  // every attempt of the gate loop below.
+  const gate: ResolvedGate = {
+    command: config.greenGate,
+    provenance: "declared",
+    source: "relay.config.ts",
+  };
+
   const plan = await crew.plan(issue);
   if (plan.kind === "under-specified") {
     return { outcome: { kind: "early-bail", reason: plan.reason }, committed: [] };
@@ -58,7 +72,7 @@ async function runLegs(crew: Crew, issue: GitHubIssue): Promise<LegsResult> {
   if (blocked) return { outcome: blocked, committed };
 
   await reviewAndFix(crew, WHOLE_BRANCH_LENSES, { kind: "branch", workItem: issue.number });
-  return { outcome: await driveGate(crew), committed };
+  return { outcome: await driveGate(crew, gate), committed };
 }
 
 /**
@@ -109,13 +123,15 @@ function fixTargetFor(scope: ReviewScope): FixTarget {
 }
 
 /** Run the gate, handing each red verdict to the fixer until green or capped. */
-async function driveGate(crew: Crew): Promise<Outcome> {
-  let gate = await crew.greenGate(1);
-  for (let attempt = 1; !gate.green && attempt <= MAX_GATE_FIX_ATTEMPTS; attempt++) {
-    await crew.fix([gateFinding(gate.detail)], { kind: "gate", attempt });
-    gate = await crew.greenGate(attempt + 1);
+async function driveGate(crew: Crew, gate: ResolvedGate): Promise<Outcome> {
+  let result = await crew.greenGate(1, gate);
+  for (let attempt = 1; !result.green && attempt <= MAX_GATE_FIX_ATTEMPTS; attempt++) {
+    await crew.fix([gateFinding(result.detail)], { kind: "gate", attempt });
+    result = await crew.greenGate(attempt + 1, gate);
   }
-  return gate.green ? { kind: "success" } : { kind: "mid-block", reason: gate.detail };
+  return result.green
+    ? { kind: "success", detail: result.detail }
+    : { kind: "mid-block", reason: result.detail };
 }
 
 function gateFinding(detail: string): Finding {

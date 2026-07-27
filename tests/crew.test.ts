@@ -100,7 +100,7 @@ describe("createCrew", () => {
     expect(runs.map((run) => run.name)).toEqual(["fixer-8"]);
   });
 
-  it("gates by running the repo's own command in the pass's sandbox", async () => {
+  it("gates by running the resolved gate's command in the pass's sandbox", async () => {
     const commands: string[] = [];
     const sandbox = {
       async exec(command: string) {
@@ -115,7 +115,11 @@ describe("createCrew", () => {
       outputDir,
       workItem: issue.number,
       branch,
-    }).greenGate(1);
+    }).greenGate(1, {
+      command: config.greenGate,
+      provenance: "declared",
+      source: "relay.config.ts",
+    });
 
     expect(result.green).toBe(true);
     expect(commands).toEqual([config.greenGate]);
@@ -165,7 +169,9 @@ describe("createCrew", () => {
     } as unknown as Sandbox;
     const crew = createCrew({ sandbox, config, outputDir, workItem: issue.number, branch });
 
-    await crew.handover({ kind: "success" }, [{ number: 8, summary: "the one ticket" }]);
+    await crew.handover({ kind: "success", detail: "`make test` exited 0" }, [
+      { number: 8, summary: "the one ticket" },
+    ]);
 
     expect(runs.map((run) => run.name)).toEqual(["handover"]);
     expect(runs[0]?.promptArgs).toMatchObject({

@@ -81,7 +81,7 @@ export async function runPassOnItem({
     // Inside the try: a sandbox that will not open is the likeliest crash of
     // all, and it deserves the same note on the item as one that dies later.
     opened = await open({ repoRoot, config, secrets, branch });
-    const outcome = await runHarness(createCrew(opened, branch), issue);
+    const outcome = await runHarness(createCrew(opened, branch), issue, config);
     return exitCodeFor(outcome);
   } catch (error) {
     await reportCrash(github, issue, branch, error);

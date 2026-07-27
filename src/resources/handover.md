@@ -43,9 +43,9 @@ Now do the one outcome below that matches **{{OUTCOME}}**, and nothing from the 
 
 The branch is green and reviewable.
 
-1. Open the pull request.
+1. Open the pull request. Its body names the command that verified it and where relay got that command — {{REASON}} above.
 2. Swap the labels on {{WORK_ITEM}}: add `agent-in-review` and remove `agent-in-progress`.
-3. Comment the resolution on {{WORK_ITEM}}: the pull request URL and one line on what the pass built.
+3. Comment the resolution on {{WORK_ITEM}}: the pull request URL, one line on what the pass built, and {{REASON}}.
 
 ### mid-block
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { relayConfigSchema } from "../src/config.js";
 import type {
   Crew,
   Finding,
@@ -7,6 +8,7 @@ import type {
   ImplementResult,
   Outcome,
   PlanResult,
+  ResolvedGate,
   ReviewLens,
   ReviewScope,
   TicketRef,
@@ -23,6 +25,13 @@ const issue: GitHubIssue = {
   blockedBy: [],
   subIssues: [],
 };
+
+const config = relayConfigSchema.parse({
+  greenGate: "make test",
+  defaultBranch: "main",
+});
+
+const run = (crew: Crew) => runHarness(crew, issue, config);
 
 const ticket = (number: number): TicketRef => ({ number, summary: `work on #${number}` });
 
@@ -89,9 +98,9 @@ describe("runHarness", () => {
       },
     });
 
-    const outcome = await runHarness(crew, issue);
+    const outcome = await run(crew);
 
-    expect(outcome).toEqual({ kind: "success" });
+    expect(outcome).toEqual({ kind: "success", detail: "green" });
     expect(calls).toEqual([
       "plan",
       "implement:1",
@@ -119,7 +128,7 @@ describe("runHarness", () => {
       },
     });
 
-    await runHarness(crew, issue);
+    await run(crew);
 
     expect(events).toEqual([
       "start:fastCodeReview",
@@ -141,7 +150,7 @@ describe("runHarness", () => {
       },
     });
 
-    await runHarness(crew, issue);
+    await run(crew);
 
     expect(fixed[0]).toEqual([
       finding("fastCodeReview", "same problem", 1),
@@ -160,7 +169,7 @@ describe("runHarness", () => {
       },
     });
 
-    await runHarness(crew, issue);
+    await run(crew);
 
     expect(fixTargets).toEqual([
       { kind: "ticket", ticket: ticket(1) },
@@ -173,7 +182,7 @@ describe("runHarness", () => {
   it("does not call the fixer when no lens found anything", async () => {
     const { crew, calls } = recordingCrew();
 
-    await runHarness(crew, issue);
+    await run(crew);
 
     expect(calls).not.toContain("fix");
   });
@@ -190,9 +199,9 @@ describe("runHarness", () => {
       },
     });
 
-    const outcome = await runHarness(crew, issue);
+    const outcome = await run(crew);
 
-    expect(outcome).toEqual({ kind: "success" });
+    expect(outcome).toEqual({ kind: "success", detail: "green" });
     expect(calls.filter((call) => call === "gate")).toHaveLength(2);
     expect(fixed.at(-1)).toEqual([finding("greenGate", "one test red")]);
   });
@@ -206,9 +215,29 @@ describe("runHarness", () => {
       },
     });
 
-    await runHarness(crew, issue);
+    await run(crew);
 
     expect(attempts).toEqual([1, 2, 3]);
+  });
+
+  it("hands the same resolved gate to every attempt of the loop", async () => {
+    const gates: ResolvedGate[] = [];
+    const { crew } = recordingCrew({
+      async greenGate(_attempt, gate) {
+        gates.push(gate);
+        return { green: false, detail: "still red" };
+      },
+    });
+
+    await run(crew);
+
+    expect(gates).toHaveLength(3);
+    expect(new Set(gates)).toEqual(new Set([gates[0]]));
+    expect(gates[0]).toEqual({
+      command: config.greenGate,
+      provenance: "declared",
+      source: "relay.config.ts",
+    });
   });
 
   it("gives up after two fixer attempts and mid-blocks on a red gate", async () => {
@@ -219,7 +248,7 @@ describe("runHarness", () => {
       },
     });
 
-    const outcome = await runHarness(crew, issue);
+    const outcome = await run(crew);
 
     expect(outcome).toEqual({ kind: "mid-block", reason: "still red" });
     expect(calls.filter((call) => call === "fix")).toHaveLength(MAX_GATE_FIX_ATTEMPTS);
@@ -234,7 +263,7 @@ describe("runHarness", () => {
       },
     });
 
-    const outcome = await runHarness(crew, issue);
+    const outcome = await run(crew);
 
     expect(outcome).toEqual({ kind: "early-bail", reason: "no acceptance criteria" });
     expect(calls).toEqual(["plan", "handover:early-bail"]);
@@ -252,7 +281,7 @@ describe("runHarness", () => {
       },
     });
 
-    const outcome = await runHarness(crew, issue);
+    const outcome = await run(crew);
 
     expect(outcome).toEqual({ kind: "mid-block", reason: "which queue does this drain?" });
     expect(committed()).toEqual([]);
@@ -271,7 +300,7 @@ describe("runHarness", () => {
       },
     });
 
-    const outcome = await runHarness(crew, issue);
+    const outcome = await run(crew);
 
     expect(outcome).toEqual({ kind: "mid-block", reason: "which queue does this drain?" });
     expect(committed()).toEqual([ticket(1)]);
@@ -284,7 +313,7 @@ describe("runHarness", () => {
       },
     });
 
-    await runHarness(crew, issue);
+    await run(crew);
 
     expect(committed()).toEqual([ticket(1), ticket(2)]);
   });
@@ -296,21 +325,21 @@ describe("runHarness", () => {
       },
     });
 
-    await runHarness(crew, issue);
+    await run(crew);
 
     expect(committed()).toEqual([]);
   });
 
   it("runs end to end on the stub crew", async () => {
-    const outcome = await runHarness(createStubCrew(), issue);
+    const outcome = await runHarness(createStubCrew(), issue, config);
 
-    expect(outcome).toEqual({ kind: "success" });
+    expect(outcome).toEqual({ kind: "success", detail: "stub gate is always green" });
   });
 });
 
 describe("exitCodeFor", () => {
   it("maps a reviewable pass to success", () => {
-    expect(exitCodeFor({ kind: "success" })).toBe(ExitCode.Success);
+    expect(exitCodeFor({ kind: "success", detail: "green" })).toBe(ExitCode.Success);
   });
 
   it("maps both blocked outcomes to the blocked code", () => {

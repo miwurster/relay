@@ -4,13 +4,22 @@ import { join } from "node:path";
 import type { Sandbox, SandboxRunOptions, SandboxRunResult } from "@ai-hero/sandcastle";
 import { beforeEach, describe, expect, it } from "vitest";
 import { relayConfigSchema } from "../src/config.js";
+import type { ResolvedGate } from "../src/crew.js";
 import { RoleError } from "../src/errors.js";
 import { createGreenGate, GATE_OUTPUT_TAIL, GATE_TAG } from "../src/green-gate.js";
 
+// Deliberately not the gate's command: the gate role must run what it is
+// handed, never what the config carries.
 const config = relayConfigSchema.parse({
-  greenGate: "./mvnw verify -DexcludedGroups=e2e",
+  greenGate: "echo unused",
   defaultBranch: "main",
 });
+
+const gate: ResolvedGate = {
+  command: "./mvnw verify -DexcludedGroups=e2e",
+  provenance: "declared",
+  source: "relay.config.ts",
+};
 
 interface GateRun {
   stdout?: string;
@@ -65,33 +74,43 @@ beforeEach(async () => {
 });
 
 describe("createGreenGate", () => {
-  it("runs the repo's configured command", async () => {
+  it("runs the command it is handed, not the config's", async () => {
     const { greenGate, commands } = gating({ exitCode: 0 });
 
-    await greenGate(1);
+    await greenGate(1, gate);
 
-    expect(commands).toEqual([config.greenGate]);
+    expect(commands).toEqual([gate.command]);
   });
 
   it("reads the exit code: zero is green, whatever the command printed", async () => {
     const { greenGate, runs } = gating({ exitCode: 0, stdout: "BUILD FAILURE mentioned in a log" });
 
-    const result = await greenGate(1);
+    const result = await greenGate(1, gate);
 
     expect(result.green).toBe(true);
-    expect(result.detail).toContain(config.greenGate);
+    expect(result.detail).toContain(gate.command);
+    expect(result.detail).toContain("declared in relay.config.ts");
     // A green gate is the common case and needs no judgement, so it costs no run.
     expect(runs).toHaveLength(0);
+  });
+
+  it("names an inferred gate's source too", async () => {
+    const { greenGate } = gating({ exitCode: 0 });
+    const inferred: ResolvedGate = { ...gate, provenance: "inferred", source: "package.json" };
+
+    const result = await greenGate(1, inferred);
+
+    expect(result.detail).toContain("inferred from package.json");
   });
 
   it("triages a non-zero exit code and reports the detail the triage found", async () => {
     const { greenGate, runs } = gating({ exitCode: 1, triage: redTriage });
 
-    const result = await greenGate(1);
+    const result = await greenGate(1, gate);
 
     expect(result).toEqual({
       green: false,
-      detail: "OrderTest.rejectsEmptyCart fails: cart is never null",
+      detail: `\`${gate.command}\`: OrderTest.rejectsEmptyCart fails: cart is never null`,
     });
     expect(runs).toHaveLength(1);
   });
@@ -104,10 +123,10 @@ describe("createGreenGate", () => {
       triage: redTriage,
     });
 
-    await greenGate(1);
+    await greenGate(1, gate);
 
     expect(runs[0]?.promptArgs).toEqual({
-      COMMAND: config.greenGate,
+      COMMAND: gate.command,
       EXIT_CODE: "2",
       OUTPUT: "Tests run: 41, Failures: 1\nOrderTest.rejectsEmptyCart:63 expected 400",
     });
@@ -121,7 +140,7 @@ describe("createGreenGate", () => {
       triage: redTriage,
     });
 
-    await greenGate(1);
+    await greenGate(1, gate);
 
     const output = String(runs[0]?.promptArgs?.OUTPUT ?? "");
     expect(output.length).toBeLessThanOrEqual(GATE_OUTPUT_TAIL);
@@ -131,8 +150,8 @@ describe("createGreenGate", () => {
   it("names each triage run for the attempt it belongs to", async () => {
     const { greenGate, runs } = gating({ exitCode: 1, triage: redTriage });
 
-    await greenGate(1);
-    await greenGate(2);
+    await greenGate(1, gate);
+    await greenGate(2, gate);
 
     expect(runs.map((run) => run.name)).toEqual(["green-gate-1", "green-gate-2"]);
   });
@@ -140,7 +159,7 @@ describe("createGreenGate", () => {
   it("runs the triage on the gate's model", async () => {
     const { greenGate, runs } = gating({ exitCode: 1, triage: redTriage });
 
-    await greenGate(1);
+    await greenGate(1, gate);
 
     expect(commandOf(runs[0])).toContain(`--model '${config.models.greenGate}'`);
   });
@@ -154,27 +173,27 @@ describe("createGreenGate", () => {
 
     // The dirt is the gate command's, not the leg's, so it must not crash the
     // pass out of the handover a red gate is owed.
-    await expect(greenGate(1)).resolves.toEqual({
+    await expect(greenGate(1, gate)).resolves.toEqual({
       green: false,
-      detail: "OrderTest.rejectsEmptyCart fails: cart is never null",
+      detail: `\`${gate.command}\`: OrderTest.rejectsEmptyCart fails: cart is never null`,
     });
   });
 
   it("refuses a triage that fixed the branch itself", async () => {
     const { greenGate } = gating({ exitCode: 1, triage: redTriage, commits: [{ sha: "c0ffee" }] });
 
-    await expect(greenGate(1)).rejects.toThrow(RoleError);
+    await expect(greenGate(1, gate)).rejects.toThrow(RoleError);
   });
 
   it("refuses a triage that said nothing about why the gate is red", async () => {
     const { greenGate } = gating({ exitCode: 1, triage: taggedTriage('{"detail":""}') });
 
-    await expect(greenGate(1)).rejects.toThrow(RoleError);
+    await expect(greenGate(1, gate)).rejects.toThrow(RoleError);
   });
 
   it("refuses a triage that emitted no block", async () => {
     const { greenGate } = gating({ exitCode: 1, triage: "The build is red." });
 
-    await expect(greenGate(1)).rejects.toThrow(RoleError);
+    await expect(greenGate(1, gate)).rejects.toThrow(RoleError);
   });
 });

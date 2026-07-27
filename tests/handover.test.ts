@@ -37,7 +37,10 @@ const published = tagged(
   '{"prUrl":"https://github.com/kipu/qc/pull/12","report":"#7 is agent-in-review."}',
 );
 
-const success: Outcome = { kind: "success" };
+const success: Outcome = {
+  kind: "success",
+  detail: "`make test` exited 0 — declared in relay.config.ts.",
+};
 const midBlock: Outcome = { kind: "mid-block", reason: "the gate is still red" };
 const earlyBail: Outcome = { kind: "early-bail", reason: "#7 has no acceptance criteria" };
 
@@ -73,7 +76,7 @@ describe("createHandover", () => {
 
     expect(runs[0]?.promptArgs).toEqual({
       OUTCOME: "success",
-      REASON: "The green gate is green.",
+      REASON: "`make test` exited 0 — declared in relay.config.ts.",
       PULL_REQUEST: "required",
       COMMITTED_TICKETS: "#8, #9",
       WORK_ITEM: `#${workItem}`,
@@ -245,5 +248,11 @@ describe("the handover prompt", () => {
   it("swaps the held label for the state the outcome leaves the item in", () => {
     expect(prompt).toMatch(/add `agent-in-review` and remove `agent-in-progress`/);
     expect(prompt).toMatch(/add `agent-blocked` and remove `agent-in-progress`/);
+  });
+
+  it("carries the gate's command and provenance into the pull request body and the tracker comment", () => {
+    const success = prompt.slice(prompt.indexOf("### success"), prompt.indexOf("### mid-block"));
+    expect(success).toContain("Its body names the command that verified it");
+    expect(success).toMatch(/Comment the resolution.*\{\{REASON\}\}/);
   });
 });

@@ -1,7 +1,7 @@
 import type { Sandbox } from "@ai-hero/sandcastle";
 import { z } from "zod";
 import type { RelayConfig } from "./config.js";
-import type { Crew, GateResult } from "./crew.js";
+import type { Crew, GateResult, ResolvedGate } from "./crew.js";
 import { runRole } from "./run-role.js";
 
 /** The block the gate's triage leg ends its run with, and the prompt it runs from. */
@@ -36,10 +36,10 @@ export function createGreenGate({
   config: RelayConfig;
   outputDir: string;
 }): Crew["greenGate"] {
-  return async function greenGate(attempt: number): Promise<GateResult> {
-    const { stdout, stderr, exitCode } = await sandbox.exec(config.greenGate);
+  return async function greenGate(attempt: number, gate: ResolvedGate): Promise<GateResult> {
+    const { stdout, stderr, exitCode } = await sandbox.exec(gate.command);
     if (exitCode === 0) {
-      return { green: true, detail: `\`${config.greenGate}\` exited 0.` };
+      return { green: true, detail: greenDetail(gate) };
     }
 
     const { detail } = await runRole({
@@ -50,7 +50,7 @@ export function createGreenGate({
       model: config.models.greenGate,
       prompt: GATE_PROMPT,
       promptArgs: {
-        COMMAND: config.greenGate,
+        COMMAND: gate.command,
         EXIT_CODE: String(exitCode),
         OUTPUT: tail(`${stdout}\n${stderr}`),
       },
@@ -63,8 +63,14 @@ export function createGreenGate({
       branchRule: () => "no-commits",
     });
 
-    return { green: false, detail };
+    return { green: false, detail: `\`${gate.command}\`: ${detail}` };
   };
+}
+
+function greenDetail(gate: ResolvedGate): string {
+  const provenance =
+    gate.provenance === "declared" ? `declared in ${gate.source}` : `inferred from ${gate.source}`;
+  return `\`${gate.command}\` exited 0 — ${provenance}.`;
 }
 
 function tail(output: string): string {

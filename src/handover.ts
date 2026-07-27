@@ -98,7 +98,7 @@ interface HandoverLeg {
 
 function describeLeg(outcome: Outcome, committed: readonly TicketRef[]): HandoverLeg {
   return {
-    cause: outcome.kind === "success" ? "The green gate is green." : outcome.reason,
+    cause: outcome.kind === "success" ? outcome.detail : outcome.reason,
     pullRequest: committed.length > 0 ? "required" : "forbidden",
     committed: committed.map((ticket) => `#${ticket.number}`).join(", ") || "nothing",
   };

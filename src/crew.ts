@@ -48,6 +48,19 @@ export interface GateResult {
 }
 
 /**
+ * The command a gate run verifies with, and where relay got it — resolved
+ * once per pass and handed to every attempt of the gate loop, so a red gate
+ * cannot change command between attempts.
+ */
+export interface ResolvedGate {
+  /** The command whose exit code decides green. */
+  command: string;
+  provenance: "declared" | "inferred";
+  /** One line naming where it came from, for a human to read. */
+  source: string;
+}
+
+/**
  * What the reviewers look at: one ticket's change, or the whole branch.
  *
  * Each arm carries the issue whose intent the change is measured against — the
@@ -75,7 +88,7 @@ export type FixTarget =
  * committed tickets themselves.
  */
 export type Outcome =
-  | { kind: "success" }
+  | { kind: "success"; detail: string }
   | { kind: "mid-block"; reason: string }
   | { kind: "early-bail"; reason: string };
 
@@ -90,10 +103,11 @@ export interface Crew {
   review(lens: ReviewLens, scope: ReviewScope): Promise<Finding[]>;
   fix(findings: readonly Finding[], target: FixTarget): Promise<void>;
   /**
-   * Run the gate once. `attempt` is which run of the harness's gate loop this
-   * is, so the pass's repeated gate legs stay apart in its logs.
+   * Run the gate once, on the resolved gate the harness hands it. `attempt` is
+   * which run of the harness's gate loop this is, so the pass's repeated gate
+   * legs stay apart in its logs.
    */
-  greenGate(attempt: number): Promise<GateResult>;
+  greenGate(attempt: number, gate: ResolvedGate): Promise<GateResult>;
   /**
    * Hand the baton over. `committed` is the tickets whose change the branch
    * carries, in the order they were implemented — what the pull request closes,
