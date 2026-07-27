@@ -34,7 +34,7 @@ function fakeSandbox(stdout: string, commits: { sha: string }[]) {
 
 const fixing = (stdout: string, commits: { sha: string }[] = [{ sha: "c0ffee" }]) => {
   const { sandbox, runs } = fakeSandbox(stdout, commits);
-  return { fix: createFixer({ sandbox, config, outputDir }), runs };
+  return { fix: createFixer({ sandbox, config, recordDir }), runs };
 };
 
 const taggedFix = (json: string) => `Fixed them.\n<${FIX_TAG}>${json}</${FIX_TAG}>`;
@@ -42,10 +42,10 @@ const taggedFix = (json: string) => `Fixed them.\n<${FIX_TAG}>${json}</${FIX_TAG
 const commandOf = (run: SandboxRunOptions | undefined) =>
   run?.agent.buildPrintCommand({ prompt: "", dangerouslySkipPermissions: true }).command;
 
-let outputDir: string;
+let recordDir: string;
 
 beforeEach(async () => {
-  outputDir = await mkdtemp(join(tmpdir(), "relay-fixer-"));
+  recordDir = await mkdtemp(join(tmpdir(), "relay-fixer-"));
 });
 
 describe("createFixer", () => {

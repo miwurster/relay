@@ -20,10 +20,10 @@ const ticketScope: ReviewScope = {
 };
 const branchScope: ReviewScope = { kind: "branch", workItem: 7 };
 
-let outputDir: string;
+let recordDir: string;
 
 beforeEach(async () => {
-  outputDir = await mkdtemp(join(tmpdir(), "relay-findings-"));
+  recordDir = await mkdtemp(join(tmpdir(), "relay-findings-"));
 });
 
 /**
@@ -46,7 +46,7 @@ function fakeSandbox(stdout: string, commits: { sha: string }[], worktree: strin
 
 const reviewing = (stdout: string, commits: { sha: string }[] = [], worktree = "") => {
   const { sandbox, runs } = fakeSandbox(stdout, commits, worktree);
-  return { review: createReviewer({ sandbox, config, outputDir }), runs };
+  return { review: createReviewer({ sandbox, config, recordDir }), runs };
 };
 
 const taggedFindings = (json: string) =>
@@ -56,7 +56,7 @@ const commandOf = (run: SandboxRunOptions | undefined) =>
   run?.agent.buildPrintCommand({ prompt: "", dangerouslySkipPermissions: true }).command;
 
 const findingsFile = (name: string) =>
-  readFile(join(outputDir, name), "utf8").then((text) => JSON.parse(text) as unknown);
+  readFile(join(recordDir, name), "utf8").then((text) => JSON.parse(text) as unknown);
 
 describe("createReviewer", () => {
   it("stamps each finding with its lens and the ticket it is about", async () => {

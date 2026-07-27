@@ -38,6 +38,13 @@ A lens is not a **role**; the harness passes it to the one reviewer role.
 Each lens has its own key in the model map, because each is its own model choice.
 _Avoid_: review type, review mode
 
+**Leg record**:
+What one **leg** leaves on the host for a human to read: its status, and — for a reviewer leg — the **findings** its **lens** reported.
+A file per leg, never a shared one, so every file is attributable to the leg that wrote it.
+It lives on the host rather than in the **sandbox**'s worktree, because that worktree is disposed of once the **pass** ends ([ADR-0003](docs/adr/0003-a-crashed-pass-leaves-the-work-for-a-human.md)).
+A **pass** records under `.relay/<work item>`; the **gate probe** records under `.relay/doctor`.
+_Avoid_: output, artefact, hand-off
+
 ## The work
 
 **Work item**:

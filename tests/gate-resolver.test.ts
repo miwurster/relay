@@ -22,16 +22,16 @@ function resolving(stdout: string, commits: { sha: string }[] = []) {
     },
   } as unknown as Sandbox;
 
-  return { resolveGate: createGateResolver({ sandbox, config, outputDir }), runs };
+  return { resolveGate: createGateResolver({ sandbox, config, recordDir }), runs };
 }
 
 const taggedGate = (json: string) =>
   `Read the docs.\n<${RESOLVED_GATE_TAG}>${json}</${RESOLVED_GATE_TAG}>`;
 
-let outputDir: string;
+let recordDir: string;
 
 beforeEach(async () => {
-  outputDir = await mkdtemp(join(tmpdir(), "relay-gate-resolver-"));
+  recordDir = await mkdtemp(join(tmpdir(), "relay-gate-resolver-"));
 });
 
 describe("createGateResolver", () => {

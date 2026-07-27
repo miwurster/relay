@@ -1,9 +1,9 @@
-import { join } from "node:path";
 import type { Sandbox } from "@ai-hero/sandcastle";
 import type { RelayConfig } from "./config.js";
 import type { ResolvedGate } from "./crew.js";
 import { createGateResolver } from "./gate-resolver.js";
 import { type GitRunner, runGit } from "./git.js";
+import { doctorRecordDir } from "./leg-record.js";
 import { openSandbox } from "./sandbox.js";
 import type { Secrets } from "./secrets.js";
 
@@ -23,11 +23,6 @@ export type GateProbe = (input: {
  */
 function probeBranch(config: RelayConfig): string {
   return `${config.branchPrefix}doctor`;
-}
-
-/** Where on the host the probe's leg leaves its status file. */
-function doctorOutputDir(repoRoot: string): string {
-  return join(repoRoot, ".relay", "doctor");
 }
 
 /**
@@ -54,7 +49,7 @@ export async function probeGate({
     return await createGateResolver({
       sandbox,
       config,
-      outputDir: doctorOutputDir(repoRoot),
+      recordDir: doctorRecordDir(repoRoot),
     })();
   } finally {
     await dispose({ sandbox, repoRoot, branch, git });

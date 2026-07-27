@@ -36,15 +36,15 @@ function fakeSandbox(stdout: string) {
 
 const planning = (stdout: string) => {
   const { sandbox, runs } = fakeSandbox(stdout);
-  return { plan: createPlanner({ sandbox, config, outputDir }), runs };
+  return { plan: createPlanner({ sandbox, config, recordDir }), runs };
 };
 
 const taggedPlan = (json: string) => `Had a look.\n<${PLAN_TAG}>${json}</${PLAN_TAG}>`;
 
-let outputDir: string;
+let recordDir: string;
 
 beforeEach(async () => {
-  outputDir = await mkdtemp(join(tmpdir(), "relay-planner-"));
+  recordDir = await mkdtemp(join(tmpdir(), "relay-planner-"));
 });
 
 describe("createPlanner", () => {

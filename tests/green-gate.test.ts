@@ -54,7 +54,7 @@ function gating({
     },
   } as unknown as Sandbox;
 
-  return { greenGate: createGreenGate({ sandbox, config, outputDir }), commands, runs };
+  return { greenGate: createGreenGate({ sandbox, config, recordDir }), commands, runs };
 }
 
 const taggedTriage = (json: string) => `Had a look.\n<${GATE_TAG}>${json}</${GATE_TAG}>`;
@@ -64,10 +64,10 @@ const redTriage = taggedTriage('{"detail":"OrderTest.rejectsEmptyCart fails: car
 const commandOf = (run: SandboxRunOptions | undefined) =>
   run?.agent.buildPrintCommand({ prompt: "", dangerouslySkipPermissions: true }).command;
 
-let outputDir: string;
+let recordDir: string;
 
 beforeEach(async () => {
-  outputDir = await mkdtemp(join(tmpdir(), "relay-green-gate-"));
+  recordDir = await mkdtemp(join(tmpdir(), "relay-green-gate-"));
 });
 
 describe("createGreenGate", () => {

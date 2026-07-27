@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { RelayConfig } from "./config.js";
 import type { Crew, Finding, ReviewLens, ReviewScope } from "./crew.js";
-import { writeFindingsFile } from "./findings-file.js";
+import { writeFindingsFile } from "./leg-record.js";
 import { type RoleDeps, runRole } from "./run-role.js";
 import { TRACKER_DOC_PATH } from "./tracker-doc.js";
 
@@ -68,7 +68,7 @@ export function createReviewer(deps: RoleDeps): Crew["review"] {
     });
 
     const findings = summaries.map((summary) => toFinding(lens, target, summary));
-    await writeFindingsFile({ dir: deps.outputDir, name: `${target.name}-${lens}`, findings });
+    await writeFindingsFile({ dir: deps.recordDir, name: `${target.name}-${lens}`, findings });
     return findings;
   };
 }

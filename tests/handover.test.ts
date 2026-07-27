@@ -27,7 +27,7 @@ function handing({ stdout = "", commits = [] as { sha: string }[] } = {}) {
     },
   } as unknown as Sandbox;
 
-  return { handover: createHandover({ sandbox, config, outputDir, workItem, branch }), runs };
+  return { handover: createHandover({ sandbox, config, recordDir, workItem, branch }), runs };
 }
 
 const tagged = (json: string) => `Handed over.\n<${HANDOVER_TAG}>${json}</${HANDOVER_TAG}>`;
@@ -50,10 +50,10 @@ const tickets: TicketRef[] = [
 ];
 const nothing: TicketRef[] = [];
 
-let outputDir: string;
+let recordDir: string;
 
 beforeEach(async () => {
-  outputDir = await mkdtemp(join(tmpdir(), "relay-handover-"));
+  recordDir = await mkdtemp(join(tmpdir(), "relay-handover-"));
 });
 
 describe("createHandover", () => {
@@ -203,7 +203,7 @@ describe("createHandover", () => {
 
     await expect(handover(success, tickets)).rejects.toThrow(RoleError);
 
-    const written = await readFile(join(outputDir, "handover.status.json"), "utf8");
+    const written = await readFile(join(recordDir, "handover.status.json"), "utf8");
     expect(JSON.parse(written)).toEqual({
       role: "handover",
       model: config.models.handover,

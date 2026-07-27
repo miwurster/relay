@@ -27,10 +27,10 @@ const issue: GitHubIssue = {
 
 const branch = "agent/7";
 
-let outputDir: string;
+let recordDir: string;
 
 beforeEach(async () => {
-  outputDir = await mkdtemp(join(tmpdir(), "relay-crew-"));
+  recordDir = await mkdtemp(join(tmpdir(), "relay-crew-"));
 });
 
 describe("createCrew", () => {
@@ -49,7 +49,7 @@ describe("createCrew", () => {
       },
     } as unknown as Sandbox;
 
-    const crew = createCrew({ sandbox, config, outputDir, workItem: issue.number, branch });
+    const crew = createCrew({ sandbox, config, recordDir, workItem: issue.number, branch });
     const gate = await crew.resolveGate();
 
     expect(gate).toEqual({
@@ -73,7 +73,7 @@ describe("createCrew", () => {
       },
     } as unknown as Sandbox;
 
-    const crew = createCrew({ sandbox, config, outputDir, workItem: issue.number, branch });
+    const crew = createCrew({ sandbox, config, recordDir, workItem: issue.number, branch });
     const plan = await crew.plan(issue);
 
     expect(plan).toEqual({ kind: "plan", tickets: [{ number: 8, summary: "it" }] });
@@ -95,7 +95,7 @@ describe("createCrew", () => {
         return { stdout: "9e4d1a0\n", stderr: "", exitCode: 0 };
       },
     } as unknown as Sandbox;
-    const crew = createCrew({ sandbox, config, outputDir, workItem: issue.number, branch });
+    const crew = createCrew({ sandbox, config, recordDir, workItem: issue.number, branch });
 
     await crew.implement({ number: 8, summary: "the schema" });
     const result = await crew.implement({ number: 9, summary: "the endpoint" });
@@ -116,7 +116,7 @@ describe("createCrew", () => {
         };
       },
     } as unknown as Sandbox;
-    const crew = createCrew({ sandbox, config, outputDir, workItem: issue.number, branch });
+    const crew = createCrew({ sandbox, config, recordDir, workItem: issue.number, branch });
 
     await crew.fix([{ source: "fastCodeReview", ticket: 8, summary: "src/a.ts:3 dead" }], {
       kind: "ticket",
@@ -138,7 +138,7 @@ describe("createCrew", () => {
     const result = await createCrew({
       sandbox,
       config,
-      outputDir,
+      recordDir,
       workItem: issue.number,
       branch,
     }).greenGate(1, {
@@ -167,7 +167,7 @@ describe("createCrew", () => {
         return { stdout: "", stderr: "", exitCode: 0 };
       },
     } as unknown as Sandbox;
-    const crew = createCrew({ sandbox, config, outputDir, workItem: issue.number, branch });
+    const crew = createCrew({ sandbox, config, recordDir, workItem: issue.number, branch });
 
     const findings = await crew.review("fastCodeReview", {
       kind: "ticket",
@@ -193,7 +193,7 @@ describe("createCrew", () => {
         };
       },
     } as unknown as Sandbox;
-    const crew = createCrew({ sandbox, config, outputDir, workItem: issue.number, branch });
+    const crew = createCrew({ sandbox, config, recordDir, workItem: issue.number, branch });
 
     await crew.handover({ kind: "success", detail: "`make test` exited 0" }, [
       { number: 8, summary: "the one ticket" },

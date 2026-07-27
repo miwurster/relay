@@ -37,16 +37,16 @@ function fakeSandbox(stdout: string, commits: { sha: string }[]) {
 
 const implementing = (stdout: string, commits = [{ sha: "c0ffee" }]) => {
   const { sandbox, runs, execs } = fakeSandbox(stdout, commits);
-  return { implement: createImplementer({ sandbox, config, outputDir }), runs, execs };
+  return { implement: createImplementer({ sandbox, config, recordDir }), runs, execs };
 };
 
 const taggedResult = (json: string) =>
   `Wrote the test first.\n<${IMPLEMENT_TAG}>${json}</${IMPLEMENT_TAG}>`;
 
-let outputDir: string;
+let recordDir: string;
 
 beforeEach(async () => {
-  outputDir = await mkdtemp(join(tmpdir(), "relay-implementer-"));
+  recordDir = await mkdtemp(join(tmpdir(), "relay-implementer-"));
 });
 
 describe("createImplementer", () => {
@@ -63,7 +63,7 @@ describe("createImplementer", () => {
     await implement(ticket);
 
     const written = await readFile(
-      join(outputDir, `implementer-${ticket.number}.status.json`),
+      join(recordDir, `implementer-${ticket.number}.status.json`),
       "utf8",
     );
     expect(JSON.parse(written)).toMatchObject({

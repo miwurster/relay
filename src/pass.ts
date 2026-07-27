@@ -3,7 +3,7 @@ import { loadConfig, type RelayConfig } from "./config.js";
 import { createCrew as createRelayCrew, type Crew } from "./crew.js";
 import { SandboxError } from "./errors.js";
 import { ExitCode } from "./exit-codes.js";
-import { passOutputDir } from "./findings-file.js";
+import { passRecordDir } from "./leg-record.js";
 import { createGitHubClient, type GitHubClient, type GitHubIssue } from "./github.js";
 import { exitCodeFor, runHarness } from "./harness.js";
 import { branchExists, openSandbox, passBranch, worktreeForBranch } from "./sandbox.js";
@@ -68,7 +68,7 @@ export async function runPassOnItem({
     createRelayCrew({
       sandbox: opened,
       config,
-      outputDir: passOutputDir(repoRoot, issue.number),
+      recordDir: passRecordDir(repoRoot, issue.number),
       workItem: issue.number,
       branch,
     }),
