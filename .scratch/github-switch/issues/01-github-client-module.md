@@ -15,12 +15,12 @@ There is no REST client and no `fetch`.
 
 **Status:** ready-for-agent
 
-- [ ] The frontier is fetched in **one** runner call, whose `--json` field list names fields `gh` actually supports.
-- [ ] Blocked-by entries carry state, mapping `gh`'s upper-case `"OPEN"`/`"CLOSED"` correctly. No filtering happens here — that is eligibility's job in 02.
-- [ ] A blocked-by entry is attributed to its repository from its `url`, because the `repository` field `gh` requests never appears in output. A cross-repo blocker is not dropped.
-- [ ] Sub-issues come back sorted by number, since their order is undocumented and empirically insertion order.
-- [ ] Fetching an issue that does not exist or is not visible yields `undefined` rather than throwing — "no such issue" is an answer.
-- [ ] A `gh` failure surfaces as the module's own error type, naming what was attempted.
-- [ ] Any dependency-edge write goes through `gh issue edit --add-blocked-by`. A test asserts **no** call targets a `dependencies` REST endpoint, because that endpoint takes a numeric database id and silently links an unrelated repository's issue when handed a number.
-- [ ] The module's tests fake the runner, assert on argument lists, and answer with canned `gh` JSON. Prior art: the doctor tests' faked docker runner.
-- [ ] `npm run verify` exits zero, with the Jira module and all its tests still present and passing.
+- [x] The frontier is fetched in **one** runner call, whose `--json` field list names fields `gh` actually supports.
+- [x] Blocked-by entries carry state, mapping `gh`'s upper-case `"OPEN"`/`"CLOSED"` correctly. No filtering happens here — that is eligibility's job in 02.
+- [x] A blocked-by entry is attributed to its repository from its `url`, because the `repository` field `gh` requests never appears in output. A cross-repo blocker is not dropped.
+- [x] Sub-issues come back sorted by number, since their order is undocumented and empirically insertion order.
+- [x] Fetching an issue that does not exist or is not visible yields `undefined` rather than throwing — "no such issue" is an answer.
+- [x] A `gh` failure surfaces as the module's own error type, naming what was attempted.
+- [x] Any dependency-edge write goes through `gh issue edit --add-blocked-by`. A test asserts **no** call targets a `dependencies` REST endpoint, because that endpoint takes a numeric database id and silently links an unrelated repository's issue when handed a number.
+- [x] The module's tests fake the runner, assert on argument lists, and answer with canned `gh` JSON. Prior art: the doctor tests' faked docker runner.
+- [x] `npm run verify` exits zero, with the Jira module and all its tests still present and passing.
