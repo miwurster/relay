@@ -20,14 +20,14 @@ Nothing resolves anything yet: the harness builds that answer from the config fi
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The gate role runs the command it is handed and no longer reads the config field itself.
-- [ ] The harness passes the same resolved gate to every attempt of its gate loop, so a red-gate pass cannot change command between attempts.
-- [ ] A green run's detail names the command that exited 0.
-- [ ] The `success` outcome carries the gate's detail rather than the harness discarding it.
-- [ ] A successful pass's handover reports the command and its provenance in both the tracker comment and the pull request body — not the old fixed sentence.
-- [ ] A pass blocked by a red gate still reports the triage detail it does today, with the command named.
-- [ ] Exit 0 still costs no agent session.
-- [ ] The config field is untouched by this ticket, and a pass behaves exactly as before apart from what it reports.
-- [ ] `npm run verify` exits zero.
+- [x] The gate role runs the command it is handed and no longer reads the config field itself.
+- [x] The harness passes the same resolved gate to every attempt of its gate loop, so a red-gate pass cannot change command between attempts.
+- [x] A green run's detail names the command that exited 0.
+- [x] The `success` outcome carries the gate's detail rather than the harness discarding it.
+- [x] A successful pass's handover reports the command and its provenance in both the tracker comment and the pull request body — not the old fixed sentence.
+- [x] A pass blocked by a red gate still reports the triage detail it does today, with the command named.
+- [x] Exit 0 still costs no agent session.
+- [x] The config field is untouched by this ticket, and a pass behaves exactly as before apart from what it reports.
+- [x] `npm run verify` exits zero.
