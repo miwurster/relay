@@ -65,6 +65,6 @@ No central table of prompts, tags or schemas exists; `git grep -n "relay-" src/*
 
 ## More Information
 
-- Provenance: `.scratch/handoffs/relay-handoff-1-leg-specs.md`, grilling of 2026-07-27.
+- Provenance: an architecture review of relay's role legs, and the grilling of 2026-07-27 that answered it.
 - Related: [ADR-0001](0001-the-harness-owns-the-loop.md) — why a **role** is a top-level **cold session**, which is what makes every role the same shape.
 - Domain language: [`CONTEXT.md`](../../CONTEXT.md)
