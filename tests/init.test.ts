@@ -205,6 +205,37 @@ describe("runInitChecks", () => {
     expect(verdicts.find((v) => v.file === "docker/relay.Dockerfile")?.outcome).toBe("written");
   });
 
+  it("writes a .gitignore ignoring the worktree directory when the repo has none", async () => {
+    const repoRoot = await tempRepo();
+
+    const verdicts = await runInitChecks({ repoRoot, git: githubClone().git });
+
+    expect(verdicts.find((v) => v.file === ".gitignore")?.outcome).toBe("written");
+    const written = await readFile(join(repoRoot, ".gitignore"), "utf8");
+    expect(written).toBe("# A relay pass's git worktree.\n.sandcastle/\n");
+  });
+
+  it("appends to an existing .gitignore rather than replacing it", async () => {
+    const repoRoot = await tempRepo();
+    await writeFile(join(repoRoot, ".gitignore"), "node_modules/\ndist\n", "utf8");
+
+    await runInitChecks({ repoRoot, git: githubClone().git });
+
+    const written = await readFile(join(repoRoot, ".gitignore"), "utf8");
+    expect(written).toBe("node_modules/\ndist\n\n# A relay pass's git worktree.\n.sandcastle/\n");
+  });
+
+  it("leaves a .gitignore that already ignores the worktree directory alone", async () => {
+    const repoRoot = await tempRepo();
+    await writeFile(join(repoRoot, ".gitignore"), "dist\n/.sandcastle\n", "utf8");
+
+    const verdicts = await runInitChecks({ repoRoot, git: githubClone().git });
+
+    expect(verdicts.find((v) => v.file === ".gitignore")?.outcome).toBe("kept");
+    const untouched = await readFile(join(repoRoot, ".gitignore"), "utf8");
+    expect(untouched).toBe("dist\n/.sandcastle\n");
+  });
+
   it("stages and commits nothing", async () => {
     const repoRoot = await tempRepo();
     const { git, calls } = githubClone();

@@ -278,6 +278,18 @@ describe("runPassOnItem", () => {
     expect(stdout.trim()).toHaveLength(40);
   });
 
+  it("names the leftover worktree when a crashed pass left the branch checked out", async () => {
+    const root = await gitRepo();
+    await commit(root);
+    const worktree = join(root, ".sandcastle", "worktrees", "agent-1");
+    await execFileAsync("git", ["worktree", "add", "-b", "agent/1", worktree], { cwd: root });
+    const { github } = fakeGitHub();
+
+    await expect(runOnePass({ github, repoRoot: root, open: vi.fn() })).rejects.toThrow(
+      /git worktree remove --force/,
+    );
+  });
+
   it("maps a crash to exit 2", async () => {
     const { github } = fakeGitHub();
 

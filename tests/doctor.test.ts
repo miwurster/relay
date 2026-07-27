@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -15,12 +15,13 @@ const completeSecrets = {
   CLAUDE_CODE_OAUTH_TOKEN: "oauth-token",
 };
 
-/** A repo root holding the given `relay.config.ts`, if any. */
+/** A repo root holding the given `relay.config.ts`, if any, and a wired-up `.gitignore`. */
 async function repoWith(configSource: string | undefined): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "relay-doctor-"));
   if (configSource !== undefined) {
     await writeFile(join(root, "relay.config.ts"), configSource, "utf8");
   }
+  await writeFile(join(root, ".gitignore"), ".sandcastle/\n", "utf8");
   return root;
 }
 
@@ -85,6 +86,7 @@ describe("runDoctorChecks", () => {
 
     expect(checks.map((c) => c.name)).toEqual([
       "config",
+      "worktree ignored",
       "secrets",
       "gh installed",
       "gh authenticated",
@@ -119,6 +121,22 @@ describe("runDoctorChecks", () => {
 
     expect(check(checks, "secrets").status).toBe("failed");
     expect(check(checks, "secrets").detail).toContain("GH_TOKEN");
+    expect(check(checks, "docker daemon").status).toBe("ok");
+  });
+
+  it("reports a repo whose .gitignore misses the worktree directory", async () => {
+    const repoRoot = await repoWith(validConfig);
+    await rm(join(repoRoot, ".gitignore"));
+
+    const checks = await runDoctorChecks({
+      repoRoot,
+      env: await envWithSecrets(),
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+    });
+
+    expect(check(checks, "worktree ignored").status).toBe("failed");
+    expect(check(checks, "worktree ignored").detail).toContain(".sandcastle/");
     expect(check(checks, "docker daemon").status).toBe("ok");
   });
 

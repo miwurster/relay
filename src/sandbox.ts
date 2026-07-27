@@ -92,6 +92,39 @@ export async function branchExists(repoRoot: string, branch: string): Promise<bo
 }
 
 /**
+ * Where a worktree of `branch` is checked out, or `undefined` when none is.
+ *
+ * A hard-killed pass leaves both its worktree and git's record of it, so
+ * `git worktree prune` will not collect it and git refuses to delete the
+ * branch until it is gone.
+ */
+export async function worktreeForBranch(
+  repoRoot: string,
+  branch: string,
+): Promise<string | undefined> {
+  const { stdout } = await execFileAsync("git", ["worktree", "list", "--porcelain"], {
+    cwd: repoRoot,
+  });
+  return worktreePathsByBranch(stdout).get(`refs/heads/${branch}`);
+}
+
+/** Each registered worktree's branch ref mapped to the path it sits at. */
+function worktreePathsByBranch(porcelain: string): Map<string, string> {
+  const paths = new Map<string, string>();
+  let worktree: string | undefined;
+
+  for (const line of porcelain.split("\n")) {
+    if (line.startsWith("worktree ")) {
+      worktree = line.slice("worktree ".length).trim();
+    } else if (line.startsWith("branch ") && worktree) {
+      paths.set(line.slice("branch ".length).trim(), worktree);
+    }
+  }
+
+  return paths;
+}
+
+/**
  * The sandbox one pass runs in: a fresh worktree on its own branch, cut from
  * the repo's default branch, with the runtime mounts wired.
  *

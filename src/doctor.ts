@@ -1,9 +1,16 @@
 import { CONFIG_FILE_NAME, loadConfig, type RelayConfig } from "./config.js";
+import { ConfigError } from "./errors.js";
 import { ExitCode } from "./exit-codes.js";
 import { type DockerRunner, dockerDaemonVersionInSandbox, runDocker } from "./docker-host.js";
 import { type GhRunner, ghAuthStatus, ghVersion, runGh } from "./github.js";
 import { resolveSandboxImage, verifyPrebuiltImage } from "./sandbox-image.js";
 import { loadSecrets } from "./secrets.js";
+import {
+  GITIGNORE_FILE_NAME,
+  ignoresWorktreeDir,
+  readGitignore,
+  WORKTREE_DIR,
+} from "./worktree-dir.js";
 
 /** Why the daemon check cannot run when an earlier check failed. */
 const NO_IMAGE = "no sandbox image to run the check in";
@@ -66,6 +73,13 @@ export async function runDoctorChecks({
 
   await record(
     checks,
+    "worktree ignored",
+    () => assertWorktreeDirIgnored(repoRoot),
+    () => `${GITIGNORE_FILE_NAME} ignores \`${WORKTREE_DIR}/\``,
+  );
+
+  await record(
+    checks,
     "secrets",
     () => loadSecrets(env),
     () => "every required secret resolves",
@@ -115,6 +129,19 @@ export async function runDoctorChecks({
   );
 
   return checks;
+}
+
+/**
+ * A pass cuts its worktree inside the repo, so a `.gitignore` that does not
+ * ignore it leaves every pass showing up as untracked noise. `relay init`
+ * writes the line now, but a repo migrated before it did never got one.
+ */
+async function assertWorktreeDirIgnored(repoRoot: string): Promise<void> {
+  if (ignoresWorktreeDir(await readGitignore(repoRoot))) return;
+  throw new ConfigError(
+    `${GITIGNORE_FILE_NAME} does not ignore \`${WORKTREE_DIR}/\`, where a pass cuts its ` +
+      "worktree — add it, or re-run `relay init`.",
+  );
 }
 
 /**

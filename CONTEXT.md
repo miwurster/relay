@@ -125,7 +125,8 @@ relay hardcodes GitHub itself and nothing beyond it: which repo the issues live 
 _Avoid_: tracker config, issue config
 
 **Sandbox**:
-The one container and git worktree a **pass** runs in, on its own **pass branch**, disposed of whatever happens.
+The one container and git worktree a **pass** runs in, on its own **pass branch**.
+The container is disposed of whatever happens; the worktree is disposed of on a clean exit.
 Every **leg** of the pass runs inside it.
 _Avoid_: container, environment, workspace
 

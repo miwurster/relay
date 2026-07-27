@@ -6,7 +6,7 @@ import { ExitCode } from "./exit-codes.js";
 import { passOutputDir } from "./findings-file.js";
 import { createGitHubClient, type GitHubClient, type GitHubIssue } from "./github.js";
 import { exitCodeFor, runHarness } from "./harness.js";
-import { branchExists, openSandbox, passBranch } from "./sandbox.js";
+import { branchExists, openSandbox, passBranch, worktreeForBranch } from "./sandbox.js";
 import { loadSecrets, type Secrets } from "./secrets.js";
 import { requireTrackerDoc } from "./tracker-doc.js";
 import { parseWorkItem, selectWorkItem } from "./work-item.js";
@@ -92,12 +92,27 @@ export async function runPassOnItem({
 }
 
 async function refuseOnBranchCollision(repoRoot: string, branch: string): Promise<void> {
-  if (await branchExists(repoRoot, branch)) {
-    throw new SandboxError(
-      `Branch ${branch} already exists. relay never reuses or deletes a branch — ` +
-        "review it and remove it yourself, then run again.",
-    );
-  }
+  if (!(await branchExists(repoRoot, branch))) return;
+
+  throw new SandboxError(
+    `Branch ${branch} already exists. relay never reuses or deletes a branch — ` +
+      (await cleanupAdvice(repoRoot, branch)),
+  );
+}
+
+/**
+ * A crashed pass leaves its worktree behind, and git refuses to delete a
+ * branch still checked out in one — so telling the human to remove the branch
+ * without naming the worktree sends them somewhere they cannot go.
+ */
+async function cleanupAdvice(repoRoot: string, branch: string): Promise<string> {
+  const worktree = await worktreeForBranch(repoRoot, branch);
+  if (!worktree) return "review it and remove it yourself, then run again.";
+
+  return (
+    `a crashed pass left it checked out at ${worktree}. Remove that worktree first ` +
+    `(\`git worktree remove --force ${worktree}\`), then the branch, then run again.`
+  );
 }
 
 /**

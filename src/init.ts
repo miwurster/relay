@@ -13,6 +13,13 @@ import {
   type GitRunner,
 } from "./git.js";
 import { readResource } from "./resources.js";
+import {
+  GITIGNORE_FILE_NAME,
+  ignoresWorktreeDir,
+  readGitignore,
+  withWorktreeDirIgnored,
+  WORKTREE_DIR,
+} from "./worktree-dir.js";
 
 /** One file init considered, and what it did with it. */
 export interface InitVerdict {
@@ -36,8 +43,9 @@ const MANUAL_STEPS = [
 /**
  * Run the bootstrap and report every verdict.
  *
- * Init never overwrites and never stages or commits — it only writes the
- * files a repo is missing and leaves them for the operator to review.
+ * Init never overwrites and never stages or commits — it writes the files a
+ * repo is missing, appends the one `.gitignore` line a pass needs, and leaves
+ * both for the operator to review.
  */
 export async function runInit(options: InitOptions = {}): Promise<ExitCode> {
   const verdicts = await runInitChecks(options);
@@ -65,7 +73,35 @@ export async function runInitChecks({
 
   const stack = detectStack(repoRoot);
 
-  return [await writeConfigFile({ repoRoot, git }), await writeSandboxRecipe({ repoRoot, stack })];
+  return [
+    await writeConfigFile({ repoRoot, git }),
+    await writeSandboxRecipe({ repoRoot, stack }),
+    await ignoreWorktreeDir(repoRoot),
+  ];
+}
+
+/**
+ * A pass cuts its worktree inside the repo it runs on, so the repo has to
+ * ignore that directory. The line is appended to whatever `.gitignore` is
+ * already there, and writes the file when the repo has none.
+ */
+async function ignoreWorktreeDir(repoRoot: string): Promise<InitVerdict> {
+  const existing = await readGitignore(repoRoot);
+  if (ignoresWorktreeDir(existing)) {
+    return {
+      file: GITIGNORE_FILE_NAME,
+      outcome: "kept",
+      detail: `already ignores \`${WORKTREE_DIR}/\``,
+    };
+  }
+
+  await writeFile(join(repoRoot, GITIGNORE_FILE_NAME), withWorktreeDirIgnored(existing), "utf8");
+
+  return {
+    file: GITIGNORE_FILE_NAME,
+    outcome: "written",
+    detail: `now ignores \`${WORKTREE_DIR}/\``,
+  };
 }
 
 async function writeConfigFile({
