@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { CONFIG_FILE_NAME, DEFAULT_DOCKERFILE_PATH } from "./config.js";
+import { CONFIG_FILE_PATH, DEFAULT_DOCKERFILE_PATH } from "./config.js";
 import { ConfigError, reasonOf } from "./errors.js";
 import { ExitCode } from "./exit-codes.js";
 import {
@@ -188,15 +188,16 @@ async function writeConfigFile({
   repoRoot: string;
   git: GitRunner;
 }): Promise<InitVerdict> {
-  const configPath = join(repoRoot, CONFIG_FILE_NAME);
+  const configPath = join(repoRoot, CONFIG_FILE_PATH);
   if (existsSync(configPath)) {
-    return { subject: CONFIG_FILE_NAME, outcome: "kept", detail: "already exists" };
+    return { subject: CONFIG_FILE_PATH, outcome: "kept", detail: "already exists" };
   }
 
   const branch = await defaultBranch({ repoRoot, git });
+  await mkdir(dirname(configPath), { recursive: true });
   await writeFile(configPath, configSource({ branch }), "utf8");
 
-  return { subject: CONFIG_FILE_NAME, outcome: "written", detail: `defaultBranch \`${branch}\`` };
+  return { subject: CONFIG_FILE_PATH, outcome: "written", detail: `defaultBranch \`${branch}\`` };
 }
 
 /** The three sandbox recipe templates shipped as resources, one per stack. */
@@ -283,7 +284,7 @@ function detectStack(repoRoot: string): Stack | undefined {
 }
 
 /**
- * `relay.config.ts` carrying only `defaultBranch` — every other field has a
+ * `.relay/config.ts` carrying only `defaultBranch` — every other field has a
  * package default, and echoing them back out would freeze them against
  * future defaults.
  */

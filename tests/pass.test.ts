@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import type { Sandbox } from "@ai-hero/sandcastle";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { runCli } from "../src/cli.js";
-import { relayConfigSchema } from "../src/config.js";
+import { CONFIG_FILE_PATH, relayConfigSchema, RELAY_DIR } from "../src/config.js";
 import type { Crew } from "../src/crew.js";
 import { ConfigError, SandboxError } from "../src/errors.js";
 import { ExitCode } from "../src/exit-codes.js";
@@ -26,7 +26,8 @@ const secrets = ["GH_TOKEN=gh-token", "CLAUDE_CODE_OAUTH_TOKEN=oauth-token"];
 /** A repo root with a valid config, made the process's working directory. */
 async function repoWithValidConfig(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "relay-pass-"));
-  await writeFile(join(root, "relay.config.ts"), validConfig, "utf8");
+  await mkdir(join(root, RELAY_DIR), { recursive: true });
+  await writeFile(join(root, CONFIG_FILE_PATH), validConfig, "utf8");
   vi.spyOn(process, "cwd").mockReturnValue(root);
   return root;
 }

@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
-import type { RelayConfig } from "./config.js";
+import { DEFAULT_DOCKERFILE_PATH, type RelayConfig } from "./config.js";
 import { type DockerRunner, runDocker } from "./docker-host.js";
 import { ConfigError } from "./errors.js";
 
@@ -26,7 +26,7 @@ export function resolveDockerfile(repoRoot: string, configured: string): string 
   if (dirname(path) === root) {
     throw new ConfigError(
       `The sandbox dockerfile may not sit at the repo root (${configured}); ` +
-        "put it in a subdirectory, e.g. docker/relay.Dockerfile.",
+        `put it in a subdirectory, e.g. ${DEFAULT_DOCKERFILE_PATH}.`,
     );
   }
   if (!existsSync(path)) {

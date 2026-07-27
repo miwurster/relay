@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { relayConfigSchema } from "../src/config.js";
+import { DEFAULT_DOCKERFILE_PATH, relayConfigSchema } from "../src/config.js";
 import { ConfigError, SandboxError } from "../src/errors.js";
 import {
   resolveDockerfile,
@@ -39,9 +39,9 @@ function fakeDocker(answers: string[] = []) {
 
 describe("resolveDockerfile", () => {
   it("resolves the configured path against the repo root", async () => {
-    const root = await repoWithDockerfile("docker/relay.Dockerfile");
-    expect(resolveDockerfile(root, "docker/relay.Dockerfile")).toBe(
-      join(root, "docker/relay.Dockerfile"),
+    const root = await repoWithDockerfile(DEFAULT_DOCKERFILE_PATH);
+    expect(resolveDockerfile(root, DEFAULT_DOCKERFILE_PATH)).toBe(
+      join(root, DEFAULT_DOCKERFILE_PATH),
     );
   });
 
@@ -51,7 +51,7 @@ describe("resolveDockerfile", () => {
   });
 
   it("refuses a dockerfile path that escapes the repo", async () => {
-    const root = await repoWithDockerfile("docker/relay.Dockerfile");
+    const root = await repoWithDockerfile(DEFAULT_DOCKERFILE_PATH);
     expect(() => resolveDockerfile(root, "../elsewhere/relay.Dockerfile")).toThrow(
       /inside the repo/,
     );
@@ -59,7 +59,7 @@ describe("resolveDockerfile", () => {
 
   it("rejects a dockerfile that does not exist", async () => {
     const root = await repoWithDockerfile(undefined);
-    expect(() => resolveDockerfile(root, "docker/relay.Dockerfile")).toThrow(ConfigError);
+    expect(() => resolveDockerfile(root, DEFAULT_DOCKERFILE_PATH)).toThrow(ConfigError);
   });
 });
 
@@ -76,7 +76,7 @@ describe("resolveSandboxImage", () => {
   });
 
   it("builds from the dockerfile path with the host UID/GID as build args", async () => {
-    const repoRoot = await repoWithDockerfile("docker/relay.Dockerfile");
+    const repoRoot = await repoWithDockerfile(DEFAULT_DOCKERFILE_PATH);
     const { docker, calls } = fakeDocker();
     const image = await resolveSandboxImage({
       repoRoot,
@@ -96,7 +96,7 @@ describe("resolveSandboxImage", () => {
         "--tag",
         sandboxImageName(repoRoot),
         "--file",
-        join(repoRoot, "docker/relay.Dockerfile"),
+        join(repoRoot, DEFAULT_DOCKERFILE_PATH),
         repoRoot,
       ],
     ]);

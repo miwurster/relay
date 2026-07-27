@@ -26,12 +26,15 @@ npx @miwurster/relay init
 `init` writes the files a repo is missing and nothing else.
 It never overwrites, never stages, and never commits, so running it again only fills gaps:
 
-- `relay.config.ts` at the repo root, carrying your `defaultBranch`.
+- `.relay/config.ts`, carrying your `defaultBranch`.
   Every other setting has a package default; add one only when you want to override it.
-- A sandbox recipe for your stack, when it recognizes the repo's build manifest.
+- `.relay/Dockerfile`, a sandbox recipe for your stack, when it recognizes the repo's build manifest.
   If it recognizes nothing it says so and leaves the recipe to you.
 - One `.gitignore` line for `.sandcastle/`, where a pass cuts its git worktree.
   That path is fixed and lives inside your repo, so without the line every pass shows up in `git status` as untracked noise.
+
+Both written files live in `.relay/`, a directory relay owns, so nothing of relay's lands in a namespace your repo owns ([ADR-0012](adr/0012-relay-owns-a-dot-directory-in-the-target-repo.md)).
+Commit them.
 
 `init` refuses before writing anything if the directory is not a git repo, or if its `origin` is not GitHub.
 

@@ -11,7 +11,7 @@ export class RelayError extends Error {
 }
 
 /**
- * A misconfigured run: an unreadable or invalid `relay.config.ts` or
+ * A misconfigured run: an unreadable or invalid `.relay/config.ts` or
  * `issue-tracker.md`, or a secret relay cannot resolve.
  */
 export class ConfigError extends RelayError {}

@@ -1,9 +1,9 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ConfigError } from "../src/errors.js";
-import { loadConfig } from "../src/config.js";
+import { CONFIG_FILE_PATH, loadConfig } from "../src/config.js";
 
 const minimalConfig = `export default {
   defaultBranch: "main",
@@ -12,13 +12,15 @@ const minimalConfig = `export default {
 async function repoWith(configSource: string | undefined): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "relay-config-"));
   if (configSource !== undefined) {
-    await writeFile(join(root, "relay.config.ts"), configSource, "utf8");
+    const configPath = join(root, CONFIG_FILE_PATH);
+    await mkdir(dirname(configPath), { recursive: true });
+    await writeFile(configPath, configSource, "utf8");
   }
   return root;
 }
 
 describe("loadConfig", () => {
-  it("loads an authored TypeScript config from the repo root", async () => {
+  it("loads an authored TypeScript config from the repo's relay directory", async () => {
     const config = await loadConfig(await repoWith(minimalConfig));
     expect(config.defaultBranch).toBe("main");
   });
@@ -27,7 +29,7 @@ describe("loadConfig", () => {
     const config = await loadConfig(await repoWith(minimalConfig));
     expect(config.branchPrefix).toBe("agent/");
     expect(config.roleTimeoutMs).toBe(45 * 60 * 1000);
-    expect(config.dockerfile).toBe("docker/relay.Dockerfile");
+    expect(config.dockerfile).toBe(".relay/Dockerfile");
     expect(config.image).toBeUndefined();
     expect(config.models.gateResolver).toBe("claude-haiku-4-5");
     expect(config.models.planner).toBe("claude-opus-4-8");

@@ -145,15 +145,22 @@ The last block wins — a role that corrected itself means the correction.
 _Avoid_: output block, response payload
 
 **Init**:
-The one-off bootstrap that writes a repo's `relay.config.ts` and **sandbox recipe** from what it can detect, creates the label vocabulary the repo is missing, and names what is left to a human.
+The one-off bootstrap that writes a repo's `.relay/config.ts` and **sandbox recipe** from what it can detect, creates the label vocabulary the repo is missing, and names what is left to a human.
 It never touches the **tracker doc** and never overwrites — an existing file is kept and an existing label is left with the colour and description its maintainers gave it — so re-running it fills gaps rather than undoing hand-tuning ([ADR-0011](docs/adr/0011-init-creates-the-label-vocabulary.md)).
 It has no say in the **green gate** — that is the repo's docs' to declare and the **gate resolver**'s to read — so init names declaring it as one of the human steps left.
 _Avoid_: bootstrap, setup, scaffold
 
 **Sandbox recipe**:
 The target repo's committed Dockerfile for the **sandbox**, which relay builds when no prebuilt image is configured.
-The repo owns it, because only the repo knows what its **green gate** needs — relay only requires the tooling a **pass** itself uses, and passes the host's UID and GID in as build arguments.
+It lives in the **relay directory**, because it is relay's concern rather than the repo's own application image.
+The repo owns its contents, because only the repo knows what its **green gate** needs — relay only requires the tooling a **pass** itself uses, and passes the host's UID and GID in as build arguments.
 _Avoid_: sandbox dockerfile, image recipe
+
+**Relay directory**:
+`.relay/` in the target repo, holding the two files relay asks a repo to commit — its config and its **sandbox recipe**.
+Relay-owned on purpose: a recipe under the repo's `docker/` and a config at its root sit in namespaces the repo owns ([ADR-0012](docs/adr/0012-relay-owns-a-dot-directory-in-the-target-repo.md)).
+It holds nothing generated — a **pass**'s worktree is gitignored scratch and stays at `.sandcastle/worktrees/`.
+_Avoid_: config directory, dotfolder
 
 **Doctor**:
 The opt-in preflight that runs every setup check eagerly and reports them all, rather than failing on the first.

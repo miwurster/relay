@@ -4,11 +4,20 @@ import { createJiti } from "jiti";
 import { z } from "zod";
 import { ConfigError } from "./errors.js";
 
-/** The config file a target repo commits at its root. */
-export const CONFIG_FILE_NAME = "relay.config.ts";
+/**
+ * The directory a target repo commits relay's own files in.
+ *
+ * relay's, not the repo's: a recipe under the repo's `docker/` and a config at
+ * its root sit in namespaces the repo owns
+ * ([ADR-0012](../docs/adr/0012-relay-owns-a-dot-directory-in-the-target-repo.md)).
+ */
+export const RELAY_DIR = ".relay";
+
+/** The config file a target repo commits in `.relay`. */
+export const CONFIG_FILE_PATH = `${RELAY_DIR}/config.ts`;
 
 /** Where a target repo's sandbox recipe lives unless `dockerfile` overrides it. */
-export const DEFAULT_DOCKERFILE_PATH = "docker/relay.Dockerfile";
+export const DEFAULT_DOCKERFILE_PATH = `${RELAY_DIR}/Dockerfile`;
 
 /**
  * One key per distinct model choice a pass makes, which is not one per role:
@@ -61,22 +70,22 @@ export const relayConfigSchema = z.strictObject({
 export type RelayConfig = z.infer<typeof relayConfigSchema>;
 
 /**
- * Load and validate the target repo's `relay.config.ts`.
+ * Load and validate the target repo's `.relay/config.ts`.
  *
  * The published harness is compiled JS, so the authored TypeScript is loaded
  * through `jiti`. Anything wrong with the file — absent, unloadable, or
  * failing the schema — is a `ConfigError`.
  */
 export async function loadConfig(repoRoot: string): Promise<RelayConfig> {
-  const configPath = join(repoRoot, CONFIG_FILE_NAME);
+  const configPath = join(repoRoot, CONFIG_FILE_PATH);
   if (!existsSync(configPath)) {
-    throw new ConfigError(`No ${CONFIG_FILE_NAME} found at ${configPath}`);
+    throw new ConfigError(`No ${CONFIG_FILE_PATH} found at ${configPath}`);
   }
 
   const exported = await importConfig(configPath);
   const result = relayConfigSchema.safeParse(exported);
   if (!result.success) {
-    throw new ConfigError(`Invalid ${CONFIG_FILE_NAME}:\n${formatIssues(result.error)}`);
+    throw new ConfigError(`Invalid ${CONFIG_FILE_PATH}:\n${formatIssues(result.error)}`);
   }
   return result.data;
 }

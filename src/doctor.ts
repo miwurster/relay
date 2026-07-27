@@ -1,4 +1,4 @@
-import { CONFIG_FILE_NAME, loadConfig, type RelayConfig } from "./config.js";
+import { CONFIG_FILE_PATH, loadConfig, type RelayConfig } from "./config.js";
 import { ConfigError, reasonOf } from "./errors.js";
 import { ExitCode } from "./exit-codes.js";
 import { type DockerRunner, dockerDaemonVersionInSandbox, runDocker } from "./docker-host.js";
@@ -15,9 +15,6 @@ import {
   WORKTREE_DIR,
 } from "./worktree-dir.js";
 
-/** Why the daemon and gate checks cannot run when an earlier check failed. */
-const NO_IMAGE = "no sandbox image to run the check in";
-
 /** Why the label checks cannot run: nothing on this host can ask GitHub. */
 const NO_CREDENTIAL = "no `gh` credential to read this repo's labels with";
 
@@ -33,6 +30,12 @@ export interface DoctorCheck {
   name: string;
   status: "ok" | "warning" | "failed" | "skipped";
   detail: string;
+}
+
+/** The image a pass would run, and how doctor proved it is there. */
+interface ResolvedImage {
+  ref: string;
+  how: string;
 }
 
 export interface DoctorOptions {
@@ -66,6 +69,13 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<ExitCode> 
 /**
  * Every check, in dependency order: a failing one is reported and the run
  * carries on, so a missing secret and an unreachable daemon are found together.
+ *
+ * Each check that builds on an earlier one guards on that check's value and
+ * says, in its own words, what it wanted the value for — so a prerequisite
+ * that failed skips its dependents without any path shortening the report.
+ * The checks are hand-wired rather than declared as a graph a runner resolves:
+ * at ten checks the graph would cost more in generics than the guards cost in
+ * lines.
  */
 export async function runDoctorChecks({
   repoRoot = process.cwd(),
@@ -80,7 +90,7 @@ export async function runDoctorChecks({
     checks,
     "config",
     () => loadConfig(repoRoot),
-    () => `${CONFIG_FILE_NAME} is valid`,
+    () => `${CONFIG_FILE_PATH} is valid`,
   );
 
   await record(
@@ -125,27 +135,21 @@ export async function runDoctorChecks({
     skip(checks, "triage labels", NO_CREDENTIAL);
   }
 
-  if (!config) {
-    skip(checks, "sandbox image", `no valid ${CONFIG_FILE_NAME} to read the image from`);
-    skip(checks, "gate", `no valid ${CONFIG_FILE_NAME} to open a sandbox from`);
-    skip(checks, "docker daemon", NO_IMAGE);
-    return checks;
+  let image: ResolvedImage | undefined;
+  if (config) {
+    image = await record(
+      checks,
+      "sandbox image",
+      () => resolvableImage({ repoRoot, config, docker }),
+      (resolved) => `${resolved.ref} — ${resolved.how}`,
+    );
+  } else {
+    skip(checks, "sandbox image", `no valid ${CONFIG_FILE_PATH} to read the image from`);
   }
 
-  const image = await record(
-    checks,
-    "sandbox image",
-    () => resolvableImage({ repoRoot, config, docker }),
-    (resolved) => `${resolved.ref} — ${resolved.how}`,
-  );
-
-  if (!image) {
-    skip(checks, "gate", NO_IMAGE);
-    skip(checks, "docker daemon", NO_IMAGE);
-    return checks;
-  }
-
-  if (secrets) {
+  // An image resolves only from a config that parsed, so a missing image is
+  // what an operator sees either way — with the config failure a line above it.
+  if (config && image && secrets) {
     await record(
       checks,
       "gate",
@@ -154,15 +158,22 @@ export async function runDoctorChecks({
       (gate) => (gate.provenance === "declared" ? "ok" : "warning"),
     );
   } else {
-    skip(checks, "gate", "no credential to run the resolver's leg on");
+    const why = image
+      ? "no credential to run the resolver's leg on"
+      : "no sandbox image to open a sandbox from";
+    skip(checks, "gate", why);
   }
 
-  await record(
-    checks,
-    "docker daemon",
-    () => dockerDaemonVersionInSandbox({ image: image.ref, docker }),
-    (version: string) => `reachable as the non-root sandbox user — server ${version}`,
-  );
+  if (image) {
+    await record(
+      checks,
+      "docker daemon",
+      () => dockerDaemonVersionInSandbox({ image: image.ref, docker }),
+      (version: string) => `reachable as the non-root sandbox user — server ${version}`,
+    );
+  } else {
+    skip(checks, "docker daemon", "no sandbox image to reach the daemon from");
+  }
 
   return checks;
 }
@@ -258,7 +269,7 @@ async function resolvableImage({
   repoRoot: string;
   config: RelayConfig;
   docker: DockerRunner;
-}): Promise<{ ref: string; how: string }> {
+}): Promise<ResolvedImage> {
   if (config.image) {
     const source = await verifyPrebuiltImage({ image: config.image, docker });
     return {

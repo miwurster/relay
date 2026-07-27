@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { CONFIG_FILE_NAME, DEFAULT_DOCKERFILE_PATH, loadConfig } from "../src/config.js";
+import { CONFIG_FILE_PATH, DEFAULT_DOCKERFILE_PATH, loadConfig, RELAY_DIR } from "../src/config.js";
 import { ConfigError } from "../src/errors.js";
 import { ExitCode } from "../src/exit-codes.js";
 import { runInit, runInitChecks, type InitVerdict } from "../src/init.js";
@@ -84,7 +84,7 @@ const refusingGh = async (args: readonly string[]) => {
 
 /** Every label verdict, which follows the three file verdicts. */
 function labelVerdicts(verdicts: readonly InitVerdict[]): InitVerdict[] {
-  const files = new Set([CONFIG_FILE_NAME, DEFAULT_DOCKERFILE_PATH, GITIGNORE_FILE_NAME]);
+  const files = new Set([CONFIG_FILE_PATH, DEFAULT_DOCKERFILE_PATH, GITIGNORE_FILE_NAME]);
   return verdicts.filter((verdict) => !files.has(verdict.subject));
 }
 
@@ -131,7 +131,7 @@ describe("runInitChecks", () => {
 
     const verdicts = await runInitChecks({ repoRoot, git: githubClone().git, gh: fakeGh().gh });
 
-    const recipe = verdicts.find((v) => v.subject === "docker/relay.Dockerfile");
+    const recipe = verdicts.find((v) => v.subject === DEFAULT_DOCKERFILE_PATH);
     expect(recipe?.detail).toBe("wrote the java sandbox recipe");
   });
 
@@ -150,7 +150,7 @@ describe("runInitChecks", () => {
     const verdicts = await runInitChecks({ repoRoot, git: githubClone().git, gh: fakeGh().gh });
 
     expect(verdicts[0]?.outcome).toBe("written");
-    const written = await readFile(join(repoRoot, CONFIG_FILE_NAME), "utf8");
+    const written = await readFile(join(repoRoot, CONFIG_FILE_PATH), "utf8");
     expect(written).not.toContain("greenGate");
     expect(written).not.toContain("branchPrefix");
     expect(written).not.toContain("roleTimeoutMs");
@@ -161,8 +161,9 @@ describe("runInitChecks", () => {
 
   it("keeps an existing config rather than overwriting it, and reports it kept", async () => {
     const repoRoot = await tempRepo();
+    await mkdir(join(repoRoot, RELAY_DIR), { recursive: true });
     await writeFile(
-      join(repoRoot, CONFIG_FILE_NAME),
+      join(repoRoot, CONFIG_FILE_PATH),
       `export default { defaultBranch: "main" };`,
       "utf8",
     );
@@ -170,7 +171,7 @@ describe("runInitChecks", () => {
     const verdicts = await runInitChecks({ repoRoot, git: githubClone().git, gh: fakeGh().gh });
 
     expect(verdicts[0]).toEqual({
-      subject: CONFIG_FILE_NAME,
+      subject: CONFIG_FILE_PATH,
       outcome: "kept",
       detail: "already exists",
     });
@@ -184,13 +185,13 @@ describe("runInitChecks", () => {
 
     const verdicts = await runInitChecks({ repoRoot, git: githubClone().git, gh: fakeGh().gh });
 
-    const recipe = verdicts.find((v) => v.subject === "docker/relay.Dockerfile");
+    const recipe = verdicts.find((v) => v.subject === DEFAULT_DOCKERFILE_PATH);
     expect(recipe).toEqual({
-      subject: "docker/relay.Dockerfile",
+      subject: DEFAULT_DOCKERFILE_PATH,
       outcome: "written",
       detail: "wrote the java sandbox recipe",
     });
-    const written = await readFile(join(repoRoot, "docker/relay.Dockerfile"), "utf8");
+    const written = await readFile(join(repoRoot, DEFAULT_DOCKERFILE_PATH), "utf8");
     expect(written).toContain("ARG AGENT_UID");
     expect(written).toContain("FROM maven:3-eclipse-temurin-21");
   });
@@ -201,7 +202,7 @@ describe("runInitChecks", () => {
 
     await runInitChecks({ repoRoot, git: githubClone().git, gh: fakeGh().gh });
 
-    const written = await readFile(join(repoRoot, "docker/relay.Dockerfile"), "utf8");
+    const written = await readFile(join(repoRoot, DEFAULT_DOCKERFILE_PATH), "utf8");
     expect(written).toContain("FROM ghcr.io/astral-sh/uv:python3.12-trixie");
   });
 
@@ -215,7 +216,7 @@ describe("runInitChecks", () => {
 
     await runInitChecks({ repoRoot, git: githubClone().git, gh: fakeGh().gh });
 
-    const written = await readFile(join(repoRoot, "docker/relay.Dockerfile"), "utf8");
+    const written = await readFile(join(repoRoot, DEFAULT_DOCKERFILE_PATH), "utf8");
     expect(written).toContain("FROM node:lts");
   });
 
@@ -224,44 +225,45 @@ describe("runInitChecks", () => {
 
     const verdicts = await runInitChecks({ repoRoot, git: githubClone().git, gh: fakeGh().gh });
 
-    const recipe = verdicts.find((v) => v.subject === "docker/relay.Dockerfile");
+    const recipe = verdicts.find((v) => v.subject === DEFAULT_DOCKERFILE_PATH);
     expect(recipe?.outcome).toBe("skipped");
-    expect(recipe?.detail).toContain("docker/relay.Dockerfile");
-    expect(existsSync(join(repoRoot, "docker/relay.Dockerfile"))).toBe(false);
+    expect(recipe?.detail).toContain(DEFAULT_DOCKERFILE_PATH);
+    expect(existsSync(join(repoRoot, DEFAULT_DOCKERFILE_PATH))).toBe(false);
   });
 
   it("keeps an existing sandbox recipe rather than overwriting it, and reports it kept", async () => {
     const repoRoot = await tempRepo();
     await writeFile(join(repoRoot, "pom.xml"), "<project/>", "utf8");
-    await writeFile(join(repoRoot, CONFIG_FILE_NAME), "export default {};", "utf8");
-    await mkdir(join(repoRoot, "docker"), { recursive: true });
-    await writeFile(join(repoRoot, "docker/relay.Dockerfile"), "FROM scratch\n", "utf8");
+    await mkdir(join(repoRoot, RELAY_DIR), { recursive: true });
+    await writeFile(join(repoRoot, CONFIG_FILE_PATH), "export default {};", "utf8");
+    await writeFile(join(repoRoot, DEFAULT_DOCKERFILE_PATH), "FROM scratch\n", "utf8");
 
     const verdicts = await runInitChecks({ repoRoot, git: githubClone().git, gh: fakeGh().gh });
 
-    const recipe = verdicts.find((v) => v.subject === "docker/relay.Dockerfile");
+    const recipe = verdicts.find((v) => v.subject === DEFAULT_DOCKERFILE_PATH);
     expect(recipe).toEqual({
-      subject: "docker/relay.Dockerfile",
+      subject: DEFAULT_DOCKERFILE_PATH,
       outcome: "kept",
       detail: "already exists",
     });
-    const untouched = await readFile(join(repoRoot, "docker/relay.Dockerfile"), "utf8");
+    const untouched = await readFile(join(repoRoot, DEFAULT_DOCKERFILE_PATH), "utf8");
     expect(untouched).toBe("FROM scratch\n");
   });
 
   it("writes the sandbox recipe even when the config already exists", async () => {
     const repoRoot = await tempRepo();
     await writeFile(join(repoRoot, "pom.xml"), "<project/>", "utf8");
+    await mkdir(join(repoRoot, RELAY_DIR), { recursive: true });
     await writeFile(
-      join(repoRoot, CONFIG_FILE_NAME),
+      join(repoRoot, CONFIG_FILE_PATH),
       `export default { defaultBranch: "main" };`,
       "utf8",
     );
 
     const verdicts = await runInitChecks({ repoRoot, git: githubClone().git, gh: fakeGh().gh });
 
-    expect(verdicts.find((v) => v.subject === CONFIG_FILE_NAME)?.outcome).toBe("kept");
-    expect(verdicts.find((v) => v.subject === "docker/relay.Dockerfile")?.outcome).toBe("written");
+    expect(verdicts.find((v) => v.subject === CONFIG_FILE_PATH)?.outcome).toBe("kept");
+    expect(verdicts.find((v) => v.subject === DEFAULT_DOCKERFILE_PATH)?.outcome).toBe("written");
   });
 
   it("writes a .gitignore ignoring the worktree directory when the repo has none", async () => {
@@ -352,7 +354,7 @@ describe("runInitChecks", () => {
 
     expect(labelVerdicts(verdicts).every((v) => v.outcome === "skipped")).toBe(true);
     expect(verdict(verdicts, "ready-for-agent").detail).toContain("no `gh`");
-    expect(verdict(verdicts, CONFIG_FILE_NAME).outcome).toBe("written");
+    expect(verdict(verdicts, CONFIG_FILE_PATH).outcome).toBe("written");
   });
 
   it("skips the labels when gh has no credential GitHub accepts", async () => {

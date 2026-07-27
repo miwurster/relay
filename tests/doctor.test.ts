@@ -1,7 +1,8 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { CONFIG_FILE_PATH, DEFAULT_DOCKERFILE_PATH, RELAY_DIR } from "../src/config.js";
 import type { ResolvedGate } from "../src/crew.js";
 import { type DoctorCheck, runDoctor, runDoctorChecks } from "../src/doctor.js";
 import { ExitCode } from "../src/exit-codes.js";
@@ -18,11 +19,13 @@ const completeSecrets = {
   CLAUDE_CODE_OAUTH_TOKEN: "oauth-token",
 };
 
-/** A repo root holding the given `relay.config.ts`, if any, and a wired-up `.gitignore`. */
+/** A repo root holding the given `.relay/config.ts`, if any, and a wired-up `.gitignore`. */
 async function repoWith(configSource: string | undefined): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "relay-doctor-"));
   if (configSource !== undefined) {
-    await writeFile(join(root, "relay.config.ts"), configSource, "utf8");
+    const configPath = join(root, CONFIG_FILE_PATH);
+    await mkdir(dirname(configPath), { recursive: true });
+    await writeFile(configPath, configSource, "utf8");
   }
   await writeFile(join(root, ".gitignore"), ".sandcastle/\n", "utf8");
   return root;
@@ -33,6 +36,30 @@ async function envWithSecrets(overrides: Record<string, string> = {}): Promise<N
   const configHome = await mkdtemp(join(tmpdir(), "relay-doctor-home-"));
   return { XDG_CONFIG_HOME: configHome, ...completeSecrets, ...overrides };
 }
+
+/** An env carrying no secret at all, and no home-dir file to fall back to. */
+async function envWithoutSecrets(): Promise<NodeJS.ProcessEnv> {
+  const configHome = await mkdtemp(join(tmpdir(), "relay-doctor-home-"));
+  return { XDG_CONFIG_HOME: configHome };
+}
+
+/**
+ * Every check doctor reports, in the order it reports them. The report is these
+ * same ten lines whatever the host looks like: a check doctor cannot reach is
+ * skipped, so nothing that failed ever shortens the list.
+ */
+const EVERY_CHECK = [
+  "config",
+  "worktree ignored",
+  "secrets",
+  "gh installed",
+  "gh authenticated",
+  "labels",
+  "triage labels",
+  "sandbox image",
+  "gate",
+  "docker daemon",
+];
 
 /** Answers each docker invocation with a canned line, recording the calls. */
 function fakeDocker(answers: string[] = []) {
@@ -125,19 +152,26 @@ describe("runDoctorChecks", () => {
       probe: declaredProbe,
     });
 
-    expect(checks.map((c) => c.name)).toEqual([
-      "config",
-      "worktree ignored",
-      "secrets",
-      "gh installed",
-      "gh authenticated",
-      "labels",
-      "triage labels",
-      "sandbox image",
-      "gate",
-      "docker daemon",
-    ]);
+    expect(checks.map((c) => c.name)).toEqual(EVERY_CHECK);
     expect(checks.every((c) => c.status === "ok")).toBe(true);
+  });
+
+  it("reports the same checks in the same order on a host with nothing wired up", async () => {
+    const repoRoot = await repoWith(undefined);
+    await rm(join(repoRoot, ".gitignore"));
+
+    const checks = await runDoctorChecks({
+      repoRoot,
+      env: await envWithoutSecrets(),
+      docker: async () => {
+        throw new Error("Cannot connect to the Docker daemon at unix:///var/run/docker.sock");
+      },
+      gh: missingGh,
+      probe: declaredProbe,
+    });
+
+    expect(checks.map((c) => c.name)).toEqual(EVERY_CHECK);
+    expect(checks.every((c) => c.status === "failed" || c.status === "skipped")).toBe(true);
   });
 
   it("names the resolved image so a human can eyeball it", async () => {
@@ -213,7 +247,7 @@ describe("runDoctorChecks", () => {
     });
 
     expect(check(checks, "sandbox image").status).toBe("failed");
-    expect(check(checks, "sandbox image").detail).toContain("relay.Dockerfile");
+    expect(check(checks, "sandbox image").detail).toContain(DEFAULT_DOCKERFILE_PATH);
     expect(check(checks, "docker daemon").status).toBe("skipped");
   });
 
@@ -258,8 +292,8 @@ describe("runDoctorChecks", () => {
     const root = await repoWith(`export default {
       defaultBranch: "main",
     };`);
-    await mkdir(join(root, "docker"), { recursive: true });
-    await writeFile(join(root, "docker/relay.Dockerfile"), "FROM scratch\n", "utf8");
+    await mkdir(join(root, RELAY_DIR), { recursive: true });
+    await writeFile(join(root, DEFAULT_DOCKERFILE_PATH), "FROM scratch\n", "utf8");
     const { docker, calls } = healthyDocker();
 
     const checks = await runDoctorChecks({
