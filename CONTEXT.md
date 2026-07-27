@@ -46,7 +46,8 @@ _Avoid_: issue, story, task
 
 **Ticket**:
 One unit of the **plan**, and the thing one implementer **leg** runs over.
-A ticket carries a tracker key but is pass-local and ephemeral — nothing about it is written back, and a **work item** with no related issues is its own single ticket.
+A ticket is one of the **work item**'s sub-issues, and carries its issue number.
+It is pass-local and ephemeral — nothing about it is written back, and a work item with no sub-issues is its own single ticket.
 _Avoid_: subtask, item, unit
 
 **Plan**:
@@ -87,22 +88,29 @@ _Avoid_: failed, stuck, paused
 ## Selection and setup
 
 **Frontier**:
-This repo's eligible **work items**, most important and longest-waiting first.
+This repo's eligible **work items**, longest-waiting first.
+GitHub has no priority field, so humans steer by when they apply the ready label.
 A prefilter only — every candidate still faces the **eligibility check**.
 _Avoid_: queue, backlog, inbox
 
 **Eligibility check**:
-The gates a **work item** must pass before relay will run over it: runnable type, this repo's label, ready label, not already held, not done, no **open blocker**.
+The gates a **work item** must pass before relay will run over it: ready label, not already **held**, still open, no **open blocker**.
 The same check decides both auto-pick and an explicitly named item, so the two can never disagree.
 _Avoid_: selection gate, filter, guard
 
 **Open blocker**:
-A tracker issue that blocks a **work item** and is not itself done.
+A GitHub issue dependency of a **work item** that is not itself closed.
+relay filters for open itself, because GitHub's blocked-by count includes closed blockers.
 _Avoid_: blocked by, dependency
 
+**Held**:
+A **work item** carrying the `agent-in-progress` label, which the planner applies and the **handover** replaces.
+A held item is ineligible, so a crashed **pass** leaves the work visibly claimed rather than silently free.
+_Avoid_: locked, assigned, in progress
+
 **Tracker doc**:
-The repo's committed `docs/agents/issue-tracker.md`, which carries the tracker's setup constants and is what the tracker-facing **roles** are told to read first.
-Scope comes from this file, never from the git remote, and relay hardcodes no tracker assumptions beyond it.
+The repo's committed `docs/agents/issue-tracker.md`, which carries the repo's own tracker conventions and is what the tracker-facing **roles** are told to read first.
+relay hardcodes GitHub itself and nothing beyond it: which repo the issues live in comes from the git remote, since a repo owns its own issues.
 _Avoid_: tracker config, issue config
 
 **Sandbox**:

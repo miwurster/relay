@@ -14,7 +14,7 @@ The temptation to run them together is real, and the original topology decision 
 
 ## Decision Drivers
 
-- relay is single-item by design: one **work item**, one reviewable branch, one merge request.
+- relay is single-item by design: one **work item**, one reviewable branch, one pull request.
 - A **leg** hands its work on by committing, so every leg must see the previous leg's commits.
 - Wall-clock time matters, but a misattributed commit does not survive review at all.
 
@@ -34,7 +34,7 @@ That reasoning did not survive contact with the implementation: each leg takes a
 ### Consequences
 
 - Good: every **leg** reads a branch that is exactly what the previous leg left, with no race.
-- Good: one branch means one merge request, which is what a human is being handed.
+- Good: one branch means one pull request, which is what a human is being handed.
 - Good: **ticket** ordering stays the planner's, and dependencies between tickets simply work.
 - Bad: a **pass** is as slow as the sum of its legs; the two-lens parallelism is left on the table.
 - Bad: recovering that parallelism later means giving each lens its own worktree, which is a real change, not a flag.
