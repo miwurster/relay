@@ -15,10 +15,10 @@ A half-switch that leaves the old vocabulary lying around leaves every reader gu
 
 **Blocked by:** 05, 06, 07.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The migration checklist is committed where a target-repo operator will find it, and names every step above.
-- [ ] `git grep -i 'jira\|gitlab\|glab\|merge request'` returns nothing outside `docs/adr/` and `.scratch/`, where the history is supposed to mention them.
-- [ ] No `Tracker` or `Forge` interface exists, and one module is the only thing that talks to the tracker host-side — the property ADR-0007 is confirmed by.
-- [ ] The glossary, the ADRs and the code agree: the terms **Frontier**, **Ticket**, **Eligibility check**, **Open blocker**, **Held** and **Tracker doc** describe what the code now does.
-- [ ] `npm run verify` exits zero.
+- [x] The migration checklist is committed where a target-repo operator will find it, and names every step above.
+- [x] `git grep -i 'jira\|gitlab\|glab\|merge request'` returns nothing outside `docs/adr/` and `.scratch/`, where the history is supposed to mention them.
+- [x] No `Tracker` or `Forge` interface exists, and one module is the only thing that talks to the tracker host-side — the property ADR-0007 is confirmed by.
+- [x] The glossary, the ADRs and the code agree: the terms **Frontier**, **Ticket**, **Eligibility check**, **Open blocker**, **Held** and **Tracker doc** describe what the code now does.
+- [x] `npm run verify` exits zero.
