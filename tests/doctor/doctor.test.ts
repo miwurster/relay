@@ -19,6 +19,12 @@ const validConfig = `export default {
   image: "registry.example.com/relay:1",
 };`;
 
+/** The same repo, landing on the base branch itself. */
+const mergeConfig = `export default {
+  landing: "merge",
+  image: "registry.example.com/relay:1",
+};`;
+
 const completeSecrets = {
   GH_TOKEN: "gh-token",
   CLAUDE_CODE_OAUTH_TOKEN: "oauth-token",
@@ -47,8 +53,8 @@ const envWithoutSecrets = (): NodeJS.ProcessEnv => ({});
 
 /**
  * Every check doctor reports, in the order it reports them. The report is these
- * same eleven lines whatever the host looks like: a check doctor cannot reach is
- * skipped, so nothing that failed ever shortens the list.
+ * same fourteen lines whatever the host looks like: a check doctor cannot reach
+ * is skipped, so nothing that failed ever shortens the list.
  */
 const EVERY_CHECK = [
   "config",
@@ -59,17 +65,38 @@ const EVERY_CHECK = [
   "gh authenticated",
   "labels",
   "triage labels",
+  "landing",
+  "base branch ruleset",
+  "worktree clean",
   "sandbox image",
   "gate",
   "docker daemon",
 ];
 
-/** A `GitRunner` for a repo that ignores the credential file. */
-const ignoringGit = async () => "";
+/** A `GitRunner` for a repo that ignores the credential file, clean and on `main`. */
+const ignoringGit = async (args: readonly string[]) =>
+  args.includes("symbolic-ref") ? "main" : "";
 
-/** A `GitRunner` for a repo that does not — `check-ignore` exits non-zero. */
+/** A `GitRunner` for a repo that does not ignore it — `check-ignore` exits non-zero. */
 const notIgnoringGit = async (args: readonly string[]) => {
+  if (!args.includes("check-ignore")) return ignoringGit(args);
   throw new Error(`git ${args.join(" ")} failed: Command failed`);
+};
+
+/** A `GitRunner` whose worktree carries uncommitted work. */
+const dirtyGit = async (args: readonly string[]) =>
+  args.includes("status") ? " M src/doctor/doctor.ts" : await ignoringGit(args);
+
+/** A `GitRunner` on a detached `HEAD` — `symbolic-ref` has no branch to name. */
+const detachedGit = async (args: readonly string[]) => {
+  if (!args.includes("symbolic-ref")) return "";
+  throw new Error("git symbolic-ref --short HEAD failed: fatal: ref HEAD is not a symbolic ref");
+};
+
+/** A `GitRunner` on a branch with no commits yet — `rev-parse HEAD` fails. */
+const unbornGit = async (args: readonly string[]) => {
+  if (!args.includes("rev-parse")) return await ignoringGit(args);
+  throw new Error("git rev-parse --verify --quiet HEAD failed: Command failed");
 };
 
 /** Answers each docker invocation with a canned line, recording the calls. */
@@ -99,14 +126,28 @@ function fakeGh(answers: string[] = []) {
 const ALL_LABELS = [...PASS_LABELS, ...TRIAGE_LABELS].map(({ name }) => name);
 
 /**
- * A healthy host's `gh`: a version, a logged-in auth status, and a repo
- * holding `labels` — every label in the vocabulary unless a test says less.
+ * A healthy host's `gh`: a version, a logged-in auth status, a repo holding
+ * `labels` — every label in the vocabulary unless a test says less — and a base
+ * branch with no ruleset in force on it.
  */
 const healthyGh = (labels: readonly string[] = ALL_LABELS) =>
   fakeGh([
     "gh version 2.62.0 (2024-11-14)",
     "✓ Logged in to github.com account octocat",
     JSON.stringify(labels.map((name) => ({ name }))),
+    "[]",
+  ]);
+
+/** A `gh` whose repo has a ruleset requiring a pull request on every branch. */
+const ghWithPullRequestRuleset = () =>
+  fakeGh([
+    "gh version 2.62.0 (2024-11-14)",
+    "✓ Logged in to github.com account octocat",
+    JSON.stringify(ALL_LABELS.map((name) => ({ name }))),
+    JSON.stringify([
+      { type: "deletion", ruleset_id: 41, ruleset_source: "octo-org" },
+      { type: "pull_request", ruleset_id: 42, ruleset_source: "octo-org/relay" },
+    ]),
   ]);
 
 /** A `gh` that is on the PATH but has no valid credential. */
@@ -154,9 +195,10 @@ function check(checks: readonly DoctorCheck[], name: string): DoctorCheck {
 }
 
 describe("runDoctorChecks", () => {
+  // Under `merge` landing, which is the one mode where no check is skipped.
   it("reports every check as ok on a wired-up repo", async () => {
     const checks = await runDoctorChecks({
-      repoRoot: await repoWith(validConfig),
+      repoRoot: await repoWith(mergeConfig),
       env: envWithSecrets(),
       git: ignoringGit,
       docker: healthyDocker().docker,
@@ -309,12 +351,12 @@ describe("runDoctorChecks", () => {
     expect(check(checks, "docker daemon").status).toBe("ok");
   });
 
-  it("asks git whether the credential file is ignored, in the repo it was pointed at", async () => {
+  it("asks git only what the checks need, in the repo it was pointed at", async () => {
     const repoRoot = await repoWith(validConfig);
     const calls: string[][] = [];
     const git = async (args: readonly string[]) => {
       calls.push([...args]);
-      return "";
+      return await ignoringGit(args);
     };
 
     await runDoctorChecks({
@@ -326,7 +368,11 @@ describe("runDoctorChecks", () => {
       probe: declaredProbe,
     });
 
-    expect(calls).toEqual([["-C", repoRoot, "check-ignore", "-q", CREDENTIAL_FILE_PATH]]);
+    expect(calls).toEqual([
+      ["-C", repoRoot, "check-ignore", "-q", CREDENTIAL_FILE_PATH],
+      ["-C", repoRoot, "symbolic-ref", "--short", "HEAD"],
+      ["-C", repoRoot, "rev-parse", "--verify", "--quiet", "HEAD"],
+    ]);
   });
 
   it("reports an invalid config and skips the checks that need it", async () => {
@@ -724,6 +770,184 @@ describe("runDoctorChecks", () => {
     expect(check(checks, "gate").status).toBe("skipped");
     expect(check(checks, "docker daemon").status).toBe("skipped");
   });
+
+  it("reports the landing and the branch a pass would land on", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(mergeConfig),
+      env: envWithSecrets(),
+      git: ignoringGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "landing").status).toBe("ok");
+    expect(check(checks, "landing").detail).toContain("merge");
+    expect(check(checks, "landing").detail).toContain("main");
+  });
+
+  it("reports the branch a pull-request pass would target", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(validConfig),
+      env: envWithSecrets(),
+      git: ignoringGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "landing").status).toBe("ok");
+    expect(check(checks, "landing").detail).toContain("pull-request");
+    expect(check(checks, "landing").detail).toContain("main");
+  });
+
+  it("fails the landing check on a detached HEAD, which names no branch", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(mergeConfig),
+      env: envWithSecrets(),
+      git: detachedGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "landing").status).toBe("failed");
+    expect(check(checks, "landing").detail).toContain("detached");
+    expect(check(checks, "docker daemon").status).toBe("ok");
+  });
+
+  it("fails the landing check on a branch with no commits to be cut from", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(mergeConfig),
+      env: envWithSecrets(),
+      git: unbornGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "landing").status).toBe("failed");
+    expect(check(checks, "landing").detail).toContain("no commits yet");
+  });
+
+  it("skips the merge-only checks when the landing check found no branch", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(mergeConfig),
+      env: envWithSecrets(),
+      git: detachedGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "base branch ruleset").status).toBe("skipped");
+    expect(check(checks, "worktree clean").status).toBe("skipped");
+  });
+
+  it("passes the ruleset check on a base branch no ruleset guards", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(mergeConfig),
+      env: envWithSecrets(),
+      git: ignoringGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "base branch ruleset").status).toBe("ok");
+    expect(check(checks, "base branch ruleset").detail).toContain("main");
+  });
+
+  it("fails a base branch whose ruleset requires a pull request, and names it", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(mergeConfig),
+      env: envWithSecrets(),
+      git: ignoringGit,
+      docker: healthyDocker().docker,
+      gh: ghWithPullRequestRuleset().gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "base branch ruleset").status).toBe("failed");
+    expect(check(checks, "base branch ruleset").detail).toContain("42");
+    expect(check(checks, "base branch ruleset").detail).toContain("octo-org/relay");
+    expect(check(checks, "docker daemon").status).toBe("ok");
+  });
+
+  it("asks the rulesets endpoint about the base branch, not a dry-run push", async () => {
+    const { gh, calls } = healthyGh();
+
+    await runDoctorChecks({
+      repoRoot: await repoWith(mergeConfig),
+      env: envWithSecrets(),
+      git: ignoringGit,
+      docker: healthyDocker().docker,
+      gh,
+      probe: declaredProbe,
+    });
+
+    expect(calls).toContainEqual(["api", "repos/{owner}/{repo}/rules/branches/main"]);
+  });
+
+  it("skips the ruleset check when no credential can ask GitHub about it", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(mergeConfig),
+      env: envWithSecrets(),
+      git: ignoringGit,
+      docker: healthyDocker().docker,
+      gh: unauthenticatedGh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "base branch ruleset").status).toBe("skipped");
+    expect(check(checks, "worktree clean").status).toBe("ok");
+  });
+
+  it("only warns on a dirty worktree, which a pass reads at its own start", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(mergeConfig),
+      env: envWithSecrets(),
+      git: dirtyGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "worktree clean").status).toBe("warning");
+    expect(check(checks, "worktree clean").detail).toContain("uncommitted work");
+  });
+
+  it("skips both merge-only checks under pull-request landing", async () => {
+    const { gh, calls } = healthyGh();
+
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(validConfig),
+      env: envWithSecrets(),
+      git: dirtyGit,
+      docker: healthyDocker().docker,
+      gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "base branch ruleset").status).toBe("skipped");
+    expect(check(checks, "worktree clean").status).toBe("skipped");
+    expect(calls.flat()).not.toContain("api");
+  });
+
+  it("skips the landing check and the merge-only checks when the config is invalid", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(`export default { defaultBranch: "main" };`),
+      env: envWithSecrets(),
+      git: ignoringGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "landing").status).toBe("skipped");
+    expect(check(checks, "base branch ruleset").status).toBe("skipped");
+    expect(check(checks, "worktree clean").status).toBe("skipped");
+  });
 });
 
 describe("runDoctor", () => {
@@ -842,6 +1066,30 @@ describe("runDoctor", () => {
       probe: inferredProbe,
     });
     expect(code).toBe(ExitCode.Success);
+  });
+
+  it("succeeds on a dirty worktree — a pass reads it again at its own start", async () => {
+    const code = await runDoctor({
+      repoRoot: await repoWith(mergeConfig),
+      env: envWithSecrets(),
+      git: dirtyGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+    expect(code).toBe(ExitCode.Success);
+  });
+
+  it("fails a merge repo whose base branch requires a pull request", async () => {
+    const code = await runDoctor({
+      repoRoot: await repoWith(mergeConfig),
+      env: envWithSecrets(),
+      git: ignoringGit,
+      docker: healthyDocker().docker,
+      gh: ghWithPullRequestRuleset().gh,
+      probe: declaredProbe,
+    });
+    expect(code).toBe(ExitCode.Error);
   });
 
   it("prints a warning distinctly from an ok and from a failure", async () => {

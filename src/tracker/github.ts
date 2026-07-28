@@ -111,6 +111,48 @@ export async function ghCreateLabel(label: LabelSpec, gh: GhRunner = runGh): Pro
   );
 }
 
+/** A ruleset that makes `merge` landing impossible on a branch. */
+export interface PullRequestRuleset {
+  id: number;
+  /** The `owner/repo` or organization the ruleset is defined on. */
+  source: string;
+}
+
+/**
+ * The ruleset requiring a pull request on `branch`, or `undefined` when none
+ * does.
+ *
+ * Asked of GitHub's rulesets endpoint rather than of a dry-run push: server-side
+ * rules run only on a real push, so a dry run comes back clean from a branch
+ * relay could never land on. The endpoint reports a rule by its ruleset's id and
+ * source and carries no name, so those are what an operator is pointed at.
+ */
+export async function pullRequestRuleset({
+  branch,
+  gh = runGh,
+}: {
+  branch: string;
+  gh?: GhRunner;
+}): Promise<PullRequestRuleset | undefined> {
+  const output = await run(`read the rules on ${branch}`, () =>
+    gh(["api", `repos/{owner}/{repo}/rules/branches/${branch}`]),
+  );
+  const rule = parse(z.array(branchRuleSchema), output).find(
+    ({ type }) => type === PULL_REQUEST_RULE,
+  );
+  return rule && { id: rule.ruleset_id, source: rule.ruleset_source };
+}
+
+/** The rule type GitHub reports for "pushes must go through a pull request". */
+const PULL_REQUEST_RULE = "pull_request";
+
+/** One rule in force on a branch, as the rulesets endpoint reports it. */
+const branchRuleSchema = z.object({
+  type: z.string(),
+  ruleset_id: z.number(),
+  ruleset_source: z.string(),
+});
+
 /** The label page size, well past any repo's hand-maintained vocabulary. */
 const LABEL_LIMIT = 200;
 

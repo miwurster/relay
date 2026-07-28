@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { GitHubError } from "../../src/errors.js";
-import { createGitHubClient, ghAuthStatus, ghVersion } from "../../src/tracker/github.js";
+import {
+  createGitHubClient,
+  ghAuthStatus,
+  ghVersion,
+  pullRequestRuleset,
+} from "../../src/tracker/github.js";
 
 /** Answers each `gh` invocation with the next canned stdout, recording the calls. */
 function fakeGh(answers: string[] = []) {
@@ -288,5 +293,54 @@ describe("ghAuthStatus", () => {
 
     await expect(ghAuthStatus(failing)).rejects.toThrow(/gh auth login/);
     await expect(ghAuthStatus(failing)).rejects.toThrow(GitHubError);
+  });
+});
+
+describe("pullRequestRuleset", () => {
+  it("asks the rulesets endpoint about one branch", async () => {
+    const { gh, calls } = fakeGh([json([])]);
+
+    await expect(pullRequestRuleset({ branch: "main", gh })).resolves.toBeUndefined();
+    expect(calls[0]).toEqual(["api", "repos/{owner}/{repo}/rules/branches/main"]);
+  });
+
+  // The endpoint's branch is the rest of the path, so a slash stays a slash.
+  it("asks about a branch name carrying a slash as it is written", async () => {
+    const { gh, calls } = fakeGh([json([])]);
+
+    await pullRequestRuleset({ branch: "release/2.0", gh });
+
+    expect(calls[0]).toEqual(["api", "repos/{owner}/{repo}/rules/branches/release/2.0"]);
+  });
+
+  it("names the ruleset requiring a pull request, ignoring the rules that do not", async () => {
+    const { gh } = fakeGh([
+      json([
+        { type: "deletion", ruleset_id: 41, ruleset_source: "octo-org" },
+        { type: "pull_request", ruleset_id: 42, ruleset_source: "octo-org/relay" },
+      ]),
+    ]);
+
+    await expect(pullRequestRuleset({ branch: "main", gh })).resolves.toEqual({
+      id: 42,
+      source: "octo-org/relay",
+    });
+  });
+
+  it("reports no ruleset when the branch has other rules only", async () => {
+    const { gh } = fakeGh([
+      json([{ type: "deletion", ruleset_id: 41, ruleset_source: "octo-org" }]),
+    ]);
+
+    await expect(pullRequestRuleset({ branch: "main", gh })).resolves.toBeUndefined();
+  });
+
+  it("says what it was reading when `gh` refuses the call", async () => {
+    const failing = failingGh("HTTP 403: Resource not accessible by personal access token");
+
+    await expect(pullRequestRuleset({ branch: "main", gh: failing })).rejects.toThrow(
+      /read the rules on main/,
+    );
+    await expect(pullRequestRuleset({ branch: "main", gh: failing })).rejects.toThrow(GitHubError);
   });
 });

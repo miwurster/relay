@@ -1,6 +1,7 @@
 import {
   CONFIG_FILE_PATH,
   CREDENTIAL_FILE_PATH,
+  type Landing,
   loadConfig,
   RELAY_GITIGNORE_PATH,
   type RelayConfig,
@@ -14,7 +15,14 @@ import {
 } from "../sandbox/docker-host.js";
 import type { ResolvedGate } from "../crew/contract.js";
 import { type GateProbe, probeGate } from "./gate-probe.js";
-import { type GhRunner, ghAuthStatus, ghLabelNames, ghVersion, runGh } from "../tracker/github.js";
+import {
+  type GhRunner,
+  ghAuthStatus,
+  ghLabelNames,
+  ghVersion,
+  pullRequestRuleset,
+  runGh,
+} from "../tracker/github.js";
 import { missingLabels, PASS_LABELS, TRIAGE_LABELS, type LabelSpec } from "../tracker/labels.js";
 import { resolveSandboxImage, verifyPrebuiltImage } from "../sandbox/sandbox-image.js";
 import { loadSecrets, type Secrets, type SecretSource } from "../host/secrets.js";
@@ -25,10 +33,13 @@ import {
   WORKTREE_DIR,
 } from "../host/worktree-dir.js";
 import { credentialFileIgnored } from "../host/credential-file.js";
-import { runGit, type GitRunner } from "../host/git.js";
+import { currentBranch, isWorktreeDirty, runGit, type GitRunner } from "../host/git.js";
 
 /** Why the label checks cannot run: nothing on this host can ask GitHub. */
 const NO_CREDENTIAL = "no `gh` credential to read this repo's labels with";
+
+/** Why the landing checks cannot run: the config they read the landing from is unusable. */
+const NO_LANDING_TO_READ = `no valid ${CONFIG_FILE_PATH} to read the landing from`;
 
 /**
  * One preflight check's verdict.
@@ -87,8 +98,8 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<ExitCode> 
  * says, in its own words, what it wanted the value for — so a prerequisite
  * that failed skips its dependents without any path shortening the report.
  * The checks are hand-wired rather than declared as a graph a runner resolves:
- * at ten checks the graph would cost more in generics than the guards cost in
- * lines.
+ * at fourteen checks the graph would cost more in generics than the guards cost
+ * in lines.
  */
 export async function runDoctorChecks({
   repoRoot = process.cwd(),
@@ -156,6 +167,36 @@ export async function runDoctorChecks({
     skip(checks, "triage labels", NO_CREDENTIAL);
   }
 
+  const baseBranch = await recordLanding({ checks, config, repoRoot, git });
+
+  // Both of these ask about landing on the base branch itself, which only
+  // `merge` landing does — under `pull-request` they are skipped rather than
+  // answered as passing.
+  if (config?.landing === "merge" && baseBranch !== undefined) {
+    if (authenticated === undefined) {
+      skip(checks, "base branch ruleset", NO_CREDENTIAL_FOR_RULESETS);
+    } else {
+      await record(
+        checks,
+        "base branch ruleset",
+        () => assertBranchIsLandable({ branch: baseBranch, gh }),
+        () => `no ruleset on ${baseBranch} requires a pull request`,
+      );
+    }
+
+    await record(
+      checks,
+      "worktree clean",
+      () => isWorktreeDirty({ repoRoot, git }),
+      worktreeDetail,
+      (dirty) => (dirty ? "warning" : "ok"),
+    );
+  } else {
+    const why = whyNotLandingOnBase(config);
+    skip(checks, "base branch ruleset", why);
+    skip(checks, "worktree clean", why);
+  }
+
   let image: ResolvedImage | undefined;
   if (config) {
     image = await record(
@@ -197,6 +238,93 @@ export async function runDoctorChecks({
   }
 
   return checks;
+}
+
+/**
+ * What a pass would land and where, and the base branch every check after it
+ * asks about — or `undefined` when there is no branch to name.
+ *
+ * The landing comes from the config and the branch from this host's checkout
+ * ([ADR-0016](../../docs/adr/0016-the-base-branch-is-the-hosts-checkout.md)), so
+ * a detached or unborn `HEAD` fails here: a pass has nothing to be cut from.
+ */
+async function recordLanding({
+  checks,
+  config,
+  repoRoot,
+  git,
+}: {
+  checks: DoctorCheck[];
+  config: RelayConfig | undefined;
+  repoRoot: string;
+  git: GitRunner;
+}): Promise<string | undefined> {
+  if (!config) {
+    skip(checks, "landing", NO_LANDING_TO_READ);
+    return undefined;
+  }
+  return record(
+    checks,
+    "landing",
+    () => currentBranch({ repoRoot, git }),
+    (branch: string) => landingDetail(config.landing, branch),
+  );
+}
+
+/** What a pass would do with the branch this host is standing on. */
+function landingDetail(landing: Landing, baseBranch: string): string {
+  if (landing === "merge") {
+    return `\`merge\` — a green pass would land on ${baseBranch} and push it`;
+  }
+  return `\`pull-request\` — a green pass would open a pull request against ${baseBranch}`;
+}
+
+/**
+ * Why the two `merge`-only checks were not answered. A repo that lands through
+ * a pull request is not a repo that nearly failed them: relay pushes only its
+ * own pass branch there, and never touches this host's worktree.
+ */
+function whyNotLandingOnBase(config: RelayConfig | undefined): string {
+  if (!config) return NO_LANDING_TO_READ;
+  if (config.landing !== "merge") return "this repo lands through a pull request";
+  return "no base branch resolved to ask about";
+}
+
+/** Why the ruleset check cannot run: nothing on this host can ask GitHub. */
+const NO_CREDENTIAL_FOR_RULESETS = "no `gh` credential to read this branch's rulesets with";
+
+/**
+ * A base branch relay is allowed to push to. A ruleset requiring a pull request
+ * makes `merge` landing impossible rather than awkward, so it fails here — not
+ * after a gate, a rebase and a re-gate have all been paid for.
+ */
+async function assertBranchIsLandable({
+  branch,
+  gh,
+}: {
+  branch: string;
+  gh: GhRunner;
+}): Promise<void> {
+  const ruleset = await pullRequestRuleset({ branch, gh });
+  if (!ruleset) return;
+  throw new ConfigError(
+    `ruleset ${ruleset.id} on ${ruleset.source} requires a pull request on ${branch}, and this ` +
+      "repo lands on that branch itself — relay cannot push there at all. Either switch to " +
+      '`landing: "pull-request"`, or exempt relay\'s token from that ruleset.',
+  );
+}
+
+/**
+ * Whether this host has uncommitted work. A warning only: doctor runs whenever
+ * an operator likes, and the worktree that decides anything is the one a pass
+ * finds at its own start.
+ */
+function worktreeDetail(dirty: boolean): string {
+  if (!dirty) return "no uncommitted work on this host";
+  return (
+    "your worktree has uncommitted work in it, and a pass that lands on this branch refuses " +
+    "one — commit or stash it before you start a pass."
+  );
 }
 
 /**

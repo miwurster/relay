@@ -232,9 +232,13 @@ It resolves your gate exactly as a pass would and prints the command it got:
 - **`skipped`** — the config, secrets or sandbox image check failed, and resolving a gate needs all three.
   Fix those and the check runs.
 
-Under `merge` landing two more checks matter.
-A branch whose ruleset requires a pull request **fails**: relay cannot land there, so the mode is unavailable on that repo rather than nearly working.
-A dirty worktree is a **warning** only — `doctor` runs whenever you like, and the worktree that decides anything is the one a pass finds at its own start.
+Under `merge` landing two more checks matter, and under `pull-request` both are skipped rather than passed — a pass there lands nothing on your branch and never reads your worktree.
+
+- **`base branch ruleset`** — a branch whose ruleset requires a pull request **fails**, naming the ruleset by id and by the repo or org it is defined on.
+  relay cannot push there at all, so the mode is unavailable on that repo rather than nearly working.
+  The question goes to GitHub's rulesets endpoint for that branch, not to a dry-run push, which server-side rules never see.
+- **`worktree clean`** — a dirty worktree is a **warning** only.
+  `doctor` runs whenever you like, and the worktree that decides anything is the one a pass finds at its own start.
 
 A `warning` does not fail the run: neither an undeclared gate nor a dirty worktree is broken setup, so neither touches doctor's exit code.
 Exit zero with a `gate` warning still means you can run a pass.
