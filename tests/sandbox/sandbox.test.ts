@@ -27,7 +27,7 @@ const plugins = [
   { name: "kipu-all", hostPath: "/host/kipu-all", sandboxPath: "/opt/relay/plugins/kipu-all" },
 ];
 
-const config = relayConfigSchema.parse({});
+const config = relayConfigSchema.parse({ landing: "pull-request" });
 
 describe("sandboxMounts", () => {
   it("mounts the docker socket and each plugin read-only, and nothing else", () => {

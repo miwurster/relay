@@ -1,12 +1,17 @@
-import type { Crew } from "../../src/crew/contract.js";
+import type { Landing } from "../../src/config.js";
+import type { Crew, GateResult, LandResult } from "../../src/crew/contract.js";
 
 /**
  * A crew of stubs: the whole topology runs and every exit path is reachable
  * without an agent, a model or a network — which is what lets the harness's own
  * decisions be tested without running one.
+ *
+ * A stub crew has a lander exactly where a real one does: under `merge` landing.
  */
-export function createStubCrew(): Crew {
+export function createStubCrew({ landing = "pull-request" }: { landing?: Landing } = {}): Crew {
   return {
+    ...(landing === "merge" ? { land: stubLand } : {}),
+
     async resolveGate() {
       log("gateResolver", "would read the repo's docs for its green gate");
       return { command: "true", provenance: "inferred", source: "the stub crew" };
@@ -41,6 +46,15 @@ export function createStubCrew(): Crew {
       log("handover", `would hand over: ${outcome.kind}, closing ${committed.length} tickets`);
     },
   };
+}
+
+/** The lander stub: it re-gates through the harness's gate, as the real one does. */
+async function stubLand(regate: () => Promise<GateResult>): Promise<LandResult> {
+  log("lander", "would rebase the pass branch onto the base branch");
+  const gate = await regate();
+  return gate.green
+    ? { kind: "landed", detail: "the stub lander landed nothing, on purpose" }
+    : { kind: "not-landed", reason: gate.detail };
 }
 
 function log(role: string, message: string): void {

@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { ConfigError } from "../src/errors.js";
 import { CONFIG_FILE_PATH, loadConfig } from "../src/config.js";
 
-const minimalConfig = `export default {};`;
+const minimalConfig = `export default { landing: "pull-request" };`;
 
 async function repoWith(configSource: string | undefined): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "relay-config-"));
@@ -19,8 +19,30 @@ async function repoWith(configSource: string | undefined): Promise<string> {
 
 describe("loadConfig", () => {
   it("loads an authored TypeScript config from the repo's relay directory", async () => {
-    const config = await loadConfig(await repoWith(`export default { branchPrefix: "relay/" };`));
+    const config = await loadConfig(
+      await repoWith(`export default { landing: "merge", branchPrefix: "relay/" };`),
+    );
     expect(config.branchPrefix).toBe("relay/");
+  });
+
+  it("loads each landing a repo may declare", async () => {
+    const merge = await loadConfig(await repoWith(`export default { landing: "merge" };`));
+    const pullRequest = await loadConfig(
+      await repoWith(`export default { landing: "pull-request" };`),
+    );
+
+    expect(merge.landing).toBe("merge");
+    expect(pullRequest.landing).toBe("pull-request");
+  });
+
+  it("refuses a config that declares no landing, naming the key", async () => {
+    const root = await repoWith(`export default {};`);
+    await expect(loadConfig(root)).rejects.toThrow(/landing/);
+  });
+
+  it("refuses a landing relay has no shape for", async () => {
+    const root = await repoWith(`export default { landing: "rebase" };`);
+    await expect(loadConfig(root)).rejects.toThrow(/landing/);
   });
 
   it("applies the package defaults a repo did not override", async () => {
@@ -36,8 +58,23 @@ describe("loadConfig", () => {
     expect(config.models.greenGate).toBe("claude-sonnet-5");
   });
 
+  it("defaults the lander to the model the fixer escalates to", async () => {
+    const config = await loadConfig(await repoWith(minimalConfig));
+    expect(config.models.lander).toBe(config.models.fixerEscalated);
+  });
+
+  it("lets a repo override the lander's model", async () => {
+    const root = await repoWith(`export default {
+      landing: "merge",
+      models: { lander: "claude-fable-5" },
+    };`);
+    const config = await loadConfig(root);
+    expect(config.models.lander).toBe("claude-fable-5");
+  });
+
   it("lets a repo override a default without dropping the others", async () => {
     const root = await repoWith(`export default {
+      landing: "merge",
       branchPrefix: "relay/",
       image: "registry.example.com/relay:1",
       models: { implementer: "claude-opus-4-8", gateResolver: "claude-sonnet-5" },

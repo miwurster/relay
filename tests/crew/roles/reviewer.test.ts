@@ -9,7 +9,7 @@ import { RoleError } from "../../../src/errors.js";
 import { createReviewer, FINDINGS_TAG } from "../../../src/crew/roles/reviewer.js";
 import { TRACKER_DOC_PATH } from "../../../src/tracker/tracker-doc.js";
 
-const config = relayConfigSchema.parse({});
+const config = relayConfigSchema.parse({ landing: "pull-request" });
 const baseBranch = "main";
 
 const ticketScope: ReviewScope = {

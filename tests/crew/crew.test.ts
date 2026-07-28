@@ -13,7 +13,7 @@ import type { GitHubIssue } from "../../src/tracker/github.js";
 import { PLAN_TAG } from "../../src/crew/roles/planner.js";
 import { FINDINGS_TAG } from "../../src/crew/roles/reviewer.js";
 
-const config = relayConfigSchema.parse({});
+const config = relayConfigSchema.parse({ landing: "pull-request" });
 
 const issue: GitHubIssue = {
   number: 7,
@@ -23,6 +23,7 @@ const issue: GitHubIssue = {
   subIssues: [],
 };
 
+const repoRoot = "/repo";
 const branch = "agent/7";
 const baseBranch = "main";
 
@@ -52,6 +53,7 @@ describe("createCrew", () => {
       sandbox,
       config,
       recordDir,
+      repoRoot,
       workItem: issue.number,
       branch,
       baseBranch,
@@ -83,6 +85,7 @@ describe("createCrew", () => {
       sandbox,
       config,
       recordDir,
+      repoRoot,
       workItem: issue.number,
       branch,
       baseBranch,
@@ -112,6 +115,7 @@ describe("createCrew", () => {
       sandbox,
       config,
       recordDir,
+      repoRoot,
       workItem: issue.number,
       branch,
       baseBranch,
@@ -140,6 +144,7 @@ describe("createCrew", () => {
       sandbox,
       config,
       recordDir,
+      repoRoot,
       workItem: issue.number,
       branch,
       baseBranch,
@@ -166,6 +171,7 @@ describe("createCrew", () => {
       sandbox,
       config,
       recordDir,
+      repoRoot,
       workItem: issue.number,
       branch,
       baseBranch,
@@ -199,6 +205,7 @@ describe("createCrew", () => {
       sandbox,
       config,
       recordDir,
+      repoRoot,
       workItem: issue.number,
       branch,
       baseBranch,
@@ -237,6 +244,7 @@ describe("createCrew", () => {
       sandbox,
       config,
       recordDir,
+      repoRoot,
       workItem: issue.number,
       branch,
       baseBranch: "spike/foo",
@@ -267,6 +275,7 @@ describe("createCrew", () => {
       sandbox,
       config,
       recordDir,
+      repoRoot,
       workItem: issue.number,
       branch,
       baseBranch,
@@ -281,5 +290,22 @@ describe("createCrew", () => {
       WORK_ITEM: `#${issue.number}`,
       BRANCH: branch,
     });
+  });
+
+  it("has a lander only where the repo's landing needs one", async () => {
+    const sandbox = {} as unknown as Sandbox;
+    const crewFor = (landing: "pull-request" | "merge") =>
+      createCrew({
+        sandbox,
+        config: relayConfigSchema.parse({ landing }),
+        recordDir,
+        repoRoot,
+        workItem: issue.number,
+        branch,
+        baseBranch,
+      });
+
+    expect(crewFor("merge").land).toBeTypeOf("function");
+    expect(crewFor("pull-request").land).toBeUndefined();
   });
 });

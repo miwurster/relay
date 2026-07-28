@@ -2,6 +2,7 @@ import type {
   Crew,
   Finding,
   FixTarget,
+  LandResult,
   Outcome,
   ResolvedGate,
   ReviewLens,
@@ -29,8 +30,8 @@ export const MAX_GATE_FIX_ATTEMPTS = 2;
  *
  * The topology is fixed: plan once, then per ticket implement → both fast
  * lenses → fix, then both in-depth lenses over the whole branch → fix, then
- * the gate → fixer loop, then handover. Every exit path ends at the same
- * handover call, so no outcome can skip it.
+ * the gate → fixer loop, then the lander when the crew has one, then handover.
+ * Every exit path ends at the same handover call, so no outcome can skip it.
  *
  * A multi-ticket plan is the shape that topology is for. A single-ticket plan
  * drops the fast lenses, since its one ticket is the work item and the two
@@ -72,7 +73,27 @@ async function runLegs(crew: Crew, issue: GitHubIssue): Promise<LegsResult> {
   if (blocked) return { outcome: blocked, committed };
 
   await reviewAndFix(crew, WHOLE_BRANCH_LENSES, { kind: "branch", workItem: issue.number });
-  return { outcome: await driveGate(crew, gate), committed };
+
+  const { outcome, runs } = await driveGate(crew, gate);
+  // A crew with no lander is a `pull-request` repo, whose pass ends here.
+  if (outcome.kind !== "success" || !crew.land) return { outcome, committed };
+
+  // The loop's verdict said nothing about what the base branch has gained since
+  // it was taken, so the lander's result is gated once more — the same resolved
+  // gate, numbered as the run after the loop's last.
+  const landing = await crew.land(() => crew.greenGate(runs + 1, gate));
+  return { outcome: outcomeOfLanding(landing), committed };
+}
+
+/**
+ * What a landing attempt means for the pass. A base branch that was not landed
+ * on is a `mid-block` with everything the pass committed still only on its own
+ * branch — nothing landed, nothing closed, and no commit authored on the way.
+ */
+function outcomeOfLanding(landing: LandResult): Outcome {
+  return landing.kind === "landed"
+    ? { kind: "success", detail: landing.detail }
+    : { kind: "mid-block", reason: landing.reason };
 }
 
 /**
@@ -137,16 +158,28 @@ function fixTargetFor(scope: ReviewScope): FixTarget {
   return scope.kind === "ticket" ? { kind: "ticket", ticket: scope.ticket } : { kind: "branch" };
 }
 
+/** How the gate loop ended, and how many gate runs it took to get there. */
+interface GateLoop {
+  outcome: Outcome;
+  /** How many gate runs it took, which is what a later run has to number after. */
+  runs: number;
+}
+
 /** Run the gate, handing each red verdict to the fixer until green or capped. */
-async function driveGate(crew: Crew, gate: ResolvedGate): Promise<Outcome> {
+async function driveGate(crew: Crew, gate: ResolvedGate): Promise<GateLoop> {
   let result = await crew.greenGate(1, gate);
+  let runs = 1;
   for (let attempt = 1; !result.green && attempt <= MAX_GATE_FIX_ATTEMPTS; attempt++) {
     await crew.fix([gateFinding(result.detail)], { kind: "gate", attempt });
     result = await crew.greenGate(attempt + 1, gate);
+    runs++;
   }
-  return result.green
-    ? { kind: "success", detail: result.detail }
-    : { kind: "mid-block", reason: result.detail };
+  return {
+    outcome: result.green
+      ? { kind: "success", detail: result.detail }
+      : { kind: "mid-block", reason: result.detail },
+    runs,
+  };
 }
 
 function gateFinding(detail: string): Finding {

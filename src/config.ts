@@ -32,6 +32,15 @@ export const CREDENTIAL_EXAMPLE_FILE_PATH = `${CREDENTIAL_FILE_PATH}.example`;
 export const RELAY_GITIGNORE_PATH = `${RELAY_DIR}/.gitignore`;
 
 /**
+ * How a repo's passes deliver a green branch: a human merges the pull request,
+ * or the lander puts the work on the base branch itself
+ * ([ADR-0015](../docs/adr/0015-a-repo-declares-how-a-pass-lands.md)).
+ */
+export const LANDINGS = ["pull-request", "merge"] as const;
+
+export type Landing = (typeof LANDINGS)[number];
+
+/**
  * One key per distinct model choice a pass makes, which is not one per role:
  * the reviewer's four lenses each pick their own, and the fixer picks a second
  * one for the attempt it escalates. The defaults are relay's, and a repo may
@@ -51,6 +60,12 @@ const modelsSchema = z
     /** What the fixer escalates to when its first attempt at a red gate failed. */
     fixerEscalated: z.string().default("claude-opus-4-8"),
     greenGate: z.string().default("claude-sonnet-5"),
+    /**
+     * The same model the fixer escalates to: resolving a rebase conflict is a
+     * harder judgement than a first attempt at a red gate, so the lander starts
+     * where that attempt ends up.
+     */
+    lander: z.string().default("claude-opus-4-8"),
     handover: z.string().default("claude-sonnet-5"),
   })
   .prefault({});
@@ -64,6 +79,11 @@ const modelsSchema = z
  * is also how a repo's leftover `jira` block reports itself.
  */
 export const relayConfigSchema = z.strictObject({
+  /**
+   * Where a pass stops. Required, with no default: a landing nobody chose is a
+   * base branch nobody agreed to move, so a config missing it fails to load.
+   */
+  landing: z.enum(LANDINGS),
   /** A prebuilt sandbox image; when absent relay builds from `dockerfile`. */
   image: z.string().min(1).optional(),
   /** Repo-relative path to the sandbox Dockerfile, used when `image` is unset. */

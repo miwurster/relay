@@ -169,12 +169,22 @@ describe("runInitChecks", () => {
     await expect(loadConfig(repoRoot)).resolves.toMatchObject({ branchPrefix: "agent/" });
   });
 
+  it("declares the one setting relay has no default for", async () => {
+    const repoRoot = await tempRepo();
+
+    await runInitChecks({ repoRoot, git: githubClone().git, gh: fakeGh().gh });
+
+    const written = await readFile(join(repoRoot, CONFIG_FILE_PATH), "utf8");
+    expect(written).toContain('landing: "merge"');
+    await expect(loadConfig(repoRoot)).resolves.toMatchObject({ landing: "merge" });
+  });
+
   it("keeps an existing config rather than overwriting it, and reports it kept", async () => {
     const repoRoot = await tempRepo();
     await mkdir(join(repoRoot, RELAY_DIR), { recursive: true });
     await writeFile(
       join(repoRoot, CONFIG_FILE_PATH),
-      `export default { branchPrefix: "relay/" };`,
+      `export default { landing: "pull-request", branchPrefix: "relay/" };`,
       "utf8",
     );
 
@@ -245,7 +255,11 @@ describe("runInitChecks", () => {
     const repoRoot = await tempRepo();
     await writeFile(join(repoRoot, "pom.xml"), "<project/>", "utf8");
     await mkdir(join(repoRoot, RELAY_DIR), { recursive: true });
-    await writeFile(join(repoRoot, CONFIG_FILE_PATH), "export default {};", "utf8");
+    await writeFile(
+      join(repoRoot, CONFIG_FILE_PATH),
+      `export default { landing: "pull-request" };`,
+      "utf8",
+    );
     await writeFile(join(repoRoot, DEFAULT_DOCKERFILE_PATH), "FROM scratch\n", "utf8");
 
     const verdicts = await runInitChecks({ repoRoot, git: githubClone().git, gh: fakeGh().gh });
@@ -264,7 +278,11 @@ describe("runInitChecks", () => {
     const repoRoot = await tempRepo();
     await writeFile(join(repoRoot, "pom.xml"), "<project/>", "utf8");
     await mkdir(join(repoRoot, RELAY_DIR), { recursive: true });
-    await writeFile(join(repoRoot, CONFIG_FILE_PATH), "export default {};", "utf8");
+    await writeFile(
+      join(repoRoot, CONFIG_FILE_PATH),
+      `export default { landing: "pull-request" };`,
+      "utf8",
+    );
 
     const verdicts = await runInitChecks({ repoRoot, git: githubClone().git, gh: fakeGh().gh });
 

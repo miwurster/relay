@@ -17,7 +17,7 @@ import { createStubCrew } from "../crew/stub-crew.js";
 import type { Secrets } from "../../src/host/secrets.js";
 import { TRACKER_DOC_PATH } from "../../src/tracker/tracker-doc.js";
 
-const validConfig = `export default {};`;
+const validConfig = `export default { landing: "pull-request" };`;
 
 const secrets = ["GH_TOKEN=gh-token", "CLAUDE_CODE_OAUTH_TOKEN=oauth-token"];
 
@@ -97,7 +97,7 @@ const passSecrets: Secrets = {
   ],
 };
 
-const passConfig = relayConfigSchema.parse({});
+const passConfig = relayConfigSchema.parse({ landing: "pull-request" });
 
 /** A GitHub that records the crash comment and answers nothing else. */
 function fakeGitHub() {
@@ -362,6 +362,51 @@ describe("runPassOnItem", () => {
     );
 
     expect(open).not.toHaveBeenCalled();
+  });
+
+  it("refuses a dirty host worktree under merge landing, before opening a sandbox", async () => {
+    const root = await gitRepo();
+    await writeFile(join(root, "notes.txt"), "mine\n", "utf8");
+    const { github } = fakeGitHub();
+    const open = vi.fn();
+
+    await expect(
+      runOnePass({
+        github,
+        repoRoot: root,
+        open,
+        config: relayConfigSchema.parse({ landing: "merge" }),
+      }),
+    ).rejects.toThrow(/never stashes work it did not author/);
+
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it("maps a refused dirty worktree to exit 2", async () => {
+    const root = await gitRepo();
+    await writeFile(join(root, "notes.txt"), "mine\n", "utf8");
+    const { github } = fakeGitHub();
+
+    const code = await exitCodeOf(() =>
+      runOnePass({
+        github,
+        repoRoot: root,
+        open: vi.fn(),
+        config: relayConfigSchema.parse({ landing: "merge" }),
+      }),
+    );
+
+    expect(code).toBe(ExitCode.Error);
+  });
+
+  it("tolerates a dirty host worktree under pull-request landing, which moves no branch of yours", async () => {
+    const root = await gitRepo();
+    await writeFile(join(root, "notes.txt"), "mine\n", "utf8");
+    const { github } = fakeGitHub();
+
+    const code = await runOnePass({ github, repoRoot: root });
+
+    expect(code).toBe(ExitCode.Success);
   });
 
   it("maps a refused checkout to exit 2", async () => {

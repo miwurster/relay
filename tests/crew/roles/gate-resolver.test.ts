@@ -8,7 +8,7 @@ import { RoleError } from "../../../src/errors.js";
 import { createGateResolver, RESOLVED_GATE_TAG } from "../../../src/crew/roles/gate-resolver.js";
 import { readResource } from "../../../src/resources.js";
 
-const config = relayConfigSchema.parse({});
+const config = relayConfigSchema.parse({ landing: "pull-request" });
 
 /** A sandbox whose only real behaviour is the stdout the resolver run returns. */
 function resolving(stdout: string, commits: { sha: string }[] = []) {

@@ -9,7 +9,7 @@ import { probeGate } from "../../src/doctor/gate-probe.js";
 import { RESOLVED_GATE_TAG } from "../../src/crew/roles/gate-resolver.js";
 import type { Secrets } from "../../src/host/secrets.js";
 
-const config = relayConfigSchema.parse({});
+const config = relayConfigSchema.parse({ landing: "pull-request" });
 
 const secrets: Secrets = {
   githubToken: "gh-token",

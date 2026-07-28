@@ -5,6 +5,7 @@ import type {
   FixTarget,
   GateResult,
   ImplementResult,
+  LandResult,
   Outcome,
   PlanResult,
   ResolvedGate,
@@ -370,6 +371,156 @@ describe("runHarness", () => {
     const outcome = await runHarness(createStubCrew(), issue);
 
     expect(outcome).toEqual({ kind: "success", detail: "stub gate is always green" });
+  });
+
+  it("runs end to end on the stub crew of a merge-landing repo", async () => {
+    const outcome = await runHarness(createStubCrew({ landing: "merge" }), issue);
+
+    expect(outcome).toEqual({
+      kind: "success",
+      detail: "the stub lander landed nothing, on purpose",
+    });
+  });
+});
+
+/**
+ * A lander in the crew is what `merge` landing looks like to the harness, so
+ * these say what the pass does with one and what it does without.
+ */
+describe("runHarness under merge landing", () => {
+  /** A crew whose lander reports `result`, recording its own leg and its re-gate. */
+  function landingCrew(result: LandResult, overrides: Partial<Crew> = {}) {
+    const recorder = recordingCrew(overrides);
+    recorder.crew.land = async (regate) => {
+      recorder.calls.push("land");
+      await regate();
+      return result;
+    };
+    return recorder;
+  }
+
+  const landed: LandResult = { kind: "landed", detail: "agent/1 was rebased onto main" };
+
+  it("runs the lander between the gate loop and the handover", async () => {
+    const { crew, calls } = landingCrew(landed);
+
+    const outcome = await run(crew);
+
+    expect(outcome).toEqual({ kind: "success", detail: "agent/1 was rebased onto main" });
+    expect(calls).toEqual([
+      "resolveGate",
+      "plan",
+      "implement:1",
+      "review:inDepthCodeReview:branch",
+      "review:inDepthSpecReview:branch",
+      "gate",
+      "land",
+      "gate",
+      "handover:success",
+    ]);
+  });
+
+  it("runs no lander leg when the crew has none", async () => {
+    const { crew, calls } = recordingCrew();
+
+    await run(crew);
+
+    expect(calls).not.toContain("land");
+    expect(calls.filter((call) => call === "gate")).toHaveLength(1);
+  });
+
+  it("re-gates the lander's result with the resolved gate, on the run after the loop's last", async () => {
+    const attempts: number[] = [];
+    const { crew } = landingCrew(landed, {
+      async greenGate(attempt, gate): Promise<GateResult> {
+        attempts.push(attempt);
+        expect(gate).toEqual(resolvedGate);
+        return { green: true, detail: "green" };
+      },
+    });
+
+    await run(crew);
+
+    expect(attempts).toEqual([1, 2]);
+  });
+
+  it("numbers the re-gate after every attempt the gate loop already spent", async () => {
+    const attempts: number[] = [];
+    const verdicts: GateResult[] = [
+      { green: false, detail: "one test red" },
+      { green: true, detail: "green" },
+    ];
+    const { crew } = landingCrew(landed, {
+      async greenGate(attempt): Promise<GateResult> {
+        attempts.push(attempt);
+        return verdicts.shift() ?? { green: true, detail: "green" };
+      },
+    });
+
+    await run(crew);
+
+    expect(attempts).toEqual([1, 2, 3]);
+  });
+
+  it("mid-blocks with the committed tickets when the base branch was not landed on", async () => {
+    const { crew, calls, committed } = landingCrew({
+      kind: "not-landed",
+      reason: "main would not fast-forward",
+    });
+
+    const outcome = await run(crew);
+
+    expect(outcome).toEqual({ kind: "mid-block", reason: "main would not fast-forward" });
+    expect(committed()).toEqual([ticket(1)]);
+    expect(calls.at(-1)).toBe("handover:mid-block");
+  });
+
+  it("mid-blocks on a red re-gate without handing it to the fixer", async () => {
+    const verdicts: GateResult[] = [
+      { green: true, detail: "green" },
+      { green: false, detail: "the cart tests fail once main is in" },
+    ];
+    const { crew, calls } = landingCrew(
+      { kind: "not-landed", reason: "the cart tests fail once main is in" },
+      {
+        async greenGate(): Promise<GateResult> {
+          calls.push("gate");
+          return verdicts.shift() ?? { green: true, detail: "green" };
+        },
+      },
+    );
+
+    const outcome = await run(crew);
+
+    expect(outcome).toEqual({ kind: "mid-block", reason: "the cart tests fail once main is in" });
+    expect(calls).not.toContain("fix");
+  });
+
+  it("runs no lander when the pass never got to green", async () => {
+    const { crew, calls } = landingCrew(landed, {
+      async greenGate(): Promise<GateResult> {
+        calls.push("gate");
+        return { green: false, detail: "still red" };
+      },
+    });
+
+    const outcome = await run(crew);
+
+    expect(outcome).toEqual({ kind: "mid-block", reason: "still red" });
+    expect(calls).not.toContain("land");
+  });
+
+  it("runs no lander when the planner bailed", async () => {
+    const { crew, calls } = landingCrew(landed, {
+      async plan(): Promise<PlanResult> {
+        return { kind: "under-specified", reason: "no acceptance criteria" };
+      },
+    });
+
+    await run(crew);
+
+    expect(calls).not.toContain("land");
+    expect(calls.at(-1)).toBe("handover:early-bail");
   });
 });
 

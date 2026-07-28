@@ -102,7 +102,7 @@ A `merge` repo never opens a pull request, blocked or not.
 _Avoid_: mode, strategy, merge mode
 
 **Lander**:
-Under `merge` **landing**, the **leg** between the **green gate** and the **handover**: it rebases the **pass branch** onto the **base branch**, or merges on conflict, and re-runs the green gate on the result.
+Under `merge` **landing**, the **leg** between the **green gate** and the **handover**: it rebases the **pass branch** onto the **base branch**, or merges on conflict, and the **harness** re-runs the green gate on the result before the base branch moves.
 It only ever moves the pass branch, so the host's move is always a fast-forward and the base branch can only go forward ([ADR-0017](docs/adr/0017-the-lander-rebases-and-the-host-only-fast-forwards.md)).
 It writes no tracker state and closes nothing.
 _Avoid_: merger, integrator, merge agent

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Landing } from "../../config.js";
 import type { Crew, Outcome, TicketRef } from "../contract.js";
 import { RoleError } from "../../errors.js";
 import { type RoleDeps, runRole } from "../run-role.js";
@@ -32,7 +33,7 @@ export function createHandover({
   ...deps
 }: RoleDeps & { workItem: number; branch: string; baseBranch: string }): Crew["handover"] {
   return async function handover(outcome: Outcome, committed: readonly TicketRef[]): Promise<void> {
-    const leg = describeLeg(outcome, committed);
+    const leg = describeLeg(outcome, committed, deps.config.landing);
 
     const { prUrl, report } = await runRole({
       ...deps,
@@ -45,6 +46,10 @@ export function createHandover({
         // Told, never inferred: relay holds the leg to this below, so the leg
         // has to be reading the same verdict relay is about to judge it on.
         PULL_REQUEST: leg.pullRequest,
+        // What this repo's landing owes the operator, and whether the pass paid
+        // it — the leg publishes against these rather than reading the branches.
+        LANDING: deps.config.landing,
+        LANDED: leg.landed,
         // Told too: the leg cannot read the ticket numbers back out of the
         // commits, which carry no issue reference of their own.
         COMMITTED_TICKETS: leg.committed,
@@ -73,22 +78,39 @@ interface HandoverLeg {
   /** Why the pass ended where it did, in the words the tracker comment carries. */
   cause: string;
   /**
-   * Whether the outcome gets a pull request. A branch carrying committed
-   * tickets owes the human one; an empty branch — an early bail, or a block on
-   * the first ticket — has nothing to publish and opening one is an error.
+   * Whether the outcome gets a pull request. Under `pull-request` landing a
+   * branch carrying committed tickets owes the human one, and an empty branch —
+   * an early bail, or a block on the first ticket — has nothing to publish. A
+   * `merge` repo opens none on any path, and the rule stays enforced there as a
+   * guard against a leg inventing one.
    *
    * The leg is told this rather than working it out from the branch, so the
    * instruction it followed and the rule it is judged by are the same fact.
    */
   pullRequest: "required" | "forbidden";
+  /** Why the outcome gets no pull request, for the error a leg that opened one gets. */
+  noPullRequestBecause: string;
+  /** Whether the base branch was landed on: `merge` landing's own question. */
+  landed: "yes" | "no";
   /** The tickets the pull request closes, as the prompt names them. */
   committed: string;
 }
 
-function describeLeg(outcome: Outcome, committed: readonly TicketRef[]): HandoverLeg {
+function describeLeg(
+  outcome: Outcome,
+  committed: readonly TicketRef[],
+  landing: Landing,
+): HandoverLeg {
   return {
     cause: outcome.kind === "success" ? outcome.detail : outcome.reason,
-    pullRequest: committed.length > 0 ? "required" : "forbidden",
+    pullRequest: landing === "pull-request" && committed.length > 0 ? "required" : "forbidden",
+    noPullRequestBecause:
+      landing === "merge"
+        ? "this repo's landing is `merge`, which opens none on any path"
+        : "the branch carries nothing worth publishing",
+    // A pass that could not land the base branch ends `mid-block`, so under
+    // `merge` landing success is exactly the pass that landed.
+    landed: landing === "merge" && outcome.kind === "success" ? "yes" : "no",
     committed: committed.map((ticket) => `#${ticket.number}`).join(", ") || "nothing",
   };
 }
@@ -105,7 +127,8 @@ function enforcePullRequestRule(
   }
   if (leg.pullRequest === "forbidden" && prUrl) {
     throw new RoleError(
-      `handover opened ${prUrl} for a ${kind} pass on an empty branch, which gets no pull request.`,
+      `handover opened ${prUrl} for a ${kind} pass that gets no pull request: ` +
+        `${leg.noPullRequestBecause}.`,
     );
   }
 }

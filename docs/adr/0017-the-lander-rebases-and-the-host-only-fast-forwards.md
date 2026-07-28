@@ -32,7 +32,8 @@ It was taken on the pass branch, which no longer describes what will land the mo
 Chosen option: **Option A**.
 
 The **lander** is the pass's eighth **role**, and exists only under merge landing.
-It runs in the sandbox, on the pass branch, and does four things: rebase onto the base branch, re-run the green gate, and — on success — let the harness fast-forward the host's base branch and push it.
+Its leg runs in the sandbox, on the pass branch, and does one thing: rebase onto the base branch.
+The harness then re-runs the green gate on that result, and only once it is green does the host fast-forward the base branch onto it and push it.
 Its model default is `claude-opus-4-8`: rebase conflict resolution is the hardest judgement in a pass, harder than the fixer's first attempt at a red gate.
 
 Four sub-decisions carry the weight.

@@ -255,7 +255,11 @@ async function writeConfigFile(repoRoot: string): Promise<InitVerdict> {
   await mkdir(dirname(configPath), { recursive: true });
   await writeFile(configPath, CONFIG_SOURCE, "utf8");
 
-  return { subject: CONFIG_FILE_PATH, outcome: "written", detail: "every setting on its default" };
+  return {
+    subject: CONFIG_FILE_PATH,
+    outcome: "written",
+    detail: 'landing: "merge", every other setting on its default',
+  };
 }
 
 /** The three sandbox recipe templates shipped as resources, one per stack. */
@@ -342,12 +346,15 @@ function detectStack(repoRoot: string): Stack | undefined {
 }
 
 /**
- * An empty `.relay/config.ts` — every field has a package default, and echoing
- * them back out would freeze them against future defaults. The branch a pass
- * targets is not among them: it is read from the host's checkout at pass start
+ * A `.relay/config.ts` carrying nothing but the landing — every other field has
+ * a package default, and echoing those back out would freeze them against
+ * future defaults. `landing` has none, because it decides whether relay moves
+ * the operator's own branch
+ * ([ADR-0015](../../docs/adr/0015-a-repo-declares-how-a-pass-lands.md)), and the
+ * branch it moves is read from the host's checkout at pass start
  * ([ADR-0016](../../docs/adr/0016-the-base-branch-is-the-hosts-checkout.md)).
  */
-const CONFIG_SOURCE = "export default {};\n";
+const CONFIG_SOURCE = 'export default {\n  landing: "merge", // or "pull-request"\n};\n';
 
 function label(outcome: InitVerdict["outcome"]): string {
   return { written: "wrote ", kept: "kept  ", skipped: "skip  ", failed: "FAILED" }[outcome];

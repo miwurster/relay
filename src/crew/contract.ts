@@ -72,6 +72,16 @@ export type FixTarget =
   { kind: "ticket"; ticket: TicketRef } | { kind: "branch" } | { kind: "gate"; attempt: number };
 
 /**
+ * What became of the base branch under `merge` landing.
+ *
+ * `landed` means it has moved and is pushed, so the work is reachable by
+ * somebody other than the operator who ran the pass; `not-landed` means it was
+ * left where it was, and why.
+ */
+export type LandResult =
+  { kind: "landed"; detail: string } | { kind: "not-landed"; reason: string };
+
+/**
  * How the pass ended, and therefore which handover it gets.
  *
  * `early-bail` is the planner refusing an under-specified item before any work
@@ -105,6 +115,20 @@ export interface Crew {
    * legs stay apart in its logs.
    */
   greenGate(attempt: number, gate: ResolvedGate): Promise<GateResult>;
+  /**
+   * Put the pass branch's work on the base branch. Present only under `merge`
+   * landing, so a crew's size says which landing the repo declared.
+   *
+   * The one member that is a leg plus a host git action: the leg gets the base
+   * branch's commits into the pass branch, and the host's own `git` then
+   * fast-forwards the base branch onto the result and pushes it.
+   *
+   * `regate` is the harness's green gate, run on what the leg produced —
+   * nothing reaches the host until a gate has passed on what will actually
+   * land, because the earlier verdict said nothing about code that has since
+   * moved.
+   */
+  land?(regate: () => Promise<GateResult>): Promise<LandResult>;
   /**
    * Hand the baton over. `committed` is the tickets whose change the branch
    * carries, in the order they were implemented — what the pull request closes,

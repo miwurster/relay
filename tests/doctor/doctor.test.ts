@@ -15,6 +15,7 @@ import type { GateProbe } from "../../src/doctor/gate-probe.js";
 import { PASS_LABELS, TRIAGE_LABELS } from "../../src/tracker/labels.js";
 
 const validConfig = `export default {
+  landing: "pull-request",
   image: "registry.example.com/relay:1",
 };`;
 
@@ -347,7 +348,7 @@ describe("runDoctorChecks", () => {
 
   it("reports an unbuildable image and skips the daemon check that needs it", async () => {
     const checks = await runDoctorChecks({
-      repoRoot: await repoWith("export default {};"),
+      repoRoot: await repoWith(`export default { landing: "pull-request" };`),
       env: envWithSecrets(),
       git: ignoringGit,
       docker: healthyDocker().docker,
@@ -400,7 +401,7 @@ describe("runDoctorChecks", () => {
   });
 
   it("builds the repo's dockerfile rather than assuming an image is there", async () => {
-    const root = await repoWith("export default {};");
+    const root = await repoWith(`export default { landing: "pull-request" };`);
     await mkdir(join(root, RELAY_DIR), { recursive: true });
     await writeFile(join(root, DEFAULT_DOCKERFILE_PATH), "FROM scratch\n", "utf8");
     const { docker, calls } = healthyDocker();
@@ -466,7 +467,7 @@ describe("runDoctorChecks", () => {
 
   it("reports the gh checks even when the config is invalid", async () => {
     const checks = await runDoctorChecks({
-      repoRoot: await repoWith(`export default {};`),
+      repoRoot: await repoWith(`export default { landing: "pull-request" };`),
       env: envWithSecrets(),
       git: ignoringGit,
       docker: healthyDocker().docker,
@@ -680,7 +681,7 @@ describe("runDoctorChecks", () => {
 
   it("skips the gate check when the config it would open a sandbox from is invalid", async () => {
     const checks = await runDoctorChecks({
-      repoRoot: await repoWith(`export default {};`),
+      repoRoot: await repoWith(`export default { landing: "pull-request" };`),
       env: envWithSecrets(),
       git: ignoringGit,
       docker: healthyDocker().docker,
@@ -711,7 +712,7 @@ describe("runDoctorChecks", () => {
 
   it("skips the gate check when there is no image to run it in", async () => {
     const checks = await runDoctorChecks({
-      repoRoot: await repoWith("export default {};"),
+      repoRoot: await repoWith(`export default { landing: "pull-request" };`),
       env: envWithSecrets(),
       git: ignoringGit,
       docker: healthyDocker().docker,

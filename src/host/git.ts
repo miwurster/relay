@@ -59,6 +59,57 @@ export async function originUrl({
 }
 
 /**
+ * Move the host's checked-out branch onto `branch`, refusing anything that is
+ * not a fast-forward.
+ *
+ * The one step of a pass that touches a branch of the operator's, and it can
+ * only ever move it forward: the lander merged the base branch *into* the pass
+ * branch, so the base branch is an ancestor of what lands
+ * ([ADR-0017](../../docs/adr/0017-the-lander-rebases-and-the-host-only-fast-forwards.md)).
+ */
+export async function fastForwardTo({
+  repoRoot,
+  branch,
+  git = runGit,
+}: {
+  repoRoot: string;
+  branch: string;
+  git?: GitRunner;
+}): Promise<void> {
+  await git(["-C", repoRoot, "merge", "--ff-only", branch]);
+}
+
+/** Push one branch to `origin`. */
+export async function pushBranch({
+  repoRoot,
+  branch,
+  git = runGit,
+}: {
+  repoRoot: string;
+  branch: string;
+  git?: GitRunner;
+}): Promise<void> {
+  await git(["-C", repoRoot, "push", "origin", branch]);
+}
+
+/**
+ * Whether the host's worktree carries uncommitted work — tracked or untracked.
+ *
+ * `merge` landing moves the operator's own branch, and stashing work relay did
+ * not author would make it responsible for restoring it, so a dirty worktree is
+ * refused instead ([ADR-0017](../../docs/adr/0017-the-lander-rebases-and-the-host-only-fast-forwards.md)).
+ */
+export async function isWorktreeDirty({
+  repoRoot,
+  git = runGit,
+}: {
+  repoRoot: string;
+  git?: GitRunner;
+}): Promise<boolean> {
+  return (await git(["-C", repoRoot, "status", "--porcelain"])) !== "";
+}
+
+/**
  * The branch the host has checked out — the one branch a pass is cut from,
  * reviewed against and reported against ([ADR-0016](../../docs/adr/0016-the-base-branch-is-the-hosts-checkout.md)).
  *

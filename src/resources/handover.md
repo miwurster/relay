@@ -7,7 +7,7 @@ The pass ended **{{OUTCOME}}**, because:
 
 > {{REASON}}
 
-You write no code: never edit a file, never commit, never merge, and never close the work item — a human does that themselves, after merging.
+You write no code: never edit a file, never commit, never merge, and never close the work item — a human does that themselves.
 
 ## 1. Read the tracker doc first
 
@@ -15,11 +15,16 @@ Read `{{TRACKER_DOC}}` in this worktree before you touch the tracker.
 It is your only source for tracker access, its ids, and how to comment on and label an item.
 Assume none of it.
 
-## 2. Publish what the outcome is owed
+## 2. Know what this repo's landing owes
 
-A pull request is **{{PULL_REQUEST}}** for this pass — relay worked that out from what the pass committed, and holds you to it.
-Never decide it yourself from the branch.
-`required` means your run has not done its job until one is open; `forbidden` means the branch has nothing worth publishing and opening one is an error.
+This repo's landing is **{{LANDING}}**, and whether the pass put the work on **{{BASE_BRANCH}}** is **{{LANDED}}**.
+relay worked both out itself and holds you to them; never decide either from the branches.
+
+- `pull-request` landing — the branch is published as a pull request for a human to merge. Nothing is ever landed, so `{{LANDED}}` is `no`.
+- `merge` landing — **no pull request is opened on any path**. When `{{LANDED}}` is `yes`, relay rebased {{BRANCH}}, fast-forwarded {{BASE_BRANCH}} onto it and pushed it before you ran; when it is `no`, {{BASE_BRANCH}} was left exactly where it was.
+
+A pull request is **{{PULL_REQUEST}}** for this pass.
+`required` means your run has not done its job until one is open; `forbidden` means opening one is an error.
 
 When one is `required`, this is how you open it — the sandbox is thrown away after you, so unpushed work is lost work:
 
@@ -41,32 +46,42 @@ Now do the one outcome below that matches **{{OUTCOME}}**, and nothing from the 
 
 ### success
 
-The branch is green and reviewable.
+The branch is green.
 
-1. Open the pull request. Its body names the command that verified it and where relay got that command — {{REASON}} above.
-2. Swap the labels on {{WORK_ITEM}}: add `agent-in-review` and remove `agent-in-progress`.
-3. Comment the resolution on {{WORK_ITEM}}: the pull request URL, one line on what the pass built, and {{REASON}}.
+1. When a pull request is `required`, open it. Its body names the command that verified it and where relay got that command — {{REASON}} above.
+   When it is `forbidden` the work is already on {{BASE_BRANCH}} and pushed, so there is nothing to publish: skip this step.
+2. Label {{WORK_ITEM}}:
+   - under `pull-request` landing, add `agent-in-review` and remove `agent-in-progress` — the work is waiting on a human's review;
+   - under `merge` landing, remove `agent-in-progress` and add **no** label — nothing is awaiting a review that is not coming.
+3. Comment the resolution on {{WORK_ITEM}}: the pull request URL when there is one, or {{BASE_BRANCH}} when the work landed there; one line on what the pass built; the tickets it committed; and {{REASON}}.
 
 ### mid-block
 
 The pass started but could not finish.
+Under `merge` landing that also means {{BASE_BRANCH}} was left exactly where it was, whatever {{REASON}} says went wrong.
 
-1. When a pull request is `required`, open it as a **draft** — the same one command, with `--draft` on it:
+1. Push the committed work, so it is reachable from somewhere other than this sandbox:
+
+   ```sh
+   git push -u origin {{BRANCH}}
+   ```
+
+   Then, when a pull request is `required`, open it as a **draft** — the same one command, with `--draft` on it:
 
    ```sh
    gh pr create --draft --title '<title>' --body '<body>'
    ```
 
-   When it is `forbidden` the pass blocked before it committed anything, so there is nothing to push: skip this step and say so in your report.
+   When the pass committed **nothing** there is nothing to push at all: skip this step and say so in your report.
 
 2. Swap the labels on {{WORK_ITEM}}: add `agent-blocked` and remove `agent-in-progress`.
-3. Comment on {{WORK_ITEM}}: the draft pull request URL when there is one, one line on what the pass built, the cause above, and what a human has to decide.
+3. Comment on {{WORK_ITEM}}: the branch and the draft pull request URL when there is one, one line on what the pass built, the cause above, and what a human has to decide.
 
 ### early-bail
 
 The planner refused an under-specified item before any code was written.
 
-1. Open **no** pull request — an empty branch is noise.
+1. Open **no** pull request and push **nothing** — an empty branch is noise.
 2. Swap the labels on {{WORK_ITEM}}: add `agent-blocked` and remove `agent-in-progress`.
 3. Comment what is missing from the item.
 
@@ -77,7 +92,8 @@ Write the report the human reads in their terminal, as plain text lines — no J
 - the outcome and, when the pass did not succeed, its cause;
 - {{WORK_ITEM}} and the state you left it in;
 - the branch, and the pull request URL when there is one;
-- each ticket the branch committed, with its short SHA from `git log --oneline {{BASE_BRANCH}}..{{BRANCH}}`;
+- what landed and where: {{BASE_BRANCH}} when {{LANDED}} is `yes`, and otherwise that nothing was landed and the work sits on {{BRANCH}} alone;
+- each ticket the branch committed, with its short SHA from `git log --oneline {{BASE_BRANCH}}..{{BRANCH}}` — read those now, never earlier, because a rebase before you rewrote them;
 - the green gate's verdict.
 
 ## Output
@@ -85,10 +101,16 @@ Write the report the human reads in their terminal, as plain text lines — no J
 End your run by emitting exactly one `<relay-handover>` block and nothing after it.
 Put the report in it as one string, with `\n` between its lines.
 
-Published:
+Published as a pull request:
 
 <relay-handover>
 {"prUrl": "https://github.com/acme/widgets/pull/42", "report": "outcome: success\nwork item: #7 (agent-in-review)\nbranch: agent/7\npull request: https://github.com/acme/widgets/pull/42\ntickets: 1a2b3c4 feat(cart): reject an empty cart (closes #8)\ngate: `make test` exited 0"}
+</relay-handover>
+
+Landed on the base branch, with no pull request:
+
+<relay-handover>
+{"report": "outcome: success\nwork item: #7 (agent-in-progress removed)\nlanded: main, pushed\nbranch: agent/7\ntickets: 1a2b3c4 feat(cart): reject an empty cart (#8)\ngate: `make test` exited 0"}
 </relay-handover>
 
 Bailed early, with no pull request:

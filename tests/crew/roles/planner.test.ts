@@ -10,7 +10,7 @@ import { createPlanner, PLAN_TAG } from "../../../src/crew/roles/planner.js";
 import { readResource } from "../../../src/resources.js";
 import { TRACKER_DOC_PATH } from "../../../src/tracker/tracker-doc.js";
 
-const config = relayConfigSchema.parse({});
+const config = relayConfigSchema.parse({ landing: "pull-request" });
 
 const issue: GitHubIssue = {
   number: 7,

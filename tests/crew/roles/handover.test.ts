@@ -10,14 +10,15 @@ import { readResource } from "../../../src/resources.js";
 import { createHandover, HANDOVER_TAG } from "../../../src/crew/roles/handover.js";
 import { TRACKER_DOC_PATH } from "../../../src/tracker/tracker-doc.js";
 
-const config = relayConfigSchema.parse({});
+const config = relayConfigSchema.parse({ landing: "pull-request" });
+const mergeConfig = relayConfigSchema.parse({ landing: "merge" });
 
 const workItem = 7;
 const branch = "agent/7";
 const baseBranch = "main";
 
 /** A sandbox whose handover run has a fixed stdout and commit count. */
-function handing({ stdout = "", commits = [] as { sha: string }[] } = {}) {
+function handing({ stdout = "", commits = [] as { sha: string }[], withConfig = config } = {}) {
   const runs: SandboxRunOptions[] = [];
   const sandbox = {
     async run(options: SandboxRunOptions): Promise<SandboxRunResult> {
@@ -27,7 +28,14 @@ function handing({ stdout = "", commits = [] as { sha: string }[] } = {}) {
   } as unknown as Sandbox;
 
   return {
-    handover: createHandover({ sandbox, config, recordDir, workItem, branch, baseBranch }),
+    handover: createHandover({
+      sandbox,
+      config: withConfig,
+      recordDir,
+      workItem,
+      branch,
+      baseBranch,
+    }),
     runs,
   };
 }
@@ -79,6 +87,8 @@ describe("createHandover", () => {
       OUTCOME: "success",
       REASON: "`make test` exited 0 — declared in relay.config.ts.",
       PULL_REQUEST: "required",
+      LANDING: "pull-request",
+      LANDED: "no",
       COMMITTED_TICKETS: "#8, #9",
       WORK_ITEM: `#${workItem}`,
       BRANCH: branch,
@@ -220,6 +230,57 @@ describe("createHandover", () => {
   });
 });
 
+describe("createHandover under merge landing", () => {
+  const merging = (stdout: string) => handing({ stdout, withConfig: mergeConfig });
+
+  it("tells the leg the landing, the base branch, and that the work landed", async () => {
+    const { handover, runs } = merging(tagged('{"report":"#7 landed on main."}'));
+
+    await handover(success, tickets);
+
+    expect(runs[0]?.promptArgs).toMatchObject({
+      LANDING: "merge",
+      LANDED: "yes",
+      BASE_BRANCH: baseBranch,
+      COMMITTED_TICKETS: "#8, #9",
+    });
+  });
+
+  it("forbids a pull request on a successful pass, which has already landed", async () => {
+    const { handover, runs } = merging(tagged('{"report":"#7 landed on main."}'));
+
+    await handover(success, tickets);
+
+    expect(runs[0]?.promptArgs).toMatchObject({ PULL_REQUEST: "forbidden" });
+  });
+
+  it("forbids a pull request on a blocked pass that committed work, and says nothing landed", async () => {
+    const { handover, runs } = merging(tagged('{"report":"#7 blocked; agent/7 pushed."}'));
+
+    await handover(midBlock, tickets);
+
+    expect(runs[0]?.promptArgs).toMatchObject({ PULL_REQUEST: "forbidden", LANDED: "no" });
+  });
+
+  it("still refuses a leg that opened a pull request anyway, on any outcome", async () => {
+    await expect(
+      handing({ stdout: published, withConfig: mergeConfig }).handover(success, tickets),
+    ).rejects.toThrow(/opens none on any path/);
+    await expect(
+      handing({ stdout: published, withConfig: mergeConfig }).handover(midBlock, tickets),
+    ).rejects.toThrow(RoleError);
+    await expect(
+      handing({ stdout: published, withConfig: mergeConfig }).handover(earlyBail, nothing),
+    ).rejects.toThrow(RoleError);
+  });
+
+  it("lets a success hand over with no pull request at all", async () => {
+    const { handover } = merging(tagged('{"report":"#7 landed on main."}'));
+
+    await expect(handover(success, tickets)).resolves.toBeUndefined();
+  });
+});
+
 /**
  * What the leg publishes lives in its prompt, so what the prompt instructs is
  * the only thing there is to assert about how the pull request gets opened.
@@ -244,6 +305,31 @@ describe("the handover prompt", () => {
     expect(prompt).toMatch(/`Closes` line for \*\*each ticket the pass committed\*\*/);
     expect(prompt).toContain("The pass committed **{{COMMITTED_TICKETS}}**");
     expect(prompt).toMatch(/Never work the list out yourself/);
+  });
+
+  it("is told the landing and whether the work landed, rather than reading the branches", () => {
+    expect(prompt).toContain("This repo's landing is **{{LANDING}}**");
+    expect(prompt).toContain("**{{LANDED}}**");
+    expect(prompt).toMatch(/never decide either from the branches/);
+  });
+
+  it("says a merge repo opens no pull request on any path", () => {
+    expect(prompt).toMatch(/no pull request is opened on any path/);
+  });
+
+  it("adds no label to a merge repo's successful item beyond removing the hold", () => {
+    expect(prompt).toMatch(
+      /under `merge` landing, remove `agent-in-progress` and add \*\*no\*\* label/,
+    );
+  });
+
+  it("pushes the pass branch on a blocked pass", () => {
+    const blocked = prompt.slice(prompt.indexOf("### mid-block"), prompt.indexOf("### early-bail"));
+    expect(blocked).toContain("git push -u origin {{BRANCH}}");
+  });
+
+  it("reads the per-ticket SHAs only after the rebase that rewrote them", () => {
+    expect(prompt).toMatch(/never earlier, because a rebase before you rewrote them/);
   });
 
   it("swaps the held label for the state the outcome leaves the item in", () => {
