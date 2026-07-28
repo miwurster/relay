@@ -24,12 +24,13 @@ Legs share only the worktree's files and git history, so anything one leg must t
 _Avoid_: subagent, child agent
 
 **Role**:
-A kind of **leg**: **gate resolver**, planner, implementer, reviewer, fixer, **green gate**, handover.
+A kind of **leg**: **gate resolver**, planner, implementer, reviewer, fixer, **green gate**, **lander**, handover.
 A role is a prompt, a model, a tagged answer, and a rule about what it may leave on the branch.
 _Avoid_: agent, worker, actor
 
 **Crew**:
-The seven **roles** one pass runs, as one interface.
+The **roles** one pass runs, as one interface.
+Seven of them always, and the **lander** as an eighth when the repo's **landing** is `merge`.
 _Avoid_: pipeline, team, orchestrator
 
 **Lens**:
@@ -89,9 +90,22 @@ It is on the record of every **pass** — the **handover** names it, and the **d
 _Avoid_: source, origin, confidence
 
 **Handover**:
-The pass's last **leg**: it publishes the branch as a pull request when the **outcome** is owed one, and tells the human what state the work is in.
+The pass's last **leg**: it publishes what the **landing** and the **outcome** owe, and tells the human what state the work is in.
 Every outcome reaches it — no path skips the handover.
+It is the only role that writes to the tracker, so closing a **ticket** is its act and never the **lander**'s.
 _Avoid_: finalize, wrap-up, publish
+
+**Landing**:
+How a repo's passes deliver a green branch: `pull-request`, where a human merges and closes, or `merge`, where the **lander** puts the work on the **base branch** and the **handover** closes what landed.
+The repo's to declare and required to declare — relay has no default, because a landing nobody chose is a base branch nobody agreed to move ([ADR-0015](docs/adr/0015-a-repo-declares-how-a-pass-lands.md)).
+A `merge` repo never opens a pull request, blocked or not.
+_Avoid_: mode, strategy, merge mode
+
+**Lander**:
+Under `merge` **landing**, the **leg** between the **green gate** and the **handover**: it rebases the **pass branch** onto the **base branch**, or merges on conflict, and re-runs the green gate on the result.
+It only ever moves the pass branch, so the host's move is always a fast-forward and the base branch can only go forward ([ADR-0017](docs/adr/0017-the-lander-rebases-and-the-host-only-fast-forwards.md)).
+It writes no tracker state and closes nothing.
+_Avoid_: merger, integrator, merge agent
 
 **Outcome**:
 How a pass ended, and therefore which **handover** it gets: `success`, `mid-block`, or `early-bail`.
@@ -137,9 +151,15 @@ The container is disposed of whatever happens; the worktree is disposed of on a 
 Every **leg** of the pass runs inside it.
 _Avoid_: container, environment, workspace
 
+**Base branch**:
+The one branch a **pass** is cut from, reviewed against, reported against and lands on, read from the host repository's checkout at pass start.
+Never configured: a config value detected once and the branch an operator actually stands on drift apart, and merge **landing** cannot survive them disagreeing ([ADR-0016](docs/adr/0016-the-base-branch-is-the-hosts-checkout.md)).
+A detached or unborn HEAD is refused rather than fallen back on.
+_Avoid_: default branch, target branch, trunk
+
 **Pass branch**:
-The branch one **pass** commits to, cut from the repo's default branch.
-relay never reuses, resets or deletes one.
+The branch one **pass** commits to, cut from the **base branch**.
+relay never reuses, resets or deletes one, and rewrites one only where the **lander** rebases it.
 _Avoid_: agent branch, feature branch
 
 **Skill plugin**:
@@ -184,8 +204,8 @@ A check it could not reach is skipped rather than failed, and one it can only wa
 _Avoid_: healthcheck, diagnostics
 
 **Warning**:
-A **doctor** check whose setup relay can run against but had to guess at — today, an `inferred` **provenance**.
-It prints apart from ok and from failed and leaves the exit code alone, because a gate no doc declares is imperfect, not broken.
+A **doctor** check whose setup relay can run against but had to guess at or would rather the operator knew: an `inferred` **provenance**, or a dirty host worktree under `merge` **landing**.
+It prints apart from ok and from failed and leaves the exit code alone, because neither is broken setup — the worktree a **pass** actually refuses is the one it finds dirty at its own start.
 _Avoid_: soft failure, notice
 
 **Gate probe**:
