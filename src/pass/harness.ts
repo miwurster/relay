@@ -31,6 +31,10 @@ export const MAX_GATE_FIX_ATTEMPTS = 2;
  * lenses → fix, then both in-depth lenses over the whole branch → fix, then
  * the gate → fixer loop, then handover. Every exit path ends at the same
  * handover call, so no outcome can skip it.
+ *
+ * A multi-ticket plan is the shape that topology is for. A single-ticket plan
+ * drops the fast lenses, since its one ticket is the work item and the two
+ * scopes would ask the same question twice — see `perTicketLenses`.
  */
 export async function runHarness(crew: Crew, issue: GitHubIssue): Promise<Outcome> {
   const { outcome, committed } = await runLegs(crew, issue);
@@ -60,11 +64,29 @@ async function runLegs(crew: Crew, issue: GitHubIssue): Promise<LegsResult> {
     return { outcome: { kind: "early-bail", reason: plan.reason }, committed: [] };
   }
 
-  const { committed, blocked } = await implementTickets(crew, plan.tickets);
+  const { committed, blocked } = await implementTickets(
+    crew,
+    plan.tickets,
+    perTicketLenses(plan.tickets),
+  );
   if (blocked) return { outcome: blocked, committed };
 
   await reviewAndFix(crew, WHOLE_BRANCH_LENSES, { kind: "branch", workItem: issue.number });
   return { outcome: await driveGate(crew, gate), committed };
+}
+
+/**
+ * The lenses each ticket is reviewed by once it is implemented.
+ *
+ * A single-ticket plan is the work item itself, so its ticket scope and the
+ * branch scope are one question asked twice — the same intent, over the same
+ * diff but for the fixer's own commit. The per-ticket round is the one to drop:
+ * it is there to keep a bad ticket out of the tickets that follow it, and there
+ * are none. The branch lenses then read strictly more, at a fuller depth, and
+ * they stay what they always were — the only legs that read a fixer's commit.
+ */
+function perTicketLenses(tickets: readonly TicketRef[]): readonly ReviewLens[] {
+  return tickets.length === 1 ? [] : PER_TICKET_LENSES;
 }
 
 /**
@@ -76,6 +98,7 @@ async function runLegs(crew: Crew, issue: GitHubIssue): Promise<LegsResult> {
 async function implementTickets(
   crew: Crew,
   tickets: readonly TicketRef[],
+  lenses: readonly ReviewLens[],
 ): Promise<{ committed: TicketRef[]; blocked?: Outcome }> {
   const committed: TicketRef[] = [];
   for (const ticket of tickets) {
@@ -84,7 +107,7 @@ async function implementTickets(
       return { committed, blocked: { kind: "mid-block", reason: result.reason } };
     }
     committed.push(ticket);
-    await reviewAndFix(crew, PER_TICKET_LENSES, { kind: "ticket", ticket, base: result.base });
+    await reviewAndFix(crew, lenses, { kind: "ticket", ticket, base: result.base });
   }
   return { committed };
 }

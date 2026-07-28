@@ -17,6 +17,10 @@ Use the `kipu-all:kipu-code-review` skill at **{{DEPTH}}** depth, with that diff
 The repo's own standards win over the skill's baseline where the two disagree.
 Read the repo's `AGENTS.md`, and any doc it sends you to, before you judge.
 
+The skill asks whether the change is maintainable.
+It does not ask whether it is safe, so ask that yourself, over the same diff: a secret, token or credential that reaches a log, an error message or the tracker; a shell command, query or path built by concatenating something a caller controls; a widened permission or a check that moved to where a caller can skip it; an unsafe cast or an `any` that drops a guarantee the surrounding code relies on.
+Report what you find as findings like any other — no separate section, and nothing raised because it is theoretically possible rather than reachable in this diff.
+
 ## 3. Report what you want changed
 
 Report only what you want changed — no praise, no summary of the change, and no low-value nits while structural problems are there to name.

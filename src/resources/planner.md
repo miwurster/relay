@@ -31,6 +31,12 @@ The plan is {{WORK_ITEM}}'s sub-issues, under the relation model the doc describ
 
 An item with a whole tree of sub-issues is the ordinary multi-ticket case, not something to refuse.
 
+Declared relations are not the only thing that orders a plan, and most sub-issues carry none.
+Where no relation is declared, order the tickets by what their changes need from each other: a ticket that uses a type, a schema, a table or an API shape another ticket introduces comes after that ticket, and two tickets that rewrite the same code are ordered rather than left to collide.
+Every ticket of the pass is implemented on one branch, one after another, so this order is the whole of what keeps a later ticket from being written against code that is not there yet.
+
+Ordering is not authoring: you are deciding the sequence of tickets a human already wrote, never their content, and a ticket you would have to reword to fit an order is a ticket to bail on instead.
+
 You verify and order.
 You never author, slice, split or invent a ticket, and you never create one in the tracker.
 Plurality comes only from tickets a human already wrote.

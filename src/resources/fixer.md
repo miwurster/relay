@@ -20,6 +20,7 @@ Fix each finding with the smallest change that resolves it.
 The findings are your whole brief: no work none of them asked for, and no changes to code none of them points at.
 
 Use the `kipu-all:tdd` skill where a finding is about behaviour, so the fix has a test that fails without it.
+Read the tests that already cover that behaviour first: the case a finding describes is often one an existing test file should hold, rather than one that needs a file of its own.
 Run typechecking and the tests you touched, then the full test suite once at the end.
 
 A finding you judge wrong, or already handled by another finding's fix, is not one to invent a change for — say so in your commit message instead.

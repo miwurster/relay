@@ -41,6 +41,16 @@ const finding = (source: Finding["source"], summary: string, ticket?: number): F
   ...(ticket ? { ticket } : {}),
 });
 
+/**
+ * A two-ticket plan, for the tests about what a ticket's own lenses do: a
+ * single-ticket plan has no per-ticket round at all.
+ */
+const twoTicketPlan = {
+  async plan(): Promise<PlanResult> {
+    return { kind: "plan", tickets: [ticket(1), ticket(2)] };
+  },
+};
+
 /** A crew that records the order of every leg, with overridable roles. */
 function recordingCrew(overrides: Partial<Crew> = {}) {
   const calls: string[] = [];
@@ -125,6 +135,7 @@ describe("runHarness", () => {
     const events: string[] = [];
 
     const { crew } = recordingCrew({
+      ...twoTicketPlan,
       async review(lens: ReviewLens) {
         events.push(`start:${lens}`);
         await Promise.resolve();
@@ -140,6 +151,10 @@ describe("runHarness", () => {
       "end:fastCodeReview",
       "start:fastSpecReview",
       "end:fastSpecReview",
+      "start:fastCodeReview",
+      "end:fastCodeReview",
+      "start:fastSpecReview",
+      "end:fastSpecReview",
       "start:inDepthCodeReview",
       "end:inDepthCodeReview",
       "start:inDepthSpecReview",
@@ -149,6 +164,7 @@ describe("runHarness", () => {
 
   it("array-merges both lenses' findings into one fixer call", async () => {
     const { crew, fixed } = recordingCrew({
+      ...twoTicketPlan,
       async review(lens, scope) {
         if (scope.kind !== "ticket") return [];
         return [finding(lens, "same problem", scope.ticket.number)];
@@ -165,6 +181,7 @@ describe("runHarness", () => {
 
   it("tells each fixer leg what it is fixing", async () => {
     const { crew, fixTargets } = recordingCrew({
+      ...twoTicketPlan,
       async review(lens, scope) {
         const ticketNumber = scope.kind === "ticket" ? scope.ticket.number : undefined;
         return [finding(lens, "same problem", ticketNumber)];
@@ -178,9 +195,26 @@ describe("runHarness", () => {
 
     expect(fixTargets).toEqual([
       { kind: "ticket", ticket: ticket(1) },
+      { kind: "ticket", ticket: ticket(2) },
       { kind: "branch" },
       { kind: "gate", attempt: 1 },
       { kind: "gate", attempt: 2 },
+    ]);
+  });
+
+  it("reviews a single-ticket plan once, at branch scope, not twice", async () => {
+    const { crew, calls } = recordingCrew();
+
+    await run(crew);
+
+    expect(calls).toEqual([
+      "resolveGate",
+      "plan",
+      "implement:1",
+      "review:inDepthCodeReview:branch",
+      "review:inDepthSpecReview:branch",
+      "gate",
+      "handover:success",
     ]);
   });
 
