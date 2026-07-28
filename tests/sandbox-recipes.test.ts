@@ -19,6 +19,12 @@ describe.each([
     expect(recipe).toContain("claude.ai/install.sh");
   });
 
+  it("makes room for the agent user when the base image already holds its uid", async () => {
+    const recipe = await readResource("sandbox-recipes", file);
+    expect(recipe).toMatch(/getent passwd "\$\{AGENT_UID\}"/);
+    expect(recipe).toContain("userdel");
+  });
+
   it("is built on its documented base", async () => {
     const recipe = await readResource("sandbox-recipes", file);
     expect(recipe).toContain(fromLine);

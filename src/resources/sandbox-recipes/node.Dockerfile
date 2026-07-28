@@ -36,8 +36,11 @@ RUN install -m 0755 -d /etc/apt/keyrings \
     && apt-get install -y --no-install-recommends docker-ce-cli \
     && rm -rf /var/lib/apt/lists/*
 
-# Low gids (e.g. macOS "staff", 20) often already exist in the base image.
-RUN if ! getent group "${AGENT_GID}" >/dev/null; then groupadd -g "${AGENT_GID}" agent; fi \
+# The base image often already holds the host's uid (node:lts owns 1000) or its
+# gid (macOS "staff", 20), so make room before claiming them for the agent.
+RUN taken="$(getent passwd "${AGENT_UID}" | cut -d: -f1)" \
+    && if [ -n "${taken}" ]; then userdel "${taken}"; fi \
+    && if ! getent group "${AGENT_GID}" >/dev/null; then groupadd -g "${AGENT_GID}" agent; fi \
     && useradd --create-home --uid "${AGENT_UID}" --gid "${AGENT_GID}" --shell /bin/bash agent \
     && echo 'agent ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/agent \
     && chmod 0440 /etc/sudoers.d/agent
