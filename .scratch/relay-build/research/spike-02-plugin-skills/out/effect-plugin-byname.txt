@@ -1,2 +1,0 @@
-7338f6c chore: update app.txt
-ea36c71 chore: seed

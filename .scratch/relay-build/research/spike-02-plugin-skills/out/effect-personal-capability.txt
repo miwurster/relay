@@ -1,2 +1,0 @@
-0cca0d8 feat: release v2
-effb78b chore: seed

@@ -1,7 +1,0 @@
-# claude runtime pollution from the spike; only skills/ + commands/ are evidence
-.claude.json
-.last-cleanup
-backups/
-projects/
-remote-settings.json
-policy-limits.json
