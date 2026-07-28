@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Landing } from "../../config.js";
-import type { Crew, Outcome, TicketRef } from "../contract.js";
+import type { Crew, LandResult, Outcome, TicketRef } from "../contract.js";
 import { RoleError } from "../../errors.js";
 import { type RoleDeps, runRole } from "../run-role.js";
 import { TRACKER_DOC_PATH } from "../../tracker/tracker-doc.js";
@@ -32,8 +32,12 @@ export function createHandover({
   baseBranch,
   ...deps
 }: RoleDeps & { workItem: number; branch: string; baseBranch: string }): Crew["handover"] {
-  return async function handover(outcome: Outcome, committed: readonly TicketRef[]): Promise<void> {
-    const leg = describeLeg(outcome, committed, deps.config.landing);
+  return async function handover(
+    outcome: Outcome,
+    committed: readonly TicketRef[],
+    land?: LandResult,
+  ): Promise<void> {
+    const leg = describeLeg(outcome, committed, deps.config.landing, land);
 
     const { prUrl, report } = await runRole({
       ...deps,
@@ -50,6 +54,7 @@ export function createHandover({
         // it — the leg publishes against these rather than reading the branches.
         LANDING: deps.config.landing,
         LANDED: leg.landed,
+        LANDED_DETAIL: leg.landedDetail,
         // Told too: the leg cannot read the ticket numbers back out of the
         // commits, which carry no issue reference of their own.
         COMMITTED_TICKETS: leg.committed,
@@ -92,6 +97,8 @@ interface HandoverLeg {
   noPullRequestBecause: string;
   /** Whether the base branch was landed on: `merge` landing's own question. */
   landed: "yes" | "no";
+  /** What the lander did to get there, or that nothing landed. */
+  landedDetail: string;
   /** The tickets the pull request closes, as the prompt names them. */
   committed: string;
 }
@@ -100,6 +107,7 @@ function describeLeg(
   outcome: Outcome,
   committed: readonly TicketRef[],
   landing: Landing,
+  land: LandResult | undefined,
 ): HandoverLeg {
   return {
     cause: outcome.kind === "success" ? outcome.detail : outcome.reason,
@@ -108,9 +116,11 @@ function describeLeg(
       landing === "merge"
         ? "this repo's landing is `merge`, which opens none on any path"
         : "the branch carries nothing worth publishing",
-    // A pass that could not land the base branch ends `mid-block`, so under
-    // `merge` landing success is exactly the pass that landed.
-    landed: landing === "merge" && outcome.kind === "success" ? "yes" : "no",
+    // The lander's own verdict, never the landing and the outcome read together:
+    // a crew with no lander landed nothing, and one that reported `not-landed`
+    // left the base branch where it was.
+    landed: land?.kind === "landed" ? "yes" : "no",
+    landedDetail: land?.kind === "landed" ? land.detail : "nothing was landed",
     committed: committed.map((ticket) => `#${ticket.number}`).join(", ") || "nothing",
   };
 }

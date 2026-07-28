@@ -133,6 +133,12 @@ export interface Crew {
    * Hand the baton over. `committed` is the tickets whose change the branch
    * carries, in the order they were implemented — what the pull request closes,
    * and what decides whether there is a pull request at all.
+   *
+   * `land` is what the lander did, present exactly when the lander ran — a pass
+   * that blocked before it reached one landed nothing either way. The
+   * handover is told it rather than working it out from the landing and the
+   * outcome, because closing an issue is the pass's one irreversible tracker
+   * act and the leg that does it has to be reading the lander's own verdict.
    */
-  handover(outcome: Outcome, committed: readonly TicketRef[]): Promise<void>;
+  handover(outcome: Outcome, committed: readonly TicketRef[], land?: LandResult): Promise<void>;
 }

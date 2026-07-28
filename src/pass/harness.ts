@@ -38,8 +38,8 @@ export const MAX_GATE_FIX_ATTEMPTS = 2;
  * scopes would ask the same question twice — see `perTicketLenses`.
  */
 export async function runHarness(crew: Crew, issue: GitHubIssue): Promise<Outcome> {
-  const { outcome, committed } = await runLegs(crew, issue);
-  await crew.handover(outcome, committed);
+  const { outcome, committed, land } = await runLegs(crew, issue);
+  await crew.handover(outcome, committed, land);
   return outcome;
 }
 
@@ -52,6 +52,8 @@ export function exitCodeFor(outcome: Outcome): ExitCode {
 interface LegsResult {
   outcome: Outcome;
   committed: TicketRef[];
+  /** What the lander did, present exactly when the legs got as far as running it. */
+  land?: LandResult;
 }
 
 async function runLegs(crew: Crew, issue: GitHubIssue): Promise<LegsResult> {
@@ -81,19 +83,16 @@ async function runLegs(crew: Crew, issue: GitHubIssue): Promise<LegsResult> {
   // The loop's verdict said nothing about what the base branch has gained since
   // it was taken, so the lander's result is gated once more — the same resolved
   // gate, numbered as the run after the loop's last.
-  const landing = await crew.land(() => crew.greenGate(runs + 1, gate));
-  return { outcome: outcomeOfLanding(landing), committed };
-}
-
-/**
- * What a landing attempt means for the pass. A base branch that was not landed
- * on is a `mid-block` with everything the pass committed still only on its own
- * branch — nothing landed, nothing closed, and no commit authored on the way.
- */
-function outcomeOfLanding(landing: LandResult): Outcome {
-  return landing.kind === "landed"
-    ? { kind: "success", detail: landing.detail }
-    : { kind: "mid-block", reason: landing.reason };
+  const land = await crew.land(() => crew.greenGate(runs + 1, gate));
+  // A base branch that was not landed on is a `mid-block` with everything the
+  // pass committed still only on its own branch — nothing landed, nothing
+  // closed. A landing leaves the gate loop's verdict as the outcome: the gate is
+  // what verified what landed, and the lander's own story travels beside it.
+  return {
+    outcome: land.kind === "landed" ? outcome : { kind: "mid-block", reason: land.reason },
+    committed,
+    land,
+  };
 }
 
 /**

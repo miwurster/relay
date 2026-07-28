@@ -22,7 +22,7 @@ This repo's landing is **{{LANDING}}**, and whether the pass put the work on **{
 relay worked both out itself and holds you to them; never decide either from the branches.
 
 - `pull-request` landing — the branch is published as a pull request for a human to merge. Nothing is ever landed, so `{{LANDED}}` is `no`, and closing is a human's once they merge.
-- `merge` landing — **no pull request is opened on any path**, and closing what landed is yours. When `{{LANDED}}` is `yes`, relay rebased {{BRANCH}}, fast-forwarded {{BASE_BRANCH}} onto it and pushed it before you ran; when it is `no`, {{BASE_BRANCH}} was left exactly where it was.
+- `merge` landing — **no pull request is opened on any path**, and closing what landed is yours. When `{{LANDED}}` is `yes`, relay rebased {{BRANCH}}, fast-forwarded {{BASE_BRANCH}} onto it and pushed it before you ran — {{LANDED_DETAIL}}; when it is `no`, {{BASE_BRANCH}} was left exactly where it was.
 
 A pull request is **{{PULL_REQUEST}}** for this pass.
 `required` means your run has not done its job until one is open; `forbidden` means opening one is an error.
@@ -102,7 +102,7 @@ Write the report the human reads in their terminal, as plain text lines — no J
 - the outcome and, when the pass did not succeed, its cause;
 - {{WORK_ITEM}} and the state you left it in;
 - the branch, and the pull request URL when there is one;
-- what landed and where: {{BASE_BRANCH}} when {{LANDED}} is `yes`, and otherwise that nothing was landed and the work sits on {{BRANCH}} alone;
+- what landed and how: {{LANDED_DETAIL}} — relay's own words for it, and when {{LANDED}} is `no` say too that the work sits on {{BRANCH}} alone;
 - each ticket the branch committed, with its short SHA from `git log --oneline {{BASE_BRANCH}}..{{BRANCH}}` — read those now, never earlier, because a rebase before you rewrote them;
 - the green gate's verdict.
 

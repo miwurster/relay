@@ -59,6 +59,7 @@ function recordingCrew(overrides: Partial<Crew> = {}) {
   const fixTargets: FixTarget[] = [];
   let handedOver: Outcome | undefined;
   let handedOverTickets: readonly TicketRef[] = [];
+  let handedOverLand: LandResult | undefined;
 
   const crew: Crew = {
     async resolveGate(): Promise<ResolvedGate> {
@@ -86,10 +87,11 @@ function recordingCrew(overrides: Partial<Crew> = {}) {
       calls.push("gate");
       return { green: true, detail: "green" };
     },
-    async handover(outcome, committed): Promise<void> {
+    async handover(outcome, committed, land): Promise<void> {
       calls.push(`handover:${outcome.kind}`);
       handedOver = outcome;
       handedOverTickets = committed;
+      handedOverLand = land;
     },
     ...overrides,
   };
@@ -101,6 +103,7 @@ function recordingCrew(overrides: Partial<Crew> = {}) {
     fixTargets,
     handover: () => handedOver,
     committed: () => handedOverTickets,
+    land: () => handedOverLand,
   };
 }
 
@@ -376,10 +379,7 @@ describe("runHarness", () => {
   it("runs end to end on the stub crew of a merge-landing repo", async () => {
     const outcome = await runHarness(createStubCrew({ landing: "merge" }), issue);
 
-    expect(outcome).toEqual({
-      kind: "success",
-      detail: "the stub lander landed nothing, on purpose",
-    });
+    expect(outcome).toEqual({ kind: "success", detail: "stub gate is always green" });
   });
 });
 
@@ -406,7 +406,9 @@ describe("runHarness under merge landing", () => {
 
     const outcome = await run(crew);
 
-    expect(outcome).toEqual({ kind: "success", detail: "agent/1 was rebased onto main" });
+    // The gate that verified what landed stays the outcome's detail: the lander's
+    // own story is handed to the handover beside it, not in place of it.
+    expect(outcome).toEqual({ kind: "success", detail: "green" });
     expect(calls).toEqual([
       "resolveGate",
       "plan",
@@ -427,6 +429,45 @@ describe("runHarness under merge landing", () => {
 
     expect(calls).not.toContain("land");
     expect(calls.filter((call) => call === "gate")).toHaveLength(1);
+  });
+
+  it("hands the handover what the lander did, rather than leaving it to infer it", async () => {
+    const { crew, land } = landingCrew(landed);
+
+    await run(crew);
+
+    expect(land()).toEqual(landed);
+  });
+
+  it("hands the handover a refusal too, so nothing reads a block as a landing", async () => {
+    const notLanded: LandResult = { kind: "not-landed", reason: "main would not fast-forward" };
+    const { crew, land } = landingCrew(notLanded);
+
+    await run(crew);
+
+    expect(land()).toEqual(notLanded);
+  });
+
+  it("hands the handover no landing at all when the crew has no lander", async () => {
+    const { crew, land } = recordingCrew();
+
+    await run(crew);
+
+    expect(land()).toBeUndefined();
+  });
+
+  it("hands the handover no landing when a merge pass blocked before its lander ran", async () => {
+    const { crew, calls, land } = landingCrew(landed, {
+      async greenGate(): Promise<GateResult> {
+        calls.push("gate");
+        return { green: false, detail: "still red" };
+      },
+    });
+
+    await run(crew);
+
+    expect(calls).not.toContain("land");
+    expect(land()).toBeUndefined();
   });
 
   it("re-gates the lander's result with the resolved gate, on the run after the loop's last", async () => {

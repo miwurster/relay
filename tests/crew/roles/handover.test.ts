@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { Sandbox, SandboxRunOptions, SandboxRunResult } from "@ai-hero/sandcastle";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { relayConfigSchema } from "../../../src/config.js";
-import type { Outcome, TicketRef } from "../../../src/crew/contract.js";
+import type { LandResult, Outcome, TicketRef } from "../../../src/crew/contract.js";
 import { RoleError } from "../../../src/errors.js";
 import { readResource } from "../../../src/resources.js";
 import { createHandover, HANDOVER_TAG } from "../../../src/crew/roles/handover.js";
@@ -89,6 +89,7 @@ describe("createHandover", () => {
       PULL_REQUEST: "required",
       LANDING: "pull-request",
       LANDED: "no",
+      LANDED_DETAIL: "nothing was landed",
       COMMITTED_TICKETS: "#8, #9",
       WORK_ITEM: `#${workItem}`,
       BRANCH: branch,
@@ -233,17 +234,42 @@ describe("createHandover", () => {
 describe("createHandover under merge landing", () => {
   const merging = (stdout: string) => handing({ stdout, withConfig: mergeConfig });
 
+  const landed: LandResult = {
+    kind: "landed",
+    detail: "agent/7 was rebased onto main, which fast-forwarded onto it and was pushed.",
+  };
+
   it("tells the leg the landing, the base branch, and that the work landed", async () => {
     const { handover, runs } = merging(tagged('{"report":"#7 landed on main."}'));
 
-    await handover(success, tickets);
+    await handover(success, tickets, landed);
 
     expect(runs[0]?.promptArgs).toMatchObject({
       LANDING: "merge",
       LANDED: "yes",
+      LANDED_DETAIL: landed.detail,
       BASE_BRANCH: baseBranch,
       COMMITTED_TICKETS: "#8, #9",
     });
+  });
+
+  it("says nothing landed when the lander refused, whatever the outcome says", async () => {
+    const { handover, runs } = merging(tagged('{"report":"#7 blocked; agent/7 pushed."}'));
+
+    await handover(success, tickets, { kind: "not-landed", reason: "main would not fast-forward" });
+
+    expect(runs[0]?.promptArgs).toMatchObject({
+      LANDED: "no",
+      LANDED_DETAIL: "nothing was landed",
+    });
+  });
+
+  it("says nothing landed when there was no lander at all", async () => {
+    const { handover, runs } = merging(tagged('{"report":"#7 blocked; agent/7 pushed."}'));
+
+    await handover(success, tickets);
+
+    expect(runs[0]?.promptArgs).toMatchObject({ LANDED: "no" });
   });
 
   it("forbids a pull request on a successful pass, which has already landed", async () => {
@@ -311,10 +337,15 @@ describe("the handover prompt", () => {
     expect(prompt).toMatch(/Never work the list out yourself/);
   });
 
-  it("is told the landing and whether the work landed, rather than reading the branches", () => {
+  it("is told the landing, whether the work landed and how, rather than reading the branches", () => {
     expect(prompt).toContain("This repo's landing is **{{LANDING}}**");
     expect(prompt).toContain("**{{LANDED}}**");
+    expect(prompt).toContain("{{LANDED_DETAIL}}");
     expect(prompt).toMatch(/never decide either from the branches/);
+  });
+
+  it("reports what the lander did in relay's own words", () => {
+    expect(prompt).toMatch(/what landed and how: \{\{LANDED_DETAIL\}\}/);
   });
 
   it("says a merge repo opens no pull request on any path", () => {
