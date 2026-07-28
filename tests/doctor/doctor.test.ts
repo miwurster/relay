@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   CONFIG_FILE_PATH,
   CREDENTIAL_FILE_PATH,
@@ -187,6 +187,32 @@ const inferredProbe = fakeProbe({
   provenance: "inferred",
   source: "pom.xml is a Maven build",
 }).probe;
+
+/**
+ * A sink recording every chunk written to it, so a test reads the exact report
+ * bytes — the pending lines and the escapes that erase them included.
+ */
+function fakeSink(isTTY: boolean) {
+  const chunks: string[] = [];
+  const out = {
+    write: (chunk: string) => {
+      chunks.push(chunk);
+    },
+    isTTY,
+  };
+  return { out, chunks };
+}
+
+/** The line a check announces itself with before it runs. */
+const pendingLine = (name: string) => `   run   ${name}`;
+
+/** Every check named by a verdict line, in the order the report wrote them. */
+function reportedNames(chunks: readonly string[]): string[] {
+  return chunks.flatMap((chunk) => {
+    const [, name] = /^ {2}.{6} (.+?): /.exec(chunk) ?? [];
+    return name === undefined ? [] : [name];
+  });
+}
 
 function check(checks: readonly DoctorCheck[], name: string): DoctorCheck {
   const found = checks.find((candidate) => candidate.name === name);
@@ -1027,33 +1053,100 @@ describe("runDoctor", () => {
   });
 
   it("prints one line per check", async () => {
-    const log = vi.spyOn(console, "log").mockImplementation(() => {});
-    try {
-      await runDoctor({
-        repoRoot: await repoWith(validConfig),
-        env: envWithSecrets(),
-        git: ignoringGit,
-        docker: healthyDocker().docker,
-        gh: healthyGh().gh,
-        probe: declaredProbe,
-      });
-      const printed = log.mock.calls.map((call) => String(call[0])).join("\n");
-      for (const name of [
-        "config",
-        "secrets",
-        "gh installed",
-        "gh authenticated",
-        "labels",
-        "triage labels",
-        "sandbox image",
-        "gate",
-        "docker daemon",
-      ]) {
-        expect(printed).toContain(name);
-      }
-    } finally {
-      log.mockRestore();
+    const { out, chunks } = fakeSink(false);
+
+    await runDoctor({
+      repoRoot: await repoWith(validConfig),
+      env: envWithSecrets(),
+      git: ignoringGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+      out,
+    });
+
+    const printed = chunks.join("");
+    for (const name of EVERY_CHECK) {
+      expect(printed).toContain(`${name}: `);
     }
+  });
+
+  it("announces a check before it runs and erases that line with the verdict", async () => {
+    const { out, chunks } = fakeSink(true);
+
+    await runDoctor({
+      repoRoot: await repoWith(validConfig),
+      env: envWithSecrets(),
+      git: ignoringGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+      out,
+    });
+
+    expect(chunks.join("")).toContain(`${pendingLine("gate")}\r\u001b[K    ok   gate: `);
+  });
+
+  it("writes each verdict before the next check starts", async () => {
+    const { out, chunks } = fakeSink(true);
+    const written: string[] = [];
+    const probe: GateProbe = async () => {
+      written.push(chunks.join(""));
+      return { command: "npm run verify", provenance: "declared", source: "AGENTS.md" };
+    };
+
+    await runDoctor({
+      repoRoot: await repoWith(validConfig),
+      env: envWithSecrets(),
+      git: ignoringGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe,
+      out,
+    });
+
+    // The gate's own pending line is out, and every earlier verdict with it —
+    // so the report was arriving while the slowest check was still running.
+    expect(written[0]).toContain("sandbox image: ");
+    expect(written[0]).toContain(pendingLine("gate"));
+    expect(written[0]).not.toContain("gate: ");
+  });
+
+  it("announces nothing for a check that never runs", async () => {
+    const { out, chunks } = fakeSink(true);
+
+    await runDoctor({
+      repoRoot: await repoWith(validConfig),
+      env: envWithSecrets(),
+      git: ignoringGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+      out,
+    });
+
+    const printed = chunks.join("");
+    expect(printed).toContain("base branch ruleset: this repo lands through a pull request");
+    expect(printed).not.toContain(pendingLine("base branch ruleset"));
+  });
+
+  it("announces nothing at all where no line can be erased", async () => {
+    const { out, chunks } = fakeSink(false);
+
+    await runDoctor({
+      repoRoot: await repoWith(validConfig),
+      env: envWithSecrets(),
+      git: ignoringGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+      out,
+    });
+
+    const printed = chunks.join("");
+    expect(printed).not.toContain("\u001b");
+    expect(printed).not.toMatch(/^ {3}run {3}/m);
+    expect(reportedNames(chunks)).toEqual(EVERY_CHECK);
   });
 
   it("succeeds on an inferred gate — a guess is imperfect, not broken", async () => {
@@ -1093,24 +1186,20 @@ describe("runDoctor", () => {
   });
 
   it("prints a warning distinctly from an ok and from a failure", async () => {
-    const log = vi.spyOn(console, "log").mockImplementation(() => {});
-    try {
-      await runDoctor({
-        repoRoot: await repoWith(validConfig),
-        env: envWithSecrets(),
-        git: ignoringGit,
-        docker: healthyDocker().docker,
-        gh: healthyGh().gh,
-        probe: inferredProbe,
-      });
-      const gateLine = log.mock.calls
-        .map((call) => String(call[0]))
-        .find((line) => line.includes("gate:"));
+    const { out, chunks } = fakeSink(false);
 
-      expect(gateLine).toMatch(/warn/i);
-      expect(gateLine).not.toMatch(/\bok\b|FAILED/);
-    } finally {
-      log.mockRestore();
-    }
+    await runDoctor({
+      repoRoot: await repoWith(validConfig),
+      env: envWithSecrets(),
+      git: ignoringGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: inferredProbe,
+      out,
+    });
+    const gateLine = chunks.find((chunk) => chunk.includes("gate: "));
+
+    expect(gateLine).toMatch(/warn/i);
+    expect(gateLine).not.toMatch(/\bok\b|FAILED/);
   });
 });

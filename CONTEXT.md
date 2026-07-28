@@ -201,6 +201,7 @@ _Avoid_: secrets file, env file, dotenv
 **Doctor**:
 The opt-in preflight that runs every setup check eagerly and reports them all, rather than failing on the first.
 A check it could not reach is skipped rather than failed, and one it can only warn about is a **warning**, which does not fail the run.
+Each check reports as it resolves, and on a terminal a check names itself before it runs, because the deep checks open a **sandbox** and a preflight that says nothing for a minute reads as a hung one.
 _Avoid_: healthcheck, diagnostics
 
 **Warning**:

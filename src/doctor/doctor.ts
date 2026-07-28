@@ -30,6 +30,7 @@ import { GITIGNORE_FILE_NAME, WORKTREE_DIR, WORKTREE_RULE } from "../host/worktr
 import { credentialFileIgnored } from "../host/credential-file.js";
 import { isIgnored } from "../host/gitignore.js";
 import { currentBranch, isWorktreeDirty, runGit, type GitRunner } from "../host/git.js";
+import { type CheckReporter, liveReporter, type ReportSink, SILENT_REPORTER } from "./report.js";
 
 /** Why the label checks cannot run: nothing on this host can ask GitHub. */
 const NO_CREDENTIAL = "no `gh` credential to read this repo's labels with";
@@ -64,6 +65,16 @@ export interface DoctorOptions {
   docker?: DockerRunner;
   gh?: GhRunner;
   probe?: GateProbe;
+  reporter?: CheckReporter;
+}
+
+/**
+ * The checks recorded so far and who to tell as each one starts and resolves.
+ * Carried together so a check never has to know whether anyone is listening.
+ */
+interface Ledger {
+  checks: DoctorCheck[];
+  reporter: CheckReporter;
 }
 
 /**
@@ -72,17 +83,20 @@ export interface DoctorOptions {
  * Unlike a real run, which fails fast on config and secrets and lets the deep
  * failures surface where they are used, doctor runs the deep checks eagerly so
  * an operator sees their whole setup in one go. Any failure is exit 2.
+ *
+ * The report arrives while the checks run rather than in one batch after them,
+ * which is the reporter's job — doctor only says where it writes.
  */
-export async function runDoctor(options: DoctorOptions = {}): Promise<ExitCode> {
-  const checks = await runDoctorChecks(options);
-  console.log("relay doctor");
-  for (const check of checks) {
-    console.log(`  ${label(check.status)} ${check.name}: ${check.detail}`);
-  }
+export async function runDoctor({
+  out = process.stdout,
+  ...options
+}: Omit<DoctorOptions, "reporter"> & { out?: ReportSink } = {}): Promise<ExitCode> {
+  out.write("relay doctor\n");
+  const checks = await runDoctorChecks({ ...options, reporter: liveReporter(out) });
 
   const failed = checks.filter((check) => check.status === "failed");
   if (failed.length === 0) return ExitCode.Success;
-  console.log(`\nrelay doctor: ${failed.length} of ${checks.length} checks failed.`);
+  out.write(`\nrelay doctor: ${failed.length} of ${checks.length} checks failed.\n`);
   return ExitCode.Error;
 }
 
@@ -104,39 +118,40 @@ export async function runDoctorChecks({
   docker = runDocker,
   gh = runGh,
   probe = probeGate,
+  reporter = SILENT_REPORTER,
 }: DoctorOptions = {}): Promise<DoctorCheck[]> {
-  const checks: DoctorCheck[] = [];
+  const ledger: Ledger = { checks: [], reporter };
 
   const config = await record(
-    checks,
+    ledger,
     "config",
     () => loadConfig(repoRoot),
     () => `${CONFIG_FILE_PATH} is valid`,
   );
 
   await record(
-    checks,
+    ledger,
     "worktree ignored",
     () => assertWorktreeDirIgnored(repoRoot),
     () => `${GITIGNORE_FILE_NAME} ignores \`${WORKTREE_DIR}/\``,
   );
 
   await record(
-    checks,
+    ledger,
     "credentials ignored",
     () => assertCredentialFileIgnored({ repoRoot, git }),
     () => `git ignores \`${CREDENTIAL_FILE_PATH}\``,
   );
 
   const secrets = await record(
-    checks,
+    ledger,
     "secrets",
     () => loadSecrets({ repoRoot, env }),
     secretsDetail,
   );
 
   const installedGh = await record(
-    checks,
+    ledger,
     "gh installed",
     () => ghVersion(gh),
     (version: string) => `${version} on this host's PATH`,
@@ -145,39 +160,39 @@ export async function runDoctorChecks({
   let authenticated: string | undefined;
   if (installedGh) {
     authenticated = await record(
-      checks,
+      ledger,
       "gh authenticated",
       () => ghAuthStatus(gh),
       (status: string) => loggedInLine(status),
     );
   } else {
-    skip(checks, "gh authenticated", "no `gh` on this host to ask for a credential");
+    skip(ledger, "gh authenticated", "no `gh` on this host to ask for a credential");
   }
 
   // Success, not a non-empty answer: older `gh` prints its auth status on
   // stderr, and an empty stdout there must not read as no credential.
   if (authenticated !== undefined) {
-    checks.push(...(await labelChecks(gh)));
+    await recordLabelChecks(ledger, gh);
   } else {
-    skip(checks, "labels", NO_CREDENTIAL);
-    skip(checks, "triage labels", NO_CREDENTIAL);
+    skip(ledger, "labels", NO_CREDENTIAL);
+    skip(ledger, "triage labels", NO_CREDENTIAL);
   }
 
-  const landedOn = await recordLanding({ checks, config, repoRoot, git });
+  const landedOn = await recordLanding({ ledger, config, repoRoot, git });
 
   // Both of these ask about landing on the base branch itself, which only
   // `merge` landing does — under `pull-request` they are skipped rather than
   // answered as passing.
   if ("why" in landedOn) {
-    skip(checks, "base branch ruleset", landedOn.why);
-    skip(checks, "worktree clean", landedOn.why);
+    skip(ledger, "base branch ruleset", landedOn.why);
+    skip(ledger, "worktree clean", landedOn.why);
   } else {
     const baseBranch = landedOn.branch;
     if (authenticated === undefined) {
-      skip(checks, "base branch ruleset", NO_CREDENTIAL_FOR_RULESETS);
+      skip(ledger, "base branch ruleset", NO_CREDENTIAL_FOR_RULESETS);
     } else {
       await record(
-        checks,
+        ledger,
         "base branch ruleset",
         () => assertBranchIsLandable({ branch: baseBranch, gh }),
         () => `no ruleset on ${baseBranch} requires a pull request`,
@@ -185,7 +200,7 @@ export async function runDoctorChecks({
     }
 
     await record(
-      checks,
+      ledger,
       "worktree clean",
       () => isWorktreeDirty({ repoRoot, git }),
       worktreeDetail,
@@ -196,20 +211,20 @@ export async function runDoctorChecks({
   let image: ResolvedImage | undefined;
   if (config) {
     image = await record(
-      checks,
+      ledger,
       "sandbox image",
       () => resolvableImage({ repoRoot, config, docker }),
       (resolved) => `${resolved.ref} — ${resolved.how}`,
     );
   } else {
-    skip(checks, "sandbox image", `no valid ${CONFIG_FILE_PATH} to read the image from`);
+    skip(ledger, "sandbox image", `no valid ${CONFIG_FILE_PATH} to read the image from`);
   }
 
   // An image resolves only from a config that parsed, so a missing image is
   // what an operator sees either way — with the config failure a line above it.
   if (config && image && secrets) {
     await record(
-      checks,
+      ledger,
       "gate",
       () => probe({ repoRoot, config, secrets }),
       gateDetail,
@@ -219,21 +234,21 @@ export async function runDoctorChecks({
     const why = image
       ? "no credential to run the resolver's leg on"
       : "no sandbox image to open a sandbox from";
-    skip(checks, "gate", why);
+    skip(ledger, "gate", why);
   }
 
   if (image) {
     await record(
-      checks,
+      ledger,
       "docker daemon",
       () => dockerDaemonVersionInSandbox({ image: image.ref, docker }),
       (version: string) => `reachable as the non-root sandbox user — server ${version}`,
     );
   } else {
-    skip(checks, "docker daemon", "no sandbox image to reach the daemon from");
+    skip(ledger, "docker daemon", "no sandbox image to reach the daemon from");
   }
 
-  return checks;
+  return ledger.checks;
 }
 
 /**
@@ -253,22 +268,22 @@ type LandedOn = { branch: string } | { why: string };
  * a detached or unborn `HEAD` fails here: a pass has nothing to be cut from.
  */
 async function recordLanding({
-  checks,
+  ledger,
   config,
   repoRoot,
   git,
 }: {
-  checks: DoctorCheck[];
+  ledger: Ledger;
   config: RelayConfig | undefined;
   repoRoot: string;
   git: GitRunner;
 }): Promise<LandedOn> {
   if (!config) {
-    skip(checks, "landing", NO_LANDING_TO_READ);
+    skip(ledger, "landing", NO_LANDING_TO_READ);
     return { why: NO_LANDING_TO_READ };
   }
   const branch = await record(
-    checks,
+    ledger,
     "landing",
     () => currentBranch({ repoRoot, git }),
     (resolved: string) => landingDetail(config.landing, resolved),
@@ -325,7 +340,8 @@ function worktreeDetail(dirty: boolean): string {
 
 /**
  * What this repo's label vocabulary looks like, read in one call and graded
- * twice.
+ * twice. The call is announced as `labels`, the check it is made for, and
+ * `triage labels` resolves off the same answer a moment later.
  *
  * A pass label nobody created is a failure: `gh` resolves every `--add-label`
  * name against the repo's labels, so the pass would die mid-flight applying
@@ -333,27 +349,28 @@ function worktreeDetail(dirty: boolean): string {
  * never reads them, and `docs/agents/triage-labels.md` invites a repo to use
  * its own vocabulary instead.
  */
-async function labelChecks(gh: GhRunner): Promise<DoctorCheck[]> {
+async function recordLabelChecks(ledger: Ledger, gh: GhRunner): Promise<void> {
+  ledger.reporter.started("labels");
   let existing: string[];
   try {
     existing = await ghLabelNames(gh);
   } catch (error) {
     const detail = reasonOf(error);
-    return [
-      { name: "labels", status: "failed", detail },
-      { name: "triage labels", status: "failed", detail },
-    ];
+    add(ledger, { name: "labels", status: "failed", detail });
+    add(ledger, { name: "triage labels", status: "failed", detail });
+    return;
   }
 
-  return [
-    labelCheck({ name: "labels", wanted: PASS_LABELS, existing, whenAbsent: "failed" }),
+  add(ledger, labelCheck({ name: "labels", wanted: PASS_LABELS, existing, whenAbsent: "failed" }));
+  add(
+    ledger,
     labelCheck({
       name: "triage labels",
       wanted: TRIAGE_LABELS,
       existing,
       whenAbsent: "warning",
     }),
-  ];
+  );
 }
 
 function labelCheck({
@@ -497,26 +514,29 @@ function gateDetail(gate: ResolvedGate): string {
  * `ok` unless `statusOf` grades its value otherwise.
  */
 async function record<T>(
-  checks: DoctorCheck[],
+  ledger: Ledger,
   name: string,
   run: () => Promise<T>,
   describe: (value: T) => string,
   statusOf: (value: T) => "ok" | "warning" = () => "ok",
 ): Promise<T | undefined> {
+  ledger.reporter.started(name);
   try {
     const value = await run();
-    checks.push({ name, status: statusOf(value), detail: describe(value) });
+    add(ledger, { name, status: statusOf(value), detail: describe(value) });
     return value;
   } catch (error) {
-    checks.push({ name, status: "failed", detail: reasonOf(error) });
+    add(ledger, { name, status: "failed", detail: reasonOf(error) });
     return undefined;
   }
 }
 
-function skip(checks: DoctorCheck[], name: string, why: string): void {
-  checks.push({ name, status: "skipped", detail: why });
+/** A check nothing was run for, so nothing announced it either. */
+function skip(ledger: Ledger, name: string, why: string): void {
+  add(ledger, { name, status: "skipped", detail: why });
 }
 
-function label(status: DoctorCheck["status"]): string {
-  return { ok: "  ok  ", warning: " warn ", failed: "FAILED", skipped: " skip " }[status];
+function add(ledger: Ledger, check: DoctorCheck): void {
+  ledger.checks.push(check);
+  ledger.reporter.resolved(check);
 }
