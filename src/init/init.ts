@@ -23,6 +23,7 @@ import { missingLabels, PASS_LABELS, TRIAGE_LABELS, type LabelSpec } from "../tr
 import { readResource } from "../resources.js";
 import { GITIGNORE_FILE_NAME, WORKTREE_DIR, WORKTREE_RULE } from "../host/worktree-dir.js";
 import { CREDENTIAL_RULE } from "../host/credential-file.js";
+import { RECORD_RULE } from "../crew/leg-record.js";
 import { ensureIgnored } from "../host/gitignore.js";
 
 /** One thing init considered — a file or a label — and what it did with it. */
@@ -90,7 +91,7 @@ export async function runInitChecks({
     await writeConfigFile(repoRoot),
     await writeSandboxRecipe({ repoRoot, stack }),
     await writeCredentialExample(repoRoot),
-    await ignoreCredentialFile(repoRoot),
+    await ignoreRelayRuntimeFiles(repoRoot),
     await ignoreWorktreeDir(repoRoot),
     ...(await createLabels(gh)),
   ];
@@ -186,18 +187,23 @@ async function writeCredentialExample(repoRoot: string): Promise<InitVerdict> {
 }
 
 /**
- * Keep the credential file out of git, with a rule inside relay's own
- * directory rather than a line in the repo's `.gitignore`.
+ * Keep the credential file and what a leg recorded out of git, with rules
+ * inside relay's own directory rather than lines in the repo's `.gitignore`.
  *
- * Committed on purpose: the rule then protects every clone rather than the one
- * machine that happened to run init, and it sits next to the file it protects.
+ * Committed on purpose: the rules then protect every clone rather than the one
+ * machine that happened to run init, and they sit next to the files they
+ * protect. One verdict, because it is one file either way.
  */
-async function ignoreCredentialFile(repoRoot: string): Promise<InitVerdict> {
-  const written = await ensureIgnored(repoRoot, CREDENTIAL_RULE);
+async function ignoreRelayRuntimeFiles(repoRoot: string): Promise<InitVerdict> {
+  const credentialWritten = await ensureIgnored(repoRoot, CREDENTIAL_RULE);
+  const recordsWritten = await ensureIgnored(repoRoot, RECORD_RULE);
+  const written = credentialWritten || recordsWritten;
   return {
     subject: RELAY_GITIGNORE_PATH,
     outcome: written ? "written" : "kept",
-    detail: `${written ? "now" : "already"} ignores \`${CREDENTIAL_FILE_PATH}\``,
+    detail:
+      `${written ? "now" : "already"} ignores \`${CREDENTIAL_FILE_PATH}\` ` +
+      "and what a leg recorded",
   };
 }
 

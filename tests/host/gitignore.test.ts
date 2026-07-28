@@ -7,11 +7,17 @@ import { ensureIgnored, isIgnored, type IgnoreRule } from "../../src/host/gitign
 /** A rule in a nested `.gitignore`, so the operations have a directory to create. */
 const RULE: IgnoreRule = {
   file: "nested/.gitignore",
-  entry: "secrets/",
+  entries: ["secrets/"],
   why: "What a relay pass keeps out of git.",
 };
 
 const ENTRY_LINES = "# What a relay pass keeps out of git.\nsecrets/\n";
+
+/** A rule whose entries share one reason, so one comment covers both. */
+const TWO_ENTRY_RULE: IgnoreRule = {
+  ...RULE,
+  entries: ["secrets/", "records/"],
+};
 
 async function tempRepo(): Promise<string> {
   return mkdtemp(join(tmpdir(), "relay-gitignore-"));
@@ -46,6 +52,18 @@ describe("isIgnored", () => {
   it("is false when the repo has no such file", async () => {
     expect(await isIgnored(await tempRepo(), RULE)).toBe(false);
   });
+
+  it("is false when the file carries only some of a rule's entries", async () => {
+    const repoRoot = await repoWithIgnoreFile("secrets/\n");
+
+    expect(await isIgnored(repoRoot, TWO_ENTRY_RULE)).toBe(false);
+  });
+
+  it("is true when the file carries every entry", async () => {
+    const repoRoot = await repoWithIgnoreFile("secrets/\nrecords/\n");
+
+    expect(await isIgnored(repoRoot, TWO_ENTRY_RULE)).toBe(true);
+  });
 });
 
 describe("ensureIgnored", () => {
@@ -75,6 +93,24 @@ describe("ensureIgnored", () => {
 
     expect(await ensureIgnored(repoRoot, RULE)).toBe(false);
     expect(await readFile(join(repoRoot, RULE.file), "utf8")).toBe("dist\n/secrets\n");
+  });
+
+  it("writes a rule's entries under one comment", async () => {
+    const repoRoot = await tempRepo();
+
+    expect(await ensureIgnored(repoRoot, TWO_ENTRY_RULE)).toBe(true);
+    expect(await readFile(join(repoRoot, TWO_ENTRY_RULE.file), "utf8")).toBe(
+      "# What a relay pass keeps out of git.\nsecrets/\nrecords/\n",
+    );
+  });
+
+  it("appends only the entries the file was missing", async () => {
+    const repoRoot = await repoWithIgnoreFile("secrets/\n");
+
+    expect(await ensureIgnored(repoRoot, TWO_ENTRY_RULE)).toBe(true);
+    expect(await readFile(join(repoRoot, TWO_ENTRY_RULE.file), "utf8")).toBe(
+      "secrets/\n\n# What a relay pass keeps out of git.\nrecords/\n",
+    );
   });
 
   it("writes contents the predicate then recognises", async () => {

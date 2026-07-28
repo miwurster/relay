@@ -92,6 +92,11 @@ const refusingGh = async (args: readonly string[]) => {
   throw new Error("HTTP 403: Resource not accessible by personal access token");
 };
 
+/** The two blocks init writes into relay's own `.gitignore`, in the order it writes them. */
+const CREDENTIAL_LINES = "# The credentials a relay pass runs on. Never commit this.\n.env\n";
+const RECORD_LINES =
+  "# What a relay leg recorded. Runtime output, never committed.\ndoctor/\n[0-9]*/\n";
+
 /** Every label verdict, which follows the file verdicts. */
 function labelVerdicts(verdicts: readonly InitVerdict[]): InitVerdict[] {
   const files = new Set([
@@ -365,7 +370,17 @@ describe("runInitChecks", () => {
 
     expect(verdict(verdicts, RELAY_GITIGNORE_PATH).outcome).toBe("written");
     const written = await readFile(join(repoRoot, RELAY_GITIGNORE_PATH), "utf8");
-    expect(written).toBe("# The credentials a relay pass runs on. Never commit this.\n.env\n");
+    expect(written).toBe(`${CREDENTIAL_LINES}\n${RECORD_LINES}`);
+  });
+
+  it("ignores the record directories a pass and the gate probe write", async () => {
+    const repoRoot = await tempRepo();
+
+    await runInitChecks({ repoRoot, git: githubClone().git, gh: fakeGh().gh });
+
+    const written = await readFile(join(repoRoot, RELAY_GITIGNORE_PATH), "utf8");
+    expect(written).toContain("doctor/\n");
+    expect(written).toContain("[0-9]*/\n");
   });
 
   it("appends to an existing .relay/.gitignore rather than replacing it", async () => {
@@ -377,21 +392,19 @@ describe("runInitChecks", () => {
 
     expect(verdict(verdicts, RELAY_GITIGNORE_PATH).outcome).toBe("written");
     const written = await readFile(join(repoRoot, RELAY_GITIGNORE_PATH), "utf8");
-    expect(written).toBe(
-      "scratch/\n\n# The credentials a relay pass runs on. Never commit this.\n.env\n",
-    );
+    expect(written).toBe(`scratch/\n\n${CREDENTIAL_LINES}\n${RECORD_LINES}`);
   });
 
-  it("leaves a .relay/.gitignore that already ignores the credential file alone", async () => {
+  it("leaves a .relay/.gitignore that already carries every rule alone", async () => {
     const repoRoot = await tempRepo();
     await mkdir(join(repoRoot, RELAY_DIR), { recursive: true });
-    await writeFile(join(repoRoot, RELAY_GITIGNORE_PATH), "scratch/\n/.env\n", "utf8");
+    const carried = "scratch/\n/.env\ndoctor/\n[0-9]*/\n";
+    await writeFile(join(repoRoot, RELAY_GITIGNORE_PATH), carried, "utf8");
 
     const verdicts = await runInitChecks({ repoRoot, git: githubClone().git, gh: fakeGh().gh });
 
     expect(verdict(verdicts, RELAY_GITIGNORE_PATH).outcome).toBe("kept");
-    const untouched = await readFile(join(repoRoot, RELAY_GITIGNORE_PATH), "utf8");
-    expect(untouched).toBe("scratch/\n/.env\n");
+    expect(await readFile(join(repoRoot, RELAY_GITIGNORE_PATH), "utf8")).toBe(carried);
   });
 
   it("creates every label the repo is missing, colour and description included", async () => {

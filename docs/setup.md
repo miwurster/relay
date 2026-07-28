@@ -34,6 +34,8 @@ It never overwrites, never stages, and never commits, so running it again only f
 - `.relay/.env.example`, the template you copy to `.relay/.env` and paste your tokens into.
   The example only — `init` never writes the credential file itself, and step 5 is where you fill it in.
 - `.relay/.gitignore`, carrying `.env`, so the credential file can never be committed from any clone.
+  It also carries `doctor/` and `[0-9]*/`, the directories a leg records into — `.relay/<issue>/` for a pass, `.relay/doctor/` for `doctor`'s gate probe.
+  Those records are one run's output, there for you to read after the sandbox is gone, and never the repo's history.
 - One `.gitignore` line for `.sandcastle/`, where a pass cuts its git worktree.
   That path is fixed and lives inside your repo, so without the line every pass shows up in `git status` as untracked noise.
 

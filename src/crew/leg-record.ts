@@ -1,16 +1,34 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { RELAY_DIR, RELAY_GITIGNORE_PATH } from "../config.js";
+import type { IgnoreRule } from "../host/gitignore.js";
 import type { Finding } from "./contract.js";
+
+const DOCTOR_RECORD_DIR = "doctor";
 
 /** Where one pass's legs record, named after the work item they ran over. */
 export function passRecordDir(repoRoot: string, workItem: number): string {
-  return join(repoRoot, ".relay", String(workItem));
+  return join(repoRoot, RELAY_DIR, String(workItem));
 }
 
 /** Where the gate probe's one leg records. */
 export function doctorRecordDir(repoRoot: string): string {
-  return join(repoRoot, ".relay", "doctor");
+  return join(repoRoot, RELAY_DIR, DOCTOR_RECORD_DIR);
 }
+
+/**
+ * The record directories belong in relay's own `.gitignore`, next to the
+ * credential rule and for the same reason: they sit inside the directory the
+ * entries govern, so they read as bare names there.
+ *
+ * A pass's directory is named after its work item, which is why the entry is a
+ * glob — one line covers every pass rather than one line per issue.
+ */
+export const RECORD_RULE: IgnoreRule = {
+  file: RELAY_GITIGNORE_PATH,
+  entries: [`${DOCTOR_RECORD_DIR}/`, "[0-9]*/"],
+  why: "What a relay leg recorded. Runtime output, never committed.",
+};
 
 /** The tagged answer one leg ended its run with, as relay parsed it. */
 interface RoleStatus {

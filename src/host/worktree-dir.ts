@@ -16,6 +16,6 @@ export const GITIGNORE_FILE_NAME = ".gitignore";
  */
 export const WORKTREE_RULE: IgnoreRule = {
   file: GITIGNORE_FILE_NAME,
-  entry: `${WORKTREE_DIR}/`,
+  entries: [`${WORKTREE_DIR}/`],
   why: "A relay pass's git worktree.",
 };

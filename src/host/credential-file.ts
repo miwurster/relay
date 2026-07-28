@@ -9,7 +9,7 @@ import type { IgnoreRule } from "./gitignore.js";
  */
 export const CREDENTIAL_RULE: IgnoreRule = {
   file: RELAY_GITIGNORE_PATH,
-  entry: ".env",
+  entries: [".env"],
   why: "The credentials a relay pass runs on. Never commit this.",
 };
 
