@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ARG AGENT_UID=1000
 ARG AGENT_GID=1000
 ARG GH_VERSION=2.96.0
+ARG PNPM_VERSION=11.17.0
 
 RUN arch="$(dpkg --print-architecture)" \
     && curl -fsSL -o /tmp/gh.deb \
@@ -20,6 +21,9 @@ RUN arch="$(dpkg --print-architecture)" \
     && dpkg -i /tmp/gh.deb \
     && rm /tmp/gh.deb \
     && gh --version
+
+RUN npm install -g "pnpm@${PNPM_VERSION}" \
+    && pnpm --version
 
 RUN install -m 0755 -d /etc/apt/keyrings \
     && . /etc/os-release \

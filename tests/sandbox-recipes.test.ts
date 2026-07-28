@@ -29,3 +29,11 @@ describe.each([
     expect(recipe.trim().endsWith('ENTRYPOINT ["sleep", "infinity"]')).toBe(true);
   });
 });
+
+describe("node sandbox recipe", () => {
+  it("installs a pinned pnpm", async () => {
+    const recipe = await readResource("sandbox-recipes", "node.Dockerfile");
+    expect(recipe).toContain("ARG PNPM_VERSION");
+    expect(recipe).toMatch(/pnpm@\$\{PNPM_VERSION\}/);
+  });
+});
