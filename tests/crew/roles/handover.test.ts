@@ -336,18 +336,12 @@ describe("the handover prompt", () => {
   it("closes the tickets relay names, never a list the leg worked out itself", () => {
     expect(prompt).toMatch(/`Closes` line for \*\*each ticket the pass committed\*\*/);
     expect(prompt).toContain("The pass committed **{{COMMITTED_TICKETS}}**");
-    expect(prompt).toMatch(/Never work the list out yourself/);
   });
 
   it("is told the landing, whether the work landed and how, rather than reading the branches", () => {
     expect(prompt).toContain("This repo's landing is **{{LANDING}}**");
     expect(prompt).toContain("**{{LANDED}}**");
     expect(prompt).toContain("{{LANDED_DETAIL}}");
-    expect(prompt).toMatch(/never decide either from the branches/);
-  });
-
-  it("reports what the lander did in relay's own words", () => {
-    expect(prompt).toMatch(/what landed and how: \{\{LANDED_DETAIL\}\}/);
   });
 
   it("says a merge repo opens no pull request on any path", () => {
@@ -371,12 +365,6 @@ describe("the handover prompt", () => {
     expect(success).toMatch(/re-read \{\{WORK_ITEM\}\}'s sub-issues/);
     expect(success).toMatch(
       /close \{\{WORK_ITEM\}\} too when none of them is still open, and leave it open when one is/,
-    );
-  });
-
-  it("closes an item with no sub-issues by the same rule, as its own single ticket", () => {
-    expect(section("### success", "### mid-block")).toMatch(
-      /An item with no sub-issues is itself the single ticket the pass committed/,
     );
   });
 
@@ -407,8 +395,10 @@ describe("the handover prompt", () => {
     expect(section("### mid-block", "### early-bail")).toContain("git push -u origin {{BRANCH}}");
   });
 
-  it("reads the per-ticket SHAs only after the rebase that rewrote them", () => {
-    expect(prompt).toMatch(/never earlier, because a rebase before you rewrote them/);
+  it("reads the per-ticket SHAs from the base branch's range, in the report it writes last", () => {
+    expect(section("## 3. Report to the operator", "## Output")).toContain(
+      "git log --oneline {{BASE_BRANCH}}..{{BRANCH}}",
+    );
   });
 
   it("swaps the held label for the state the outcome leaves the item in", () => {

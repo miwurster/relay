@@ -72,8 +72,10 @@ Under `merge`, landing is a leg of its own — the **lander** — and it runs af
 
 Two properties are worth knowing, because they are what makes the mode safe to run:
 
-- **Your branch only ever moves forward.** relay merges *into* the pass branch, never the other way, so the step that touches your branch is a `--ff-only` that cannot conflict. A lander that went wrong ends with relay refusing to fast-forward, not with your branch clobbered.
-- **Nothing is closed before it is pushed.** A rejected push ends the pass blocked with every issue still open, so a closed issue means merged *and* reachable by somebody other than you.
+- **Your branch only ever moves forward.** relay merges
+  *into* the pass branch, never the other way, so the step that touches your branch is a `--ff-only` that cannot conflict. A lander that went wrong ends with relay refusing to fast-forward, not with your branch clobbered.
+- **Nothing is closed before it is pushed.** A rejected push ends the pass blocked with every issue still open, so a closed issue means merged
+  *and* reachable by somebody other than you.
 
 A red gate after the rebase ends the pass blocked, with nothing landed and nothing closed.
 Your branch and this work then disagree in behaviour rather than in text, which is a call relay leaves to you.
@@ -98,7 +100,8 @@ It is the green gate for this repo, so a change is not done until it exits zero.
 
 At the start of every pass, one cheap agent leg reads `AGENTS.md`, then `CLAUDE.md`, then `README.md` — following `@` includes — and takes the first gate a doc declares.
 It confirms the command's target actually exists (a script in `package.json`, a target in the `Makefile`, a wrapper on disk).
-If no doc declares a gate, or the declared one points at something that is gone, the same leg **infers** a gate from your build manifest and runs that instead.
+If no doc declares a gate, or the declared one points at something that is gone, the same leg
+**infers** a gate from your build manifest and runs that instead.
 
 An inferred gate is a command nobody chose becoming the evidence that your branch is green.
 Declaring the gate is the one step worth not skipping.
@@ -151,12 +154,12 @@ Colours and descriptions are yours; only the names matter.
 
 One fine-grained GitHub personal access token, scoped to this repo:
 
-| Permission             | Covers                                                     |
-|------------------------|------------------------------------------------------------|
-| `Issues: write`        | issues, labels, comments, sub-issues, dependencies         |
-| `Pull requests: write` | opening the handover's pull request, under `pull-request`   |
-| `Contents: write`      | pushing the pass branch, and your branch under `merge`      |
-| `Metadata: read`       | required alongside the above                               |
+| Permission             | Covers                                                    |
+|------------------------|-----------------------------------------------------------|
+| `Issues: write`        | issues, labels, comments, sub-issues, dependencies        |
+| `Pull requests: write` | opening the handover's pull request, under `pull-request` |
+| `Contents: write`      | pushing the pass branch, and your branch under `merge`    |
+| `Metadata: read`       | required alongside the above                              |
 
 Under `merge` landing, `Contents: write` has to actually reach the branch you land on.
 A branch whose ruleset requires a pull request cannot be landed on by relay at all, and `relay doctor` fails the repo rather than letting a pass discover it after the gate, the rebase and the re-gate have all been paid for.
@@ -234,7 +237,8 @@ It resolves your gate exactly as a pass would and prints the command it got:
 
 Under `merge` landing two more checks matter, and under `pull-request` both are skipped rather than passed — a pass there lands nothing on your branch and never reads your worktree.
 
-- **`base branch ruleset`** — a branch whose ruleset requires a pull request **fails**, naming the ruleset by id and by the repo or org it is defined on.
+- **`base branch ruleset`** — a branch whose ruleset requires a pull request
+  **fails**, naming the ruleset by id and by the repo or org it is defined on.
   relay cannot push there at all, so the mode is unavailable on that repo rather than nearly working.
   The question goes to GitHub's rulesets endpoint for that branch, not to a dry-run push, which server-side rules never see.
 - **`worktree clean`** — a dirty worktree is a **warning** only.
@@ -249,5 +253,5 @@ relay never reuses or deletes a branch, and never lifts the `agent-in-progress` 
 A crashed pass therefore leaves its branch, its worktree and its hold in place, and comments on the item saying so — a re-run is refused until you clean up.
 That is deliberate: the work of a pass that went wrong is yours to look at, not the next pass's to overwrite.
 
-Under `merge` landing the same holds, and your own branch is untouched by a pass that crashed: the fast-forward is the last thing to happen, after the lander's re-run of the gate has passed.
+Under `merge` landing the same holds, and your own branch is untouched by a pass that crashed: the fast-forward is the last thing to happen, after relay's re-run of the gate on the lander's result has passed.
 The one branch relay does rewrite is its own pass branch, where the lander rebases it ([ADR-0017](adr/0017-the-lander-rebases-and-the-host-only-fast-forwards.md)).
