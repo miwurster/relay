@@ -292,6 +292,10 @@ describe("the handover prompt", () => {
     prompt = await readResource("handover.md");
   });
 
+  /** One outcome's own section, which is where that outcome's rules live. */
+  const section = (heading: string, until?: string) =>
+    prompt.slice(prompt.indexOf(heading), until ? prompt.indexOf(until) : undefined);
+
   it("opens the pull request with `gh` itself, delegating to no skill", () => {
     expect(prompt).toContain("gh pr create");
     expect(prompt).not.toMatch(/kipu-mr|glab|merge request/i);
@@ -323,9 +327,51 @@ describe("the handover prompt", () => {
     );
   });
 
+  it("closes the tickets a merge pass landed, and nothing beyond them", () => {
+    expect(section("### success", "### mid-block")).toMatch(
+      /Close each of \{\{COMMITTED_TICKETS\}\}, and nothing else/,
+    );
+  });
+
+  it("closes the work item only when no sub-issue of it is still open", () => {
+    const success = section("### success", "### mid-block");
+    expect(success).toMatch(/re-read \{\{WORK_ITEM\}\}'s sub-issues/);
+    expect(success).toMatch(
+      /close \{\{WORK_ITEM\}\} too when none of them is still open, and leave it open when one is/,
+    );
+  });
+
+  it("closes an item with no sub-issues by the same rule, as its own single ticket", () => {
+    expect(section("### success", "### mid-block")).toMatch(
+      /An item with no sub-issues is itself the single ticket the pass committed/,
+    );
+  });
+
+  it("closes nothing under `pull-request` landing, where a merge does it", () => {
+    expect(section("### success", "### mid-block")).toMatch(
+      /Under `pull-request` landing close \*\*nothing\*\*/,
+    );
+  });
+
+  it("closes nothing until the base branch is pushed", () => {
+    const success = section("### success", "### mid-block");
+    expect(success).toMatch(/only\*\* when \{\{LANDED\}\} is `yes`/);
+    expect(success).toMatch(/When \{\{LANDED\}\} is `no` close nothing/);
+  });
+
+  it("closes nothing on a blocked or bailed pass", () => {
+    expect(section("### mid-block", "### early-bail")).toMatch(/close \*\*nothing\*\*/i);
+    expect(section("### early-bail")).toMatch(/close \*\*nothing\*\*/i);
+  });
+
+  it("names the base branch, the gate and the tickets it closed in the comment", () => {
+    const success = section("### success", "### mid-block");
+    expect(success).toMatch(/Comment the resolution.*\{\{BASE_BRANCH\}\}/s);
+    expect(success).toMatch(/the tickets it committed.*closed.*\{\{REASON\}\}/s);
+  });
+
   it("pushes the pass branch on a blocked pass", () => {
-    const blocked = prompt.slice(prompt.indexOf("### mid-block"), prompt.indexOf("### early-bail"));
-    expect(blocked).toContain("git push -u origin {{BRANCH}}");
+    expect(section("### mid-block", "### early-bail")).toContain("git push -u origin {{BRANCH}}");
   });
 
   it("reads the per-ticket SHAs only after the rebase that rewrote them", () => {
@@ -338,7 +384,7 @@ describe("the handover prompt", () => {
   });
 
   it("carries the gate's command and provenance into the pull request body and the tracker comment", () => {
-    const success = prompt.slice(prompt.indexOf("### success"), prompt.indexOf("### mid-block"));
+    const success = section("### success", "### mid-block");
     expect(success).toContain("Its body names the command that verified it");
     expect(success).toMatch(/Comment the resolution.*\{\{REASON\}\}/);
   });
