@@ -7,6 +7,7 @@ import { relayConfigSchema } from "../../../src/config.js";
 import { RoleError } from "../../../src/errors.js";
 import { createGateResolver, RESOLVED_GATE_TAG } from "../../../src/crew/roles/gate-resolver.js";
 import { readResource } from "../../../src/resources.js";
+import { expectPromptParity } from "./prompt-parity.js";
 
 const config = relayConfigSchema.parse({ landing: "pull-request" });
 
@@ -77,7 +78,10 @@ describe("createGateResolver", () => {
     expect(
       run?.agent.buildPrintCommand({ prompt: "", dangerouslySkipPermissions: true }).command,
     ).toContain(`--model '${config.models.gateResolver}'`);
-    expect(run?.prompt).toContain(`<${RESOLVED_GATE_TAG}>`);
+    // The one role that takes no arguments: its prompt has to hold no
+    // placeholders either, or the run fails on the first one it cannot fill.
+    expect(run?.promptArgs).toEqual({});
+    await expectPromptParity(run, "gate-resolver.md");
   });
 
   it("fails as a role error when the run emitted no block", async () => {
@@ -129,6 +133,10 @@ describe("the gate resolver prompt", () => {
 
   beforeEach(async () => {
     prompt = await readResource("gate-resolver.md");
+  });
+
+  it("ends the run with the block relay reads the gate out of", () => {
+    expect(prompt).toContain(`<${RESOLVED_GATE_TAG}>`);
   });
 
   it("reads the root doc graph in precedence order, following `@`-includes", () => {

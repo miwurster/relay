@@ -29,6 +29,20 @@ async function headSha(sandbox: Sandbox): Promise<string> {
 }
 
 /**
+ * The tickets of this pass that are already on the branch, one line each.
+ *
+ * Empty for the pass's first ticket, which is not an error: there is nothing
+ * behind it to build on.
+ */
+async function passCommits(sandbox: Sandbox, baseBranch: string): Promise<string> {
+  const { stdout, stderr, exitCode } = await sandbox.exec(`git log --oneline ${baseBranch}..HEAD`);
+  if (exitCode !== 0) {
+    throw new RoleError(`Could not read the pass's commits before implementing: ${stderr.trim()}`);
+  }
+  return stdout.trim();
+}
+
+/**
  * The real implementer: one fresh cold agent per ticket that builds it under
  * TDD and commits it itself.
  *
@@ -36,11 +50,18 @@ async function headSha(sandbox: Sandbox): Promise<string> {
  * only the agent that wrote the change knows what the commit says, and a
  * separate cold session would have to rediscover it from the diff.
  */
-export function createImplementer(deps: RoleDeps): Crew["implement"] {
+export function createImplementer({
+  baseBranch,
+  ...deps
+}: RoleDeps & {
+  /** The branch the pass was cut from, so its own commits can be told apart. */
+  baseBranch: string;
+}): Crew["implement"] {
   return async function implement(ticket: TicketRef): Promise<ImplementResult> {
     // Read before the run: afterwards the ticket's own commits are in the way,
     // and this is what the reviewers diff the ticket's change from.
     const base = await headSha(deps.sandbox);
+    const earlierCommits = await passCommits(deps.sandbox, baseBranch);
 
     const result = await runRole({
       ...deps,
@@ -51,6 +72,9 @@ export function createImplementer(deps: RoleDeps): Crew["implement"] {
         TICKET: `#${ticket.number}`,
         TICKET_SUMMARY: ticket.summary,
         TRACKER_DOC: TRACKER_DOC_PATH,
+        // What the pass has already built, so the prompt's promise that earlier
+        // tickets are on the branch is one the leg can actually act on.
+        PASS_COMMITS: earlierCommits,
       },
       tag: IMPLEMENT_TAG,
       schema: implementSchema,

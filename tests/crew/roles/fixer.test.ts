@@ -7,6 +7,8 @@ import { relayConfigSchema } from "../../../src/config.js";
 import type { Finding, FixTarget } from "../../../src/crew/contract.js";
 import { RoleError } from "../../../src/errors.js";
 import { createFixer, FIX_TAG } from "../../../src/crew/roles/fixer.js";
+import { readResource } from "../../../src/resources.js";
+import { expectPromptParity } from "./prompt-parity.js";
 
 const config = relayConfigSchema.parse({ landing: "pull-request" });
 
@@ -57,14 +59,11 @@ describe("createFixer", () => {
       SCOPE: "ticket #8",
       FINDINGS: JSON.stringify(findings, undefined, 2),
     });
+    await expectPromptParity(runs[0], "fixer.md");
   });
 
   it("tells the fixer to collapse the lenses' overlapping findings", async () => {
-    const { fix, runs } = fixing(taggedFix('{"kind":"fixed"}'));
-
-    await fix(findings, ticketTarget);
-
-    expect(runs[0]?.prompt).toContain("more than once");
+    expect(await readResource("fixer.md")).toContain("more than once");
   });
 
   it("accepts a run that judged there was nothing to fix and committed nothing", async () => {

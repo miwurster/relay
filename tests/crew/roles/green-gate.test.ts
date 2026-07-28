@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { Sandbox, SandboxRunOptions, SandboxRunResult } from "@ai-hero/sandcastle";
 import { beforeEach, describe, expect, it } from "vitest";
 import { relayConfigSchema } from "../../../src/config.js";
+import { expectPromptParity } from "./prompt-parity.js";
 import type { ResolvedGate } from "../../../src/crew/contract.js";
 import { RoleError } from "../../../src/errors.js";
 import { createGreenGate, GATE_OUTPUT_TAIL, GATE_TAG } from "../../../src/crew/roles/green-gate.js";
@@ -125,6 +126,7 @@ describe("createGreenGate", () => {
       EXIT_CODE: "2",
       OUTPUT: "Tests run: 41, Failures: 1\nOrderTest.rejectsEmptyCart:63 expected 400",
     });
+    await expectPromptParity(runs[0], "green-gate.md");
   });
 
   it("keeps the end of a huge run, where the failures are", async () => {

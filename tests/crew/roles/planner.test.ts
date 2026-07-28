@@ -9,6 +9,7 @@ import type { GitHubIssue } from "../../../src/tracker/github.js";
 import { createPlanner, PLAN_TAG } from "../../../src/crew/roles/planner.js";
 import { readResource } from "../../../src/resources.js";
 import { TRACKER_DOC_PATH } from "../../../src/tracker/tracker-doc.js";
+import { expectPromptParity } from "./prompt-parity.js";
 
 const config = relayConfigSchema.parse({ landing: "pull-request" });
 
@@ -103,9 +104,7 @@ describe("createPlanner", () => {
       WORK_ITEM: `#${issue.number}`,
       TRACKER_DOC: TRACKER_DOC_PATH,
     });
-    expect(run?.prompt).toContain("{{WORK_ITEM}}");
-    expect(run?.prompt).toContain("{{TRACKER_DOC}}");
-    expect(run?.prompt).toContain(`<${PLAN_TAG}>`);
+    await expectPromptParity(run, "planner.md");
   });
 });
 
@@ -118,6 +117,10 @@ describe("the planner prompt", () => {
 
   beforeEach(async () => {
     prompt = await readResource("planner.md");
+  });
+
+  it("ends the run with the block relay reads the plan out of", () => {
+    expect(prompt).toContain(`<${PLAN_TAG}>`);
   });
 
   it("sends the planner to the tracker doc first, assuming none of it", () => {

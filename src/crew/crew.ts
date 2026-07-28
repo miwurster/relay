@@ -36,7 +36,7 @@ export function createCrew({
   return {
     resolveGate: createGateResolver(deps),
     plan: createPlanner(deps),
-    implement: createImplementer(deps),
+    implement: createImplementer({ ...deps, baseBranch }),
     review: createReviewer({ ...deps, baseBranch }),
     fix: createFixer(deps),
     greenGate: createGreenGate(deps),

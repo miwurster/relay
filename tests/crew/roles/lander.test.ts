@@ -8,6 +8,7 @@ import type { GateResult } from "../../../src/crew/contract.js";
 import { GitError, RoleError } from "../../../src/errors.js";
 import { createLander, LAND_TAG } from "../../../src/crew/roles/lander.js";
 import { readResource } from "../../../src/resources.js";
+import { expectPromptParity } from "./prompt-parity.js";
 
 const config = relayConfigSchema.parse({ landing: "merge" });
 
@@ -88,6 +89,7 @@ describe("createLander", () => {
     await land();
 
     expect(runs[0]?.promptArgs).toEqual({ BRANCH: branch, BASE_BRANCH: baseBranch });
+    await expectPromptParity(runs[0], "lander.md");
   });
 
   it("reports the merge a conflict fell back to", async () => {

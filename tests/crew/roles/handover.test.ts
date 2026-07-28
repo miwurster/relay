@@ -9,6 +9,7 @@ import { RoleError } from "../../../src/errors.js";
 import { readResource } from "../../../src/resources.js";
 import { createHandover, HANDOVER_TAG } from "../../../src/crew/roles/handover.js";
 import { TRACKER_DOC_PATH } from "../../../src/tracker/tracker-doc.js";
+import { expectPromptParity } from "./prompt-parity.js";
 
 const config = relayConfigSchema.parse({ landing: "pull-request" });
 const mergeConfig = relayConfigSchema.parse({ landing: "merge" });
@@ -96,6 +97,7 @@ describe("createHandover", () => {
       BASE_BRANCH: baseBranch,
       TRACKER_DOC: TRACKER_DOC_PATH,
     });
+    await expectPromptParity(runs[0], "handover.md");
   });
 
   it("names the committed tickets, which the leg cannot read out of the commits", async () => {

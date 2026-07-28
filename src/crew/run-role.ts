@@ -2,7 +2,7 @@ import type { Sandbox } from "@ai-hero/sandcastle";
 import type { z } from "zod";
 import type { RelayConfig } from "../config.js";
 import { RoleError } from "../errors.js";
-import { readResource } from "../resources.js";
+import { resourcePath } from "../resources.js";
 import { roleAgent } from "./role-agent.js";
 import { writeStatusFile } from "./leg-record.js";
 import { readTaggedOutput } from "./tagged-output.js";
@@ -74,7 +74,12 @@ export async function runRole<Schema extends z.ZodType>({
     // silently gained a second iteration would re-read a branch it had just
     // changed, so relay states it rather than inheriting it.
     maxIterations: 1,
-    prompt: await readResource(prompt),
+    // The prompt as a host-side file, never as text: substituting `{{KEY}}` is
+    // something sandcastle only does for a prompt file, and the arguments every
+    // role's prompt is written around are the whole point. Nothing is copied
+    // anywhere — sandcastle reads it on the host, where relay's resources
+    // already live in both the source tree and the published package.
+    promptFile: resourcePath(prompt),
     promptArgs,
     signal: AbortSignal.timeout(config.roleTimeoutMs),
   });

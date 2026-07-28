@@ -7,17 +7,24 @@ import { relayConfigSchema } from "../../../src/config.js";
 import type { TicketRef } from "../../../src/crew/contract.js";
 import { RoleError } from "../../../src/errors.js";
 import { createImplementer, IMPLEMENT_TAG } from "../../../src/crew/roles/implementer.js";
+import { readResource } from "../../../src/resources.js";
 import { TRACKER_DOC_PATH } from "../../../src/tracker/tracker-doc.js";
+import { expectPromptParity } from "./prompt-parity.js";
 
 const config = relayConfigSchema.parse({ landing: "pull-request" });
 
 const ticket: TicketRef = { number: 8, summary: "the schema" };
 
+const baseBranch = "main";
+
 /** What the branch is at before the implementer runs. */
 const HEAD_SHA = "9e4d1a0";
 
+/** The commits the pass put on the branch before this ticket. */
+const PASS_LOG = "9e4d1a0 feat: the endpoint";
+
 /** A sandbox whose only real behaviour is what one implementer run returns. */
-function fakeSandbox(stdout: string, commits: { sha: string }[]) {
+function fakeSandbox(stdout: string, commits: { sha: string }[], passLog: string) {
   const runs: SandboxRunOptions[] = [];
   const execs: string[] = [];
   const sandbox = {
@@ -27,15 +34,24 @@ function fakeSandbox(stdout: string, commits: { sha: string }[]) {
     },
     async exec(command: string) {
       execs.push(command);
-      return { stdout: `${HEAD_SHA}\n`, stderr: "", exitCode: 0 };
+      const out = command.startsWith("git log") ? passLog : HEAD_SHA;
+      return { stdout: `${out}\n`, stderr: "", exitCode: 0 };
     },
   } as unknown as Sandbox;
   return { sandbox, runs, execs };
 }
 
-const implementing = (stdout: string, commits = [{ sha: "c0ffee" }]) => {
-  const { sandbox, runs, execs } = fakeSandbox(stdout, commits);
-  return { implement: createImplementer({ sandbox, config, recordDir }), runs, execs };
+const implementing = (
+  stdout: string,
+  commits = [{ sha: "c0ffee" }],
+  { passLog = PASS_LOG }: { passLog?: string } = {},
+) => {
+  const { sandbox, runs, execs } = fakeSandbox(stdout, commits, passLog);
+  return {
+    implement: createImplementer({ sandbox, config, recordDir, baseBranch }),
+    runs,
+    execs,
+  };
 };
 
 const taggedResult = (json: string) =>
@@ -49,10 +65,9 @@ beforeEach(async () => {
 
 describe("createImplementer", () => {
   it("reports a committed ticket as done, from the base its change starts at", async () => {
-    const { implement, execs } = implementing(taggedResult('{"kind":"done"}'));
+    const { implement } = implementing(taggedResult('{"kind":"done"}'));
 
     await expect(implement(ticket)).resolves.toEqual({ kind: "done", base: HEAD_SHA });
-    expect(execs).toEqual(["git rev-parse HEAD"]);
   });
 
   it("names its status file after the run, so the pass's legs stay apart", async () => {
@@ -125,19 +140,51 @@ describe("createImplementer", () => {
       TICKET: `#${ticket.number}`,
       TICKET_SUMMARY: ticket.summary,
       TRACKER_DOC: TRACKER_DOC_PATH,
+      PASS_COMMITS: PASS_LOG,
     });
-    expect(run?.prompt).toContain("{{TICKET}}");
-    expect(run?.prompt).toContain("{{TICKET_SUMMARY}}");
-    expect(run?.prompt).toContain("{{TRACKER_DOC}}");
-    expect(run?.prompt).toContain(`<${IMPLEMENT_TAG}>`);
+    await expectPromptParity(run, "implementer.md");
   });
 
-  it("mounts the skills it works under: tdd, and kipu-commit to commit itself", async () => {
-    const { implement, runs } = implementing(taggedResult('{"kind":"done"}'));
+  it("shows the leg the pass's own commits, read alongside the branch's HEAD", async () => {
+    const { implement, runs, execs } = implementing(taggedResult('{"kind":"done"}'));
 
     await implement(ticket);
 
-    expect(runs[0]?.prompt).toContain("kipu-all:tdd");
-    expect(runs[0]?.prompt).toContain("kipu-all:kipu-commit");
+    expect(execs).toEqual(["git rev-parse HEAD", `git log --oneline ${baseBranch}..HEAD`]);
+    expect(runs[0]?.promptArgs).toMatchObject({ PASS_COMMITS: PASS_LOG });
+  });
+
+  it("implements the pass's first ticket, whose log of earlier commits is empty", async () => {
+    const { implement, runs } = implementing(taggedResult('{"kind":"done"}'), [{ sha: "c0ffee" }], {
+      passLog: "",
+    });
+
+    await expect(implement(ticket)).resolves.toEqual({ kind: "done", base: HEAD_SHA });
+    expect(runs[0]?.promptArgs).toMatchObject({ PASS_COMMITS: "" });
+  });
+});
+
+/**
+ * The implementer's behaviour lives in its prompt, so what the prompt instructs
+ * is the only thing there is to assert about how it builds a ticket.
+ */
+describe("the implementer prompt", () => {
+  let prompt: string;
+
+  beforeEach(async () => {
+    prompt = await readResource("implementer.md");
+  });
+
+  it("ends the run with the block relay reads the result out of", () => {
+    expect(prompt).toContain(`<${IMPLEMENT_TAG}>`);
+  });
+
+  it("mounts the skills it works under: tdd, and kipu-commit to commit itself", () => {
+    expect(prompt).toContain("kipu-all:tdd");
+    expect(prompt).toContain("kipu-all:kipu-commit");
+  });
+
+  it("shows the pass's commits where it tells the leg to build on them", () => {
+    expect(prompt).toMatch(/\{\{PASS_COMMITS\}\}[\s\S]*build on it rather than repeating it/);
   });
 });

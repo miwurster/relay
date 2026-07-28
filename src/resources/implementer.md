@@ -9,7 +9,11 @@ Read `{{TRACKER_DOC}}` in this worktree for how to reach the tracker, then read 
 Its description is your brief — the single source of what to build.
 Read the ticket only; make no tracker writes.
 
-Earlier tickets of this pass are already committed on this branch, so their work is in the worktree — build on it rather than repeating it.
+Every earlier ticket of this pass that is already committed on this branch is listed here, one line each — nothing below means yours is the pass's first:
+
+{{PASS_COMMITS}}
+
+Whatever is listed is in the worktree — build on it rather than repeating it.
 
 ## 2. Orient yourself before you write anything
 

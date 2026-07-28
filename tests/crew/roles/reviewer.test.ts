@@ -4,10 +4,12 @@ import { join } from "node:path";
 import type { Sandbox, SandboxRunOptions, SandboxRunResult } from "@ai-hero/sandcastle";
 import { beforeEach, describe, expect, it } from "vitest";
 import { relayConfigSchema } from "../../../src/config.js";
-import type { ReviewLens, ReviewScope } from "../../../src/crew/contract.js";
+import type { ReviewScope } from "../../../src/crew/contract.js";
 import { RoleError } from "../../../src/errors.js";
 import { createReviewer, FINDINGS_TAG } from "../../../src/crew/roles/reviewer.js";
+import { readResource } from "../../../src/resources.js";
 import { TRACKER_DOC_PATH } from "../../../src/tracker/tracker-doc.js";
+import { expectPromptParity } from "./prompt-parity.js";
 
 const config = relayConfigSchema.parse({ landing: "pull-request" });
 const baseBranch = "main";
@@ -145,7 +147,8 @@ describe("createReviewer", () => {
       BASE: baseBranch,
       DEPTH: "full",
     });
-    expect(runs[0]?.prompt).toContain("kipu-all:kipu-code-review");
+    await expectPromptParity(runs[0], "code-review.md");
+    await expectPromptParity(runs[1], "code-review.md");
   });
 
   it("sends the spec lenses to the tracker doc for the intent", async () => {
@@ -162,8 +165,8 @@ describe("createReviewer", () => {
       BASE: "c0ffee",
       TRACKER_DOC: TRACKER_DOC_PATH,
     });
-    expect(runs[0]?.prompt).toContain("kipu-all:kipu-spec-review");
-    expect(runs[0]?.prompt).toContain("{{TRACKER_DOC}}");
+    await expectPromptParity(runs[0], "spec-review.md");
+    await expectPromptParity(runs[1], "spec-review.md");
   });
 
   it("names each run for the lens and what it read, so each lens gets its own findings file", async () => {
@@ -175,13 +178,21 @@ describe("createReviewer", () => {
     expect(runs[0]?.name).toBe("fastCodeReview-8");
     expect(runs[1]?.name).toBe("inDepthCodeReview-branch");
   });
+});
 
+/**
+ * A lens's behaviour lives in its prompt, so what each prompt instructs is the
+ * only thing there is to assert about how it reads the diff.
+ */
+describe("the lens prompts", () => {
   it("tells every lens it is read-only", async () => {
-    const { review, runs } = reviewing(taggedFindings("[]"));
+    for (const file of ["code-review.md", "spec-review.md"]) {
+      expect(await readResource(file)).toContain("read-only");
+    }
+  });
 
-    const lenses: ReviewLens[] = ["fastCodeReview", "fastSpecReview"];
-    for (const lens of lenses) await review(lens, ticketScope);
-
-    for (const run of runs) expect(run.prompt).toContain("read-only");
+  it("runs each lens under the review skill its depth belongs to", async () => {
+    expect(await readResource("code-review.md")).toContain("kipu-all:kipu-code-review");
+    expect(await readResource("spec-review.md")).toContain("kipu-all:kipu-spec-review");
   });
 });
