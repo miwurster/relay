@@ -63,7 +63,7 @@ The planner's answer: **tickets** in dependency order, or a refusal to start on 
 _Avoid_: backlog, task list
 
 **Review scope**:
-What a **lens** reads: one **ticket**'s own change from the commit it started at, or the whole branch from the default branch.
+What a **lens** reads: one **ticket**'s own change from the commit it started at, or the whole branch from the **base branch**.
 _Avoid_: diff range, target
 
 **Finding**:

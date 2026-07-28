@@ -15,7 +15,6 @@ import type { GateProbe } from "../../src/doctor/gate-probe.js";
 import { PASS_LABELS, TRIAGE_LABELS } from "../../src/tracker/labels.js";
 
 const validConfig = `export default {
-  defaultBranch: "main",
   image: "registry.example.com/relay:1",
 };`;
 
@@ -331,7 +330,9 @@ describe("runDoctorChecks", () => {
 
   it("reports an invalid config and skips the checks that need it", async () => {
     const checks = await runDoctorChecks({
-      repoRoot: await repoWith(`export default {};`),
+      // A config still carrying the deleted defaultBranch key, which is the
+      // migration every repo on an older relay has to make.
+      repoRoot: await repoWith(`export default { defaultBranch: "main" };`),
       env: envWithSecrets(),
       git: ignoringGit,
       docker: healthyDocker().docker,
@@ -346,9 +347,7 @@ describe("runDoctorChecks", () => {
 
   it("reports an unbuildable image and skips the daemon check that needs it", async () => {
     const checks = await runDoctorChecks({
-      repoRoot: await repoWith(`export default {
-        defaultBranch: "main",
-      };`),
+      repoRoot: await repoWith("export default {};"),
       env: envWithSecrets(),
       git: ignoringGit,
       docker: healthyDocker().docker,
@@ -401,9 +400,7 @@ describe("runDoctorChecks", () => {
   });
 
   it("builds the repo's dockerfile rather than assuming an image is there", async () => {
-    const root = await repoWith(`export default {
-      defaultBranch: "main",
-    };`);
+    const root = await repoWith("export default {};");
     await mkdir(join(root, RELAY_DIR), { recursive: true });
     await writeFile(join(root, DEFAULT_DOCKERFILE_PATH), "FROM scratch\n", "utf8");
     const { docker, calls } = healthyDocker();
@@ -714,9 +711,7 @@ describe("runDoctorChecks", () => {
 
   it("skips the gate check when there is no image to run it in", async () => {
     const checks = await runDoctorChecks({
-      repoRoot: await repoWith(`export default {
-        defaultBranch: "main",
-      };`),
+      repoRoot: await repoWith("export default {};"),
       env: envWithSecrets(),
       git: ignoringGit,
       docker: healthyDocker().docker,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { defaultBranch, isGitHubRemote, isGitRepo, originUrl } from "../../src/host/git.js";
+import { currentBranch, isGitHubRemote, isGitRepo, originUrl } from "../../src/host/git.js";
+import { ConfigError } from "../../src/errors.js";
 
 /** A fake `GitRunner` answering canned responses keyed by the joined args. */
 function fakeGit(answers: Record<string, string | Error>) {
@@ -59,25 +60,28 @@ describe("originUrl", () => {
   });
 });
 
-describe("defaultBranch", () => {
-  it("reads the branch off origin/HEAD", async () => {
-    const { git } = fakeGit({
-      "-C /repo symbolic-ref refs/remotes/origin/HEAD": "refs/remotes/origin/trunk",
-    });
-    expect(await defaultBranch({ repoRoot: "/repo", git })).toBe("trunk");
+describe("currentBranch", () => {
+  const HEAD_BRANCH = "-C /repo symbolic-ref --short HEAD";
+  const HEAD_COMMIT = "-C /repo rev-parse --verify --quiet HEAD";
+
+  it("reads the branch the host has checked out", async () => {
+    const { git } = fakeGit({ [HEAD_BRANCH]: "spike/foo", [HEAD_COMMIT]: "a".repeat(40) });
+    expect(await currentBranch({ repoRoot: "/repo", git })).toBe("spike/foo");
   });
 
-  it("falls back to the current branch when origin/HEAD is unset", async () => {
-    const { git, calls } = fakeGit({
-      "-C /repo symbolic-ref refs/remotes/origin/HEAD": new Error(
-        "ref refs/remotes/origin/HEAD is not a symbolic ref",
-      ),
-      "-C /repo rev-parse --abbrev-ref HEAD": "main",
+  it("refuses a HEAD that names no branch, with the config-class error that exits 2", async () => {
+    const { git } = fakeGit({ [HEAD_BRANCH]: new Error("ref HEAD is not a symbolic ref") });
+    await expect(currentBranch({ repoRoot: "/repo", git })).rejects.toThrow(ConfigError);
+    await expect(currentBranch({ repoRoot: "/repo", git })).rejects.toThrow(
+      /Could not read a branch[\s\S]*check out the branch/i,
+    );
+  });
+
+  it("refuses an unborn HEAD, naming the branch that has no commits", async () => {
+    const { git } = fakeGit({
+      [HEAD_BRANCH]: "main",
+      [HEAD_COMMIT]: new Error("git rev-parse --verify --quiet HEAD failed"),
     });
-    expect(await defaultBranch({ repoRoot: "/repo", git })).toBe("main");
-    expect(calls).toEqual([
-      ["-C", "/repo", "symbolic-ref", "refs/remotes/origin/HEAD"],
-      ["-C", "/repo", "rev-parse", "--abbrev-ref", "HEAD"],
-    ]);
+    await expect(currentBranch({ repoRoot: "/repo", git })).rejects.toThrow(/main has no commits/);
   });
 });

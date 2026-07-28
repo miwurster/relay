@@ -25,7 +25,7 @@ When one is `required`, this is how you open it — the sandbox is thrown away a
 
 ```sh
 git push -u origin {{BRANCH}}
-gh pr create --title '<title>' --body '<body>'
+gh pr create --base {{BASE_BRANCH}} --title '<title>' --body '<body>'
 ```
 
 Title it for a human — what the branch changes, in one line.
@@ -77,7 +77,7 @@ Write the report the human reads in their terminal, as plain text lines — no J
 - the outcome and, when the pass did not succeed, its cause;
 - {{WORK_ITEM}} and the state you left it in;
 - the branch, and the pull request URL when there is one;
-- each ticket the branch committed, with its short SHA from `git log --oneline {{DEFAULT_BRANCH}}..{{BRANCH}}`;
+- each ticket the branch committed, with its short SHA from `git log --oneline {{BASE_BRANCH}}..{{BRANCH}}`;
 - the green gate's verdict.
 
 ## Output

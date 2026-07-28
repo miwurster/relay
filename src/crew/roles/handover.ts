@@ -28,8 +28,9 @@ const handoverSchema = z.object({
 export function createHandover({
   workItem,
   branch,
+  baseBranch,
   ...deps
-}: RoleDeps & { workItem: number; branch: string }): Crew["handover"] {
+}: RoleDeps & { workItem: number; branch: string; baseBranch: string }): Crew["handover"] {
   return async function handover(outcome: Outcome, committed: readonly TicketRef[]): Promise<void> {
     const leg = describeLeg(outcome, committed);
 
@@ -49,7 +50,7 @@ export function createHandover({
         COMMITTED_TICKETS: leg.committed,
         WORK_ITEM: `#${workItem}`,
         BRANCH: branch,
-        DEFAULT_BRANCH: deps.config.defaultBranch,
+        BASE_BRANCH: baseBranch,
         TRACKER_DOC: TRACKER_DOC_PATH,
       },
       tag: HANDOVER_TAG,

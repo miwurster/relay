@@ -11,11 +11,7 @@ import {
   verifyPrebuiltImage,
 } from "../../src/sandbox/sandbox-image.js";
 
-const config = (overrides: Record<string, unknown> = {}) =>
-  relayConfigSchema.parse({
-    defaultBranch: "main",
-    ...overrides,
-  });
+const config = (overrides: Record<string, unknown> = {}) => relayConfigSchema.parse(overrides);
 
 async function repoWithDockerfile(relativePath: string | undefined): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "relay-image-"));

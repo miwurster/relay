@@ -64,8 +64,6 @@ const modelsSchema = z
  * is also how a repo's leftover `jira` block reports itself.
  */
 export const relayConfigSchema = z.strictObject({
-  /** The branch a pass branches from. */
-  defaultBranch: z.string().min(1),
   /** A prebuilt sandbox image; when absent relay builds from `dockerfile`. */
   image: z.string().min(1).optional(),
   /** Repo-relative path to the sandbox Dockerfile, used when `image` is unset. */

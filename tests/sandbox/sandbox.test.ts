@@ -27,10 +27,7 @@ const plugins = [
   { name: "kipu-all", hostPath: "/host/kipu-all", sandboxPath: "/opt/relay/plugins/kipu-all" },
 ];
 
-const config = (defaultBranch = "main") =>
-  relayConfigSchema.parse({
-    defaultBranch,
-  });
+const config = relayConfigSchema.parse({});
 
 describe("sandboxMounts", () => {
   it("mounts the docker socket and each plugin read-only, and nothing else", () => {
@@ -62,17 +59,17 @@ describe("sandboxEnv", () => {
 
 describe("passBranch", () => {
   it("prefixes the work item with the configured branch prefix", () => {
-    expect(passBranch(config(), 123)).toBe("agent/123");
+    expect(passBranch(config, 123)).toBe("agent/123");
   });
 });
 
 describe("sandboxOptions", () => {
-  function optionsFor(defaultBranch: string) {
+  function optionsFor(baseBranch: string) {
     return sandboxOptions({
       repoRoot: "/repo",
-      config: config(defaultBranch),
       secrets,
       branch: "agent/123",
+      baseBranch,
       host: {
         image: "relay-sandbox:repo",
         socketGid: 0,
@@ -82,7 +79,7 @@ describe("sandboxOptions", () => {
     });
   }
 
-  it("opens a fresh worktree on its own branch, cut from the default branch", () => {
+  it("opens a fresh worktree on its own branch, cut from the base branch", () => {
     const options = optionsFor("trunk");
     expect(options.cwd).toBe("/repo");
     expect(options.branch).toBe("agent/123");

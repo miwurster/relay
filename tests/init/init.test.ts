@@ -20,14 +20,17 @@ async function tempRepo(): Promise<string> {
   return mkdtemp(join(tmpdir(), "relay-init-"));
 }
 
-/** A `GitRunner` fake for a GitHub clone whose origin/HEAD names `branch`. */
-function githubClone(branch = "main") {
+/**
+ * A `GitRunner` fake for a GitHub clone. It answers the two questions init's
+ * guard asks and throws on anything else, so an init that went looking for the
+ * repo's branches fails the test that used it.
+ */
+function githubClone() {
   const calls: string[][] = [];
   const git = async (args: readonly string[]) => {
     calls.push([...args]);
     if (args.includes("--is-inside-work-tree")) return "true";
     if (args.includes("get-url")) return "https://github.com/owner/repo.git";
-    if (args.includes("symbolic-ref")) return `refs/remotes/origin/${branch}`;
     throw new Error(`unexpected git ${args.join(" ")}`);
   };
   return { git, calls };
@@ -148,19 +151,11 @@ describe("runInitChecks", () => {
     expect(recipe?.detail).toBe("wrote the java sandbox recipe");
   });
 
-  it("reads defaultBranch from the clone's origin/HEAD", async () => {
+  it("writes a config that echoes no default, and names no branch", async () => {
     const repoRoot = await tempRepo();
+    const clone = githubClone();
 
-    await runInitChecks({ repoRoot, git: githubClone("trunk").git, gh: fakeGh().gh });
-
-    const config = await loadConfig(repoRoot);
-    expect(config.defaultBranch).toBe("trunk");
-  });
-
-  it("writes only defaultBranch, echoing no other default", async () => {
-    const repoRoot = await tempRepo();
-
-    const verdicts = await runInitChecks({ repoRoot, git: githubClone().git, gh: fakeGh().gh });
+    const verdicts = await runInitChecks({ repoRoot, git: clone.git, gh: fakeGh().gh });
 
     expect(verdicts[0]?.outcome).toBe("written");
     const written = await readFile(join(repoRoot, CONFIG_FILE_PATH), "utf8");
@@ -168,8 +163,10 @@ describe("runInitChecks", () => {
     expect(written).not.toContain("branchPrefix");
     expect(written).not.toContain("roleTimeoutMs");
     expect(written).not.toContain("models");
-    const config = await loadConfig(repoRoot);
-    expect(config.defaultBranch).toBe("main");
+    expect(written).not.toContain("Branch");
+    // A pass reads the branch off the host's checkout, so init never detects one.
+    expect(clone.calls.flat()).not.toContain("symbolic-ref");
+    await expect(loadConfig(repoRoot)).resolves.toMatchObject({ branchPrefix: "agent/" });
   });
 
   it("keeps an existing config rather than overwriting it, and reports it kept", async () => {
@@ -177,7 +174,7 @@ describe("runInitChecks", () => {
     await mkdir(join(repoRoot, RELAY_DIR), { recursive: true });
     await writeFile(
       join(repoRoot, CONFIG_FILE_PATH),
-      `export default { defaultBranch: "main" };`,
+      `export default { branchPrefix: "relay/" };`,
       "utf8",
     );
 
@@ -189,7 +186,7 @@ describe("runInitChecks", () => {
       detail: "already exists",
     });
     const config = await loadConfig(repoRoot);
-    expect(config.defaultBranch).toBe("main");
+    expect(config.branchPrefix).toBe("relay/");
   });
 
   it("writes the java sandbox recipe for a pom.xml repo", async () => {
@@ -267,11 +264,7 @@ describe("runInitChecks", () => {
     const repoRoot = await tempRepo();
     await writeFile(join(repoRoot, "pom.xml"), "<project/>", "utf8");
     await mkdir(join(repoRoot, RELAY_DIR), { recursive: true });
-    await writeFile(
-      join(repoRoot, CONFIG_FILE_PATH),
-      `export default { defaultBranch: "main" };`,
-      "utf8",
-    );
+    await writeFile(join(repoRoot, CONFIG_FILE_PATH), "export default {};", "utf8");
 
     const verdicts = await runInitChecks({ repoRoot, git: githubClone().git, gh: fakeGh().gh });
 

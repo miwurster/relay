@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { GitError } from "../errors.js";
+import { ConfigError, GitError } from "../errors.js";
 
 /** Runs the `git` CLI and returns its trimmed stdout. Injectable for tests. */
 export type GitRunner = (args: readonly string[]) => Promise<string>;
@@ -59,23 +59,39 @@ export async function originUrl({
 }
 
 /**
- * The clone's default branch, read from `origin/HEAD`. A fresh clone that
- * never set it (or a repo with no remote-tracking branch at all) falls back
- * to the current branch rather than failing.
+ * The branch the host has checked out — the one branch a pass is cut from,
+ * reviewed against and reported against ([ADR-0016](../../docs/adr/0016-the-base-branch-is-the-hosts-checkout.md)).
+ *
+ * A detached or unborn HEAD is refused rather than fallen back on: there is no
+ * branch to cut from, and a fallback would target a branch the operator is not
+ * standing on.
  */
-export async function defaultBranch({
+export async function currentBranch({
   repoRoot,
   git = runGit,
 }: {
   repoRoot: string;
   git?: GitRunner;
 }): Promise<string> {
+  let branch: string;
   try {
-    const ref = await git(["-C", repoRoot, "symbolic-ref", "refs/remotes/origin/HEAD"]);
-    const branch = ref.replace(/^refs\/remotes\/origin\//, "");
-    if (branch) return branch;
+    branch = await git(["-C", repoRoot, "symbolic-ref", "--short", "HEAD"]);
   } catch {
-    // origin/HEAD unset — fall back to the current branch.
+    throw new ConfigError(
+      "Could not read a branch from this repo's HEAD — it is detached, or this is not a " +
+        "git clone. A pass is cut from the branch you have checked out, so check out the " +
+        "branch you want it to target, then run again.",
+    );
   }
-  return git(["-C", repoRoot, "rev-parse", "--abbrev-ref", "HEAD"]);
+
+  try {
+    await git(["-C", repoRoot, "rev-parse", "--verify", "--quiet", "HEAD"]);
+  } catch {
+    throw new ConfigError(
+      `This repo's current branch ${branch} has no commits yet, so a pass has nothing ` +
+        "to be cut from — commit something, then run again.",
+    );
+  }
+
+  return branch;
 }

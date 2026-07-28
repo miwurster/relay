@@ -5,9 +5,7 @@ import { describe, expect, it } from "vitest";
 import { ConfigError } from "../src/errors.js";
 import { CONFIG_FILE_PATH, loadConfig } from "../src/config.js";
 
-const minimalConfig = `export default {
-  defaultBranch: "main",
-};`;
+const minimalConfig = `export default {};`;
 
 async function repoWith(configSource: string | undefined): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "relay-config-"));
@@ -21,8 +19,8 @@ async function repoWith(configSource: string | undefined): Promise<string> {
 
 describe("loadConfig", () => {
   it("loads an authored TypeScript config from the repo's relay directory", async () => {
-    const config = await loadConfig(await repoWith(minimalConfig));
-    expect(config.defaultBranch).toBe("main");
+    const config = await loadConfig(await repoWith(`export default { branchPrefix: "relay/" };`));
+    expect(config.branchPrefix).toBe("relay/");
   });
 
   it("applies the package defaults a repo did not override", async () => {
@@ -40,7 +38,6 @@ describe("loadConfig", () => {
 
   it("lets a repo override a default without dropping the others", async () => {
     const root = await repoWith(`export default {
-      defaultBranch: "trunk",
       branchPrefix: "relay/",
       image: "registry.example.com/relay:1",
       models: { implementer: "claude-opus-4-8", gateResolver: "claude-sonnet-5" },
@@ -58,22 +55,22 @@ describe("loadConfig", () => {
     await expect(loadConfig(await repoWith(undefined))).rejects.toThrow(ConfigError);
   });
 
-  it("rejects a config that omits a required field", async () => {
-    const root = await repoWith(`export default {};`);
+  it("rejects a config still carrying the deleted defaultBranch field", async () => {
+    const root = await repoWith(`export default {
+      defaultBranch: "main",
+    };`);
     await expect(loadConfig(root)).rejects.toThrow(/defaultBranch/);
   });
 
   it("rejects a config still carrying the deleted greenGate field", async () => {
     const root = await repoWith(`export default {
       greenGate: "make test",
-      defaultBranch: "main",
     };`);
     await expect(loadConfig(root)).rejects.toThrow(ConfigError);
   });
 
   it("rejects non-secret tracker ids that belong in issue-tracker.md", async () => {
     const root = await repoWith(`export default {
-      defaultBranch: "main",
       projectKey: "PSD",
     };`);
     await expect(loadConfig(root)).rejects.toThrow(ConfigError);
@@ -81,7 +78,6 @@ describe("loadConfig", () => {
 
   it("rejects a config that carries a secret", async () => {
     const root = await repoWith(`export default {
-      defaultBranch: "main",
       githubToken: "shh",
     };`);
     await expect(loadConfig(root)).rejects.toThrow(ConfigError);
@@ -89,7 +85,6 @@ describe("loadConfig", () => {
 
   it("names a leftover jira block, so migrating a repo cannot half-succeed", async () => {
     const root = await repoWith(`export default {
-      defaultBranch: "main",
       jira: { baseUrl: "https://example.atlassian.net" },
     };`);
     await expect(loadConfig(root)).rejects.toThrow(/jira/);

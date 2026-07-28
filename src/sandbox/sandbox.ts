@@ -126,28 +126,28 @@ function worktreePathsByBranch(porcelain: string): Map<string, string> {
 
 /**
  * The sandbox one pass runs in: a fresh worktree on its own branch, cut from
- * the repo's default branch, with the runtime mounts wired.
+ * the pass's base branch, with the runtime mounts wired.
  *
  * The socket's in-container group is added to the non-root sandbox user so the
  * green gate's Testcontainers tier can reach the host daemon.
  */
 export function sandboxOptions({
   repoRoot,
-  config,
   secrets,
   branch,
+  baseBranch,
   host,
 }: {
   repoRoot: string;
-  config: RelayConfig;
   secrets: Secrets;
   branch: string;
+  baseBranch: string;
   host: HostFacts;
 }): CreateSandboxOptions {
   return {
     cwd: repoRoot,
     branch,
-    baseBranch: config.defaultBranch,
+    baseBranch,
     hooks: { host: { onWorktreeReady: [{ command: SUBMODULE_INIT }] } },
     sandbox: dockerSandbox({
       imageName: host.image,
@@ -168,11 +168,13 @@ export async function openSandbox({
   config,
   secrets,
   branch,
+  baseBranch,
 }: {
   repoRoot: string;
   config: RelayConfig;
   secrets: Secrets;
   branch: string;
+  baseBranch: string;
 }): Promise<Sandbox> {
   // Operator setup first: a plugin the host has not installed must not cost a
   // whole image build before it is reported.
@@ -189,9 +191,9 @@ export async function openSandbox({
   return await createSandbox(
     sandboxOptions({
       repoRoot,
-      config,
       secrets,
       branch,
+      baseBranch,
       host: { image, socketGid, testcontainersHost, plugins },
     }),
   );

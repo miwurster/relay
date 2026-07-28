@@ -10,12 +10,11 @@ import { readResource } from "../../../src/resources.js";
 import { createHandover, HANDOVER_TAG } from "../../../src/crew/roles/handover.js";
 import { TRACKER_DOC_PATH } from "../../../src/tracker/tracker-doc.js";
 
-const config = relayConfigSchema.parse({
-  defaultBranch: "main",
-});
+const config = relayConfigSchema.parse({});
 
 const workItem = 7;
 const branch = "agent/7";
+const baseBranch = "main";
 
 /** A sandbox whose handover run has a fixed stdout and commit count. */
 function handing({ stdout = "", commits = [] as { sha: string }[] } = {}) {
@@ -27,7 +26,10 @@ function handing({ stdout = "", commits = [] as { sha: string }[] } = {}) {
     },
   } as unknown as Sandbox;
 
-  return { handover: createHandover({ sandbox, config, recordDir, workItem, branch }), runs };
+  return {
+    handover: createHandover({ sandbox, config, recordDir, workItem, branch, baseBranch }),
+    runs,
+  };
 }
 
 const tagged = (json: string) => `Handed over.\n<${HANDOVER_TAG}>${json}</${HANDOVER_TAG}>`;
@@ -80,7 +82,7 @@ describe("createHandover", () => {
       COMMITTED_TICKETS: "#8, #9",
       WORK_ITEM: `#${workItem}`,
       BRANCH: branch,
-      DEFAULT_BRANCH: config.defaultBranch,
+      BASE_BRANCH: baseBranch,
       TRACKER_DOC: TRACKER_DOC_PATH,
     });
   });

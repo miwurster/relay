@@ -10,14 +10,7 @@ import {
 } from "../config.js";
 import { ConfigError, reasonOf } from "../errors.js";
 import { ExitCode } from "../exit-codes.js";
-import {
-  defaultBranch,
-  isGitHubRemote,
-  isGitRepo,
-  originUrl,
-  runGit,
-  type GitRunner,
-} from "../host/git.js";
+import { isGitHubRemote, isGitRepo, originUrl, runGit, type GitRunner } from "../host/git.js";
 import {
   ghAuthStatus,
   ghCreateLabel,
@@ -103,7 +96,7 @@ export async function runInitChecks({
   const stack = detectStack(repoRoot);
 
   return [
-    await writeConfigFile({ repoRoot, git }),
+    await writeConfigFile(repoRoot),
     await writeSandboxRecipe({ repoRoot, stack }),
     await writeCredentialExample(repoRoot),
     await ignoreCredentialFile(repoRoot),
@@ -253,23 +246,16 @@ async function ignoreWorktreeDir(repoRoot: string): Promise<InitVerdict> {
   };
 }
 
-async function writeConfigFile({
-  repoRoot,
-  git,
-}: {
-  repoRoot: string;
-  git: GitRunner;
-}): Promise<InitVerdict> {
+async function writeConfigFile(repoRoot: string): Promise<InitVerdict> {
   const configPath = join(repoRoot, CONFIG_FILE_PATH);
   if (existsSync(configPath)) {
     return { subject: CONFIG_FILE_PATH, outcome: "kept", detail: "already exists" };
   }
 
-  const branch = await defaultBranch({ repoRoot, git });
   await mkdir(dirname(configPath), { recursive: true });
-  await writeFile(configPath, configSource({ branch }), "utf8");
+  await writeFile(configPath, CONFIG_SOURCE, "utf8");
 
-  return { subject: CONFIG_FILE_PATH, outcome: "written", detail: `defaultBranch \`${branch}\`` };
+  return { subject: CONFIG_FILE_PATH, outcome: "written", detail: "every setting on its default" };
 }
 
 /** The three sandbox recipe templates shipped as resources, one per stack. */
@@ -356,13 +342,12 @@ function detectStack(repoRoot: string): Stack | undefined {
 }
 
 /**
- * `.relay/config.ts` carrying only `defaultBranch` — every other field has a
- * package default, and echoing them back out would freeze them against
- * future defaults.
+ * An empty `.relay/config.ts` — every field has a package default, and echoing
+ * them back out would freeze them against future defaults. The branch a pass
+ * targets is not among them: it is read from the host's checkout at pass start
+ * ([ADR-0016](../../docs/adr/0016-the-base-branch-is-the-hosts-checkout.md)).
  */
-function configSource({ branch }: { branch: string }): string {
-  return `export default {\n  defaultBranch: ${JSON.stringify(branch)},\n};\n`;
-}
+const CONFIG_SOURCE = "export default {};\n";
 
 function label(outcome: InitVerdict["outcome"]): string {
   return { written: "wrote ", kept: "kept  ", skipped: "skip  ", failed: "FAILED" }[outcome];

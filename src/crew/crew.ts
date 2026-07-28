@@ -15,20 +15,23 @@ import type { RoleDeps } from "./run-role.js";
 export function createCrew({
   workItem,
   branch,
+  baseBranch,
   ...deps
 }: RoleDeps & {
   /** The issue number of the work item this pass runs over. */
   workItem: number;
   /** The branch the pass commits to, and the handover publishes. */
   branch: string;
+  /** The branch the pass was cut from, reviewed against and reported against. */
+  baseBranch: string;
 }): Crew {
   return {
     resolveGate: createGateResolver(deps),
     plan: createPlanner(deps),
     implement: createImplementer(deps),
-    review: createReviewer(deps),
+    review: createReviewer({ ...deps, baseBranch }),
     fix: createFixer(deps),
     greenGate: createGreenGate(deps),
-    handover: createHandover({ ...deps, workItem, branch }),
+    handover: createHandover({ ...deps, workItem, branch, baseBranch }),
   };
 }

@@ -1,5 +1,4 @@
 import { z } from "zod";
-import type { RelayConfig } from "../../config.js";
 import type { Crew, Finding, ReviewLens, ReviewScope } from "../contract.js";
 import { writeFindingsFile } from "../leg-record.js";
 import { type RoleDeps, runRole } from "../run-role.js";
@@ -49,10 +48,13 @@ interface ReviewTarget {
  * Ordering is the harness's — it runs a scope's lenses and merges what they
  * return — so a lens here knows nothing about the other three.
  */
-export function createReviewer(deps: RoleDeps): Crew["review"] {
+export function createReviewer({
+  baseBranch,
+  ...deps
+}: RoleDeps & { baseBranch: string }): Crew["review"] {
   return async function review(lens: ReviewLens, scope: ReviewScope): Promise<Finding[]> {
     const lensRun = LENSES[lens];
-    const target = describeScope(scope, deps.config);
+    const target = describeScope(scope, baseBranch);
 
     const summaries = await runRole({
       ...deps,
@@ -78,7 +80,7 @@ export function createReviewer(deps: RoleDeps): Crew["review"] {
  * at before it was implemented; the whole branch is measured against the work
  * item, from the branch it was cut off.
  */
-function describeScope(scope: ReviewScope, config: RelayConfig): ReviewTarget {
+function describeScope(scope: ReviewScope, baseBranch: string): ReviewTarget {
   return scope.kind === "ticket"
     ? {
         name: String(scope.ticket.number),
@@ -86,7 +88,7 @@ function describeScope(scope: ReviewScope, config: RelayConfig): ReviewTarget {
         base: scope.base,
         ticket: scope.ticket.number,
       }
-    : { name: "branch", item: `#${scope.workItem}`, base: config.defaultBranch };
+    : { name: "branch", item: `#${scope.workItem}`, base: baseBranch };
 }
 
 function toFinding(lens: ReviewLens, target: ReviewTarget, summary: string): Finding {

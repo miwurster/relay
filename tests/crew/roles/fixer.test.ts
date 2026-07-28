@@ -8,9 +8,7 @@ import type { Finding, FixTarget } from "../../../src/crew/contract.js";
 import { RoleError } from "../../../src/errors.js";
 import { createFixer, FIX_TAG } from "../../../src/crew/roles/fixer.js";
 
-const config = relayConfigSchema.parse({
-  defaultBranch: "main",
-});
+const config = relayConfigSchema.parse({});
 
 const ticketTarget: FixTarget = { kind: "ticket", ticket: { number: 8, summary: "the schema" } };
 const branchTarget: FixTarget = { kind: "branch" };

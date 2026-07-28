@@ -2,7 +2,7 @@ import type { Sandbox } from "@ai-hero/sandcastle";
 import type { RelayConfig } from "../config.js";
 import type { ResolvedGate } from "../crew/contract.js";
 import { createGateResolver } from "../crew/roles/gate-resolver.js";
-import { type GitRunner, runGit } from "../host/git.js";
+import { currentBranch, type GitRunner, runGit } from "../host/git.js";
 import { doctorRecordDir } from "../crew/leg-record.js";
 import { openSandbox } from "../sandbox/sandbox.js";
 import type { Secrets } from "../host/secrets.js";
@@ -43,9 +43,12 @@ export async function probeGate({
   git?: GitRunner;
 }): Promise<ResolvedGate> {
   const branch = probeBranch(config);
+  // The same branch a pass would be cut from, so a probe reads the repo a pass
+  // would read — and a checkout no pass could run on is refused here first.
+  const baseBranch = await currentBranch({ repoRoot, git });
   let sandbox: Sandbox | undefined;
   try {
-    sandbox = await open({ repoRoot, config, secrets, branch });
+    sandbox = await open({ repoRoot, config, secrets, branch, baseBranch });
     return await createGateResolver({
       sandbox,
       config,

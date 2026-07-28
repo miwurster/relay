@@ -8,9 +8,7 @@ import type { ResolvedGate } from "../../../src/crew/contract.js";
 import { RoleError } from "../../../src/errors.js";
 import { createGreenGate, GATE_OUTPUT_TAIL, GATE_TAG } from "../../../src/crew/roles/green-gate.js";
 
-const config = relayConfigSchema.parse({
-  defaultBranch: "main",
-});
+const config = relayConfigSchema.parse({});
 
 const gate: ResolvedGate = {
   command: "./mvnw verify -DexcludedGroups=e2e",

@@ -9,9 +9,7 @@ import { RoleError } from "../../../src/errors.js";
 import { createImplementer, IMPLEMENT_TAG } from "../../../src/crew/roles/implementer.js";
 import { TRACKER_DOC_PATH } from "../../../src/tracker/tracker-doc.js";
 
-const config = relayConfigSchema.parse({
-  defaultBranch: "main",
-});
+const config = relayConfigSchema.parse({});
 
 const ticket: TicketRef = { number: 8, summary: "the schema" };
 

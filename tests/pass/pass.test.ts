@@ -17,9 +17,7 @@ import { createStubCrew } from "../crew/stub-crew.js";
 import type { Secrets } from "../../src/host/secrets.js";
 import { TRACKER_DOC_PATH } from "../../src/tracker/tracker-doc.js";
 
-const validConfig = `export default {
-  defaultBranch: "main",
-};`;
+const validConfig = `export default {};`;
 
 const secrets = ["GH_TOKEN=gh-token", "CLAUDE_CODE_OAUTH_TOKEN=oauth-token"];
 
@@ -99,9 +97,7 @@ const passSecrets: Secrets = {
   ],
 };
 
-const passConfig = relayConfigSchema.parse({
-  defaultBranch: "main",
-});
+const passConfig = relayConfigSchema.parse({});
 
 /** A GitHub that records the crash comment and answers nothing else. */
 function fakeGitHub() {
@@ -135,13 +131,14 @@ function fakeSandbox() {
   return { open: async () => opened, wasClosed: () => closed };
 }
 
+/** A repo on `main` with one commit, which is what a pass needs to be cut from. */
 async function gitRepo(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "relay-branch-"));
   await execFileAsync("git", ["init", "--initial-branch=main"], { cwd: root });
+  await commit(root);
   return root;
 }
 
-/** A first commit, so the repo has a branch a collision can happen on. */
 async function commit(root: string): Promise<void> {
   const identity = {
     GIT_AUTHOR_NAME: "relay",
@@ -154,6 +151,18 @@ async function commit(root: string): Promise<void> {
     env: { ...process.env, ...identity },
   });
 }
+
+/** A host whose HEAD points at a commit rather than a branch. */
+const detachedHead = async (args: readonly string[]) => {
+  if (args.includes("symbolic-ref")) throw new Error("fatal: ref HEAD is not a symbolic ref");
+  return "";
+};
+
+/** A host on a branch that has no commits yet. */
+const unbornHead = async (args: readonly string[]) => {
+  if (args.includes("symbolic-ref")) return "main";
+  throw new Error("fatal: needed a single revision");
+};
 
 /** Run one pass over the fake item, varying only what a test cares about. */
 async function runOnePass(overrides: Partial<PassRun> & { github: GitHubClient }) {
@@ -266,7 +275,6 @@ describe("runPassOnItem", () => {
 
   it("refuses to run when the pass branch already exists, without opening a sandbox", async () => {
     const root = await gitRepo();
-    await commit(root);
     await execFileAsync("git", ["branch", "agent/1"], { cwd: root });
     const { github } = fakeGitHub();
     const open = vi.fn();
@@ -283,7 +291,6 @@ describe("runPassOnItem", () => {
 
   it("names the leftover worktree when a crashed pass left the branch checked out", async () => {
     const root = await gitRepo();
-    await commit(root);
     const worktree = join(root, ".sandcastle", "worktrees", "agent-1");
     await execFileAsync("git", ["worktree", "add", "-b", "agent/1", worktree], { cwd: root });
     const { github } = fakeGitHub();
@@ -303,11 +310,64 @@ describe("runPassOnItem", () => {
 
   it("maps a branch collision to exit 2", async () => {
     const root = await gitRepo();
-    await commit(root);
     await execFileAsync("git", ["branch", "agent/1"], { cwd: root });
     const { github } = fakeGitHub();
 
     const code = await exitCodeOf(() => runOnePass({ github, repoRoot: root }));
+
+    expect(code).toBe(ExitCode.Error);
+  });
+
+  it("cuts the pass from the branch the host stands on, and tells the crew the same one", async () => {
+    const root = await gitRepo();
+    await execFileAsync("git", ["checkout", "-b", "spike/foo"], { cwd: root });
+    const { github } = fakeGitHub();
+    const opens: { baseBranch: string }[] = [];
+    const crews: { baseBranch: string }[] = [];
+
+    await runOnePass({
+      github,
+      repoRoot: root,
+      open: async ({ baseBranch }) => {
+        opens.push({ baseBranch });
+        return fakeSandbox().open();
+      },
+      createCrew: (_sandbox, _branch, baseBranch) => {
+        crews.push({ baseBranch });
+        return createStubCrew();
+      },
+    });
+
+    expect(opens).toEqual([{ baseBranch: "spike/foo" }]);
+    expect(crews).toEqual([{ baseBranch: "spike/foo" }]);
+  });
+
+  it("refuses a detached HEAD before opening a sandbox", async () => {
+    const { github } = fakeGitHub();
+    const open = vi.fn();
+
+    await expect(runOnePass({ github, open, git: detachedHead })).rejects.toThrow(
+      /Could not read a branch/,
+    );
+
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it("refuses an unborn HEAD before opening a sandbox", async () => {
+    const { github } = fakeGitHub();
+    const open = vi.fn();
+
+    await expect(runOnePass({ github, open, git: unbornHead })).rejects.toThrow(
+      /has no commits yet/,
+    );
+
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it("maps a refused checkout to exit 2", async () => {
+    const { github } = fakeGitHub();
+
+    const code = await exitCodeOf(() => runOnePass({ github, open: vi.fn(), git: detachedHead }));
 
     expect(code).toBe(ExitCode.Error);
   });

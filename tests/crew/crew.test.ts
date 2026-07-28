@@ -13,9 +13,7 @@ import type { GitHubIssue } from "../../src/tracker/github.js";
 import { PLAN_TAG } from "../../src/crew/roles/planner.js";
 import { FINDINGS_TAG } from "../../src/crew/roles/reviewer.js";
 
-const config = relayConfigSchema.parse({
-  defaultBranch: "main",
-});
+const config = relayConfigSchema.parse({});
 
 const issue: GitHubIssue = {
   number: 7,
@@ -26,6 +24,7 @@ const issue: GitHubIssue = {
 };
 
 const branch = "agent/7";
+const baseBranch = "main";
 
 let recordDir: string;
 
@@ -49,7 +48,14 @@ describe("createCrew", () => {
       },
     } as unknown as Sandbox;
 
-    const crew = createCrew({ sandbox, config, recordDir, workItem: issue.number, branch });
+    const crew = createCrew({
+      sandbox,
+      config,
+      recordDir,
+      workItem: issue.number,
+      branch,
+      baseBranch,
+    });
     const gate = await crew.resolveGate();
 
     expect(gate).toEqual({
@@ -73,7 +79,14 @@ describe("createCrew", () => {
       },
     } as unknown as Sandbox;
 
-    const crew = createCrew({ sandbox, config, recordDir, workItem: issue.number, branch });
+    const crew = createCrew({
+      sandbox,
+      config,
+      recordDir,
+      workItem: issue.number,
+      branch,
+      baseBranch,
+    });
     const plan = await crew.plan(issue);
 
     expect(plan).toEqual({ kind: "plan", tickets: [{ number: 8, summary: "it" }] });
@@ -95,7 +108,14 @@ describe("createCrew", () => {
         return { stdout: "9e4d1a0\n", stderr: "", exitCode: 0 };
       },
     } as unknown as Sandbox;
-    const crew = createCrew({ sandbox, config, recordDir, workItem: issue.number, branch });
+    const crew = createCrew({
+      sandbox,
+      config,
+      recordDir,
+      workItem: issue.number,
+      branch,
+      baseBranch,
+    });
 
     await crew.implement({ number: 8, summary: "the schema" });
     const result = await crew.implement({ number: 9, summary: "the endpoint" });
@@ -116,7 +136,14 @@ describe("createCrew", () => {
         };
       },
     } as unknown as Sandbox;
-    const crew = createCrew({ sandbox, config, recordDir, workItem: issue.number, branch });
+    const crew = createCrew({
+      sandbox,
+      config,
+      recordDir,
+      workItem: issue.number,
+      branch,
+      baseBranch,
+    });
 
     await crew.fix([{ source: "fastCodeReview", ticket: 8, summary: "src/a.ts:3 dead" }], {
       kind: "ticket",
@@ -141,6 +168,7 @@ describe("createCrew", () => {
       recordDir,
       workItem: issue.number,
       branch,
+      baseBranch,
     }).greenGate(1, {
       command: "make test",
       provenance: "declared",
@@ -167,7 +195,14 @@ describe("createCrew", () => {
         return { stdout: "", stderr: "", exitCode: 0 };
       },
     } as unknown as Sandbox;
-    const crew = createCrew({ sandbox, config, recordDir, workItem: issue.number, branch });
+    const crew = createCrew({
+      sandbox,
+      config,
+      recordDir,
+      workItem: issue.number,
+      branch,
+      baseBranch,
+    });
 
     const findings = await crew.review("fastCodeReview", {
       kind: "ticket",
@@ -179,6 +214,41 @@ describe("createCrew", () => {
       { source: "fastCodeReview", ticket: 8, summary: "src/a.ts:3 duplicated parsing" },
     ]);
     expect(runs.map((run) => run.name)).toEqual(["fastCodeReview-8"]);
+  });
+
+  it("gives its base branch to the whole-branch reviewer and to the handover", async () => {
+    const runs: SandboxRunOptions[] = [];
+    const sandbox = {
+      async run(options: SandboxRunOptions): Promise<SandboxRunResult> {
+        runs.push(options);
+        return {
+          iterations: [],
+          commits: [],
+          stdout: options.name?.startsWith("handover")
+            ? `<${HANDOVER_TAG}>{"prUrl":"https://github.com/g/r/pull/1","report":"done"}</${HANDOVER_TAG}>`
+            : `<${FINDINGS_TAG}>[]</${FINDINGS_TAG}>`,
+        };
+      },
+      async exec() {
+        return { stdout: "", stderr: "", exitCode: 0 };
+      },
+    } as unknown as Sandbox;
+    const crew = createCrew({
+      sandbox,
+      config,
+      recordDir,
+      workItem: issue.number,
+      branch,
+      baseBranch: "spike/foo",
+    });
+
+    await crew.review("inDepthCodeReview", { kind: "branch", workItem: issue.number });
+    await crew.handover({ kind: "success", detail: "`make test` exited 0" }, [
+      { number: 8, summary: "the one ticket" },
+    ]);
+
+    expect(runs[0]?.promptArgs).toMatchObject({ SCOPE: "branch", BASE: "spike/foo" });
+    expect(runs[1]?.promptArgs).toMatchObject({ BASE_BRANCH: "spike/foo" });
   });
 
   it("hands the pass over on the item and branch it ran on", async () => {
@@ -193,7 +263,14 @@ describe("createCrew", () => {
         };
       },
     } as unknown as Sandbox;
-    const crew = createCrew({ sandbox, config, recordDir, workItem: issue.number, branch });
+    const crew = createCrew({
+      sandbox,
+      config,
+      recordDir,
+      workItem: issue.number,
+      branch,
+      baseBranch,
+    });
 
     await crew.handover({ kind: "success", detail: "`make test` exited 0" }, [
       { number: 8, summary: "the one ticket" },

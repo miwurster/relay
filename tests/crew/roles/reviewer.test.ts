@@ -9,9 +9,8 @@ import { RoleError } from "../../../src/errors.js";
 import { createReviewer, FINDINGS_TAG } from "../../../src/crew/roles/reviewer.js";
 import { TRACKER_DOC_PATH } from "../../../src/tracker/tracker-doc.js";
 
-const config = relayConfigSchema.parse({
-  defaultBranch: "main",
-});
+const config = relayConfigSchema.parse({});
+const baseBranch = "main";
 
 const ticketScope: ReviewScope = {
   kind: "ticket",
@@ -46,7 +45,7 @@ function fakeSandbox(stdout: string, commits: { sha: string }[], worktree: strin
 
 const reviewing = (stdout: string, commits: { sha: string }[] = [], worktree = "") => {
   const { sandbox, runs } = fakeSandbox(stdout, commits, worktree);
-  return { review: createReviewer({ sandbox, config, recordDir }), runs };
+  return { review: createReviewer({ sandbox, config, recordDir, baseBranch }), runs };
 };
 
 const taggedFindings = (json: string) =>
@@ -143,7 +142,7 @@ describe("createReviewer", () => {
     expect(runs[1]?.promptArgs).toEqual({
       SCOPE: "branch",
       ITEM: "#7",
-      BASE: config.defaultBranch,
+      BASE: baseBranch,
       DEPTH: "full",
     });
     expect(runs[0]?.prompt).toContain("kipu-all:kipu-code-review");
