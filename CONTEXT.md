@@ -152,7 +152,8 @@ The last block wins — a role that corrected itself means the correction.
 _Avoid_: output block, response payload
 
 **Init**:
-The one-off bootstrap that writes a repo's `.relay/config.ts` and **sandbox recipe** from what it can detect, creates the label vocabulary the repo is missing, and names what is left to a human.
+The one-off bootstrap that writes a repo's `.relay/config.ts`, **sandbox recipe** and **credential file** example from what it can detect, creates the label vocabulary the repo is missing, and names what is left to a human.
+It writes the credential example but never the **credential file**, because pasting a token in is the one step it cannot take for an operator — so that is what it names as remaining.
 It never touches the **tracker doc** and never overwrites — an existing file is kept and an existing label is left with the colour and description its maintainers gave it — so re-running it fills gaps rather than undoing hand-tuning ([ADR-0011](docs/adr/0011-init-creates-the-label-vocabulary.md)).
 It has no say in the **green gate** — that is the repo's docs' to declare and the **gate resolver**'s to read — so init names declaring it as one of the human steps left.
 _Avoid_: bootstrap, setup, scaffold
@@ -164,10 +165,18 @@ The repo owns its contents, because only the repo knows what its **green gate** 
 _Avoid_: sandbox dockerfile, image recipe
 
 **Relay directory**:
-`.relay/` in the target repo, holding the two files relay asks a repo to commit — its config and its **sandbox recipe**.
+`.relay/` in the target repo, holding everything relay asks a repo to commit — its config, its **sandbox recipe**, the **credential file**'s example, and the `.gitignore` that keeps the credential file itself out of git.
 Relay-owned on purpose: a recipe under the repo's `docker/` and a config at its root sit in namespaces the repo owns ([ADR-0013](docs/adr/0013-relay-owns-a-dot-directory-in-the-target-repo.md)).
+Everything in it is committed except the **credential file** ([ADR-0014](docs/adr/0014-credentials-live-in-the-target-repo-gitignored.md)).
 It holds nothing generated — a **pass**'s worktree is gitignored scratch and stays at `.sandcastle/worktrees/`.
 _Avoid_: config directory, dotfolder
+
+**Credential file**:
+`.relay/.env`, holding the tokens a **pass** runs on — the operator's to write and the one file in the **relay directory** that is never committed.
+Per-repo, so each repo relay runs on can carry its own token rather than one token reaching every repo on a machine.
+Real environment variables win over it, so CI and one-off runs need no file at all.
+**Init** writes its example and never the file, and **doctor** fails a repo whose git does not ignore it.
+_Avoid_: secrets file, env file, dotenv
 
 **Doctor**:
 The opt-in preflight that runs every setup check eagerly and reports them all, rather than failing on the first.

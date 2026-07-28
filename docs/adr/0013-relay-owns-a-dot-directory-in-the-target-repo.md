@@ -1,7 +1,8 @@
 # 0013. relay owns a dot-directory in the target repo
 
-- **Status:** accepted
+- **Status:** accepted, amended by [ADR-0014](0014-credentials-live-in-the-target-repo-gitignored.md)
 - **Date:** 2026-07-27
+- **Updated:** 2026-07-28 — see [Update](#update-2026-07-28)
 
 ## Context and Problem Statement
 
@@ -69,3 +70,17 @@ relay has never been published and carries no tags, so the old paths were never 
 - Good: relay's two setup files can never disagree about where they live.
 - Bad: TypeScript wildcard `include` globs skip dot-directories, so a repo that typechecks its root `relay.config.ts` today loses that coverage. A malformed config surfaces at relay runtime as a `ConfigError` (exit 2) rather than in the repo's own **green gate**. `relay doctor`'s config check is the deliberate answer to this.
 - Bad: a config file outside the repo root runs against the JavaScript ecosystem's convention, so an operator looking for relay's settings will look at the root first.
+
+## Update 2026-07-28
+
+`.relay/` is no longer committed-only.
+[ADR-0014](0014-credentials-live-in-the-target-repo-gitignored.md) moved relay's **credential file** to `.relay/.env`, which is never committed, alongside a committed `.relay/.env.example` and a committed `.relay/.gitignore` that carries the `.env` entry.
+So the directory now holds four committed files and one ignored one.
+
+**Ignored scratch stays out** above refused precisely this mixing, and the distinction that survives is *generated scratch* versus *an operator's own file*.
+A pass's worktree is scratch relay produces on every run, and interleaving it with committed setup would make the directory unreadable — that reasoning is untouched, and the worktree stays at `.sandcastle/worktrees/`.
+The credential file is neither generated nor scratch: it is one file the operator writes once, and it is the untracked half of a `.env` / `.env.example` pair whose two halves are only legible next to each other.
+
+`RELAY_DIR` still states the directory once, and `CREDENTIAL_FILE_PATH`, `CREDENTIAL_EXAMPLE_FILE_PATH` and `RELAY_GITIGNORE_PATH` compose from it like the original two paths do.
+
+The good consequence above — *"everything of relay's that the repo commits is in one place an operator can see"* — needs one word added: everything of relay's is in one place, and exactly one thing there is not committed.

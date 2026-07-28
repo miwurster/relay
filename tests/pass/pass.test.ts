@@ -39,8 +39,7 @@ async function withTrackerDoc(root: string): Promise<void> {
 }
 
 /** Every secret present, resolved from the environment rather than a file. */
-async function withSecrets(): Promise<void> {
-  vi.stubEnv("XDG_CONFIG_HOME", await mkdtemp(join(tmpdir(), "relay-home-")));
+function withSecrets(): void {
   for (const secret of secrets) {
     const [key = "", value = ""] = secret.split("=");
     vi.stubEnv(key, value);
@@ -62,13 +61,12 @@ describe("runPass", () => {
 
   it("fails fast when a secret cannot be resolved", async () => {
     await repoWithValidConfig();
-    vi.stubEnv("XDG_CONFIG_HOME", await mkdtemp(join(tmpdir(), "relay-empty-home-")));
     await expect(runPass("1")).rejects.toThrow(/Missing secret/);
   });
 
   it("fails when the repo commits no tracker doc, before reaching GitHub", async () => {
     await repoWithValidConfig();
-    await withSecrets();
+    withSecrets();
 
     await expect(runPass("1")).rejects.toThrow(/issue-tracker\.md/);
   });
@@ -76,7 +74,7 @@ describe("runPass", () => {
   it("rejects an argument that names no issue", async () => {
     const root = await repoWithValidConfig();
     await withTrackerDoc(root);
-    await withSecrets();
+    withSecrets();
 
     await expect(runPass("PSD-1")).rejects.toThrow(/does not name a GitHub issue/);
   });
@@ -95,6 +93,10 @@ const issue: GitHubIssue = {
 const passSecrets: Secrets = {
   githubToken: "gh-token",
   claude: { variable: "CLAUDE_CODE_OAUTH_TOKEN", token: "oauth-token" },
+  sources: [
+    { variable: "GH_TOKEN", from: "environment" },
+    { variable: "CLAUDE_CODE_OAUTH_TOKEN", from: "environment" },
+  ],
 };
 
 const passConfig = relayConfigSchema.parse({

@@ -1,8 +1,8 @@
 # 0005. Secrets travel with the machine; repo config travels with the repo
 
-- **Status:** accepted
+- **Status:** accepted, secrets half superseded by [ADR-0014](0014-credentials-live-in-the-target-repo-gitignored.md)
 - **Date:** 2026-07-26
-- **Updated:** 2026-07-27 — see [Update](#update-2026-07-27)
+- **Updated:** 2026-07-27 — see [Update](#update-2026-07-27); 2026-07-28 — see [Update](#update-2026-07-28)
 
 ## Context and Problem Statement
 
@@ -73,8 +73,26 @@ The split this ADR decided still holds; what travels changed with the switch to 
 
 The bad consequences above stand unchanged, and the second one gets worse in one respect: a single token now carries both tracker and forge write access, so its blast radius is larger than the pair it replaced.
 
+## Update 2026-07-28
+
+The secrets half of this decision is superseded by [ADR-0014](0014-credentials-live-in-the-target-repo-gitignored.md).
+Secrets no longer travel with the machine: they resolve from `.relay/.env` in the target repo, gitignored by a committed `.relay/.gitignore`, and `$XDG_CONFIG_HOME/relay/.env` is not read at all.
+The reason is that a fine-grained GitHub token is scoped to one repo, so one home-directory token is either broken for every other repo or broader than any single pass needs.
+
+Two things this ADR decided survive intact and are still the live rules:
+
+- **Repo config travels with the repo.** The typed config is still strict, still carries no secret and no tracker identifier.
+- **Real environment variables win over the file.** Still true, and still for the reason given here — CI and one-off runs must work with no file at all.
+
+The Option B rejection above still reads as a refusal of what ADR-0014 does, so it is worth saying exactly what changed.
+Option B put secrets in the repo's *committed config*; ADR-0014 puts them in a *gitignored file* in the repo's working directory.
+No secret is committed and none ships in the package, which is the property this ADR was protecting.
+
+One consequence here is inverted: *"an operator sets their machine up once, and every repo works"* is no longer true, and the per-repo setup cost is now accepted deliberately as the price of per-repo token scoping.
+The `tests/secrets.test.ts` named under Confirmation is now `tests/host/secrets.test.ts`.
+
 ## More Information
 
-- Provenance: `.scratch/relay-npx-tool/issues/04-credential-and-secrets-flow.md`, grilling of 2026-07-23; updated per `.scratch/github-switch/decisions.md`, grilling of 2026-07-26.
-- Related: [ADR-0004](0004-skills-are-mounted-not-baked-into-the-image.md), [ADR-0007](0007-one-forge-one-tracker-no-abstraction.md)
+- Provenance: `.scratch/relay-npx-tool/issues/04-credential-and-secrets-flow.md`, grilling of 2026-07-23; updated per `.scratch/github-switch/decisions.md`, grilling of 2026-07-26; secrets half superseded per grilling of 2026-07-28.
+- Related: [ADR-0004](0004-skills-are-mounted-not-baked-into-the-image.md), [ADR-0007](0007-one-forge-one-tracker-no-abstraction.md), [ADR-0014](0014-credentials-live-in-the-target-repo-gitignored.md)
 - Domain language: [`CONTEXT.md`](../../CONTEXT.md)

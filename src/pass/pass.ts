@@ -33,7 +33,7 @@ export interface PassRun {
 export async function runPass(workItem: string | undefined): Promise<ExitCode> {
   const repoRoot = process.cwd();
   const config = await loadConfig(repoRoot);
-  const secrets = await loadSecrets();
+  const secrets = await loadSecrets({ repoRoot });
   await requireTrackerDoc(repoRoot);
 
   const github = createGitHubClient();

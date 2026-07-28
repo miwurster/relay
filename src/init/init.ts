@@ -1,7 +1,13 @@
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { CONFIG_FILE_PATH, DEFAULT_DOCKERFILE_PATH } from "../config.js";
+import {
+  CONFIG_FILE_PATH,
+  CREDENTIAL_EXAMPLE_FILE_PATH,
+  CREDENTIAL_FILE_PATH,
+  DEFAULT_DOCKERFILE_PATH,
+  RELAY_GITIGNORE_PATH,
+} from "../config.js";
 import { ConfigError, reasonOf } from "../errors.js";
 import { ExitCode } from "../exit-codes.js";
 import {
@@ -29,6 +35,11 @@ import {
   withWorktreeDirIgnored,
   WORKTREE_DIR,
 } from "../host/worktree-dir.js";
+import {
+  ignoresCredentialFile,
+  readRelayGitignore,
+  withCredentialFileIgnored,
+} from "../host/credential-file.js";
 
 /** One thing init considered — a file or a label — and what it did with it. */
 export interface InitVerdict {
@@ -43,10 +54,18 @@ export interface InitOptions {
   gh?: GhRunner;
 }
 
-/** What remains an operator's job once init has written what it could. */
+/**
+ * What remains an operator's job once init has written what it could.
+ *
+ * The credentials are the one step relay cannot take for them: it writes the
+ * example and the ignore rule, and provisioning the tokens and pasting them in
+ * is theirs.
+ */
 const MANUAL_STEPS = [
   "declare the green gate command in AGENTS.md",
-  "provision a GH_TOKEN with repo access",
+  `copy ${CREDENTIAL_EXAMPLE_FILE_PATH} to ${CREDENTIAL_FILE_PATH} and fill in ` +
+    "GH_TOKEN (a token with write access to this repo) and " +
+    "CLAUDE_CODE_OAUTH_TOKEN (or ANTHROPIC_API_KEY)",
 ].join("\n  - ");
 
 /**
@@ -86,6 +105,8 @@ export async function runInitChecks({
   return [
     await writeConfigFile({ repoRoot, git }),
     await writeSandboxRecipe({ repoRoot, stack }),
+    await writeCredentialExample(repoRoot),
+    await ignoreCredentialFile(repoRoot),
     await ignoreWorktreeDir(repoRoot),
     ...(await createLabels(gh)),
   ];
@@ -155,6 +176,57 @@ async function whyGhCannotBeAsked(gh: GhRunner): Promise<string | undefined> {
     return "`gh` on this host has no credential GitHub accepts";
   }
   return undefined;
+}
+
+/**
+ * Write the template an operator copies to the credential file.
+ *
+ * The example only — init never writes the credential file itself, because a
+ * file relay created and left empty is indistinguishable from one an operator
+ * filled in and got wrong.
+ */
+async function writeCredentialExample(repoRoot: string): Promise<InitVerdict> {
+  const examplePath = join(repoRoot, CREDENTIAL_EXAMPLE_FILE_PATH);
+  if (existsSync(examplePath)) {
+    return { subject: CREDENTIAL_EXAMPLE_FILE_PATH, outcome: "kept", detail: "already exists" };
+  }
+
+  await mkdir(dirname(examplePath), { recursive: true });
+  await writeFile(examplePath, await readResource("env.example"), "utf8");
+
+  return {
+    subject: CREDENTIAL_EXAMPLE_FILE_PATH,
+    outcome: "written",
+    detail: `copy it to ${CREDENTIAL_FILE_PATH} and fill it in`,
+  };
+}
+
+/**
+ * Keep the credential file out of git, with a rule inside relay's own
+ * directory rather than a line in the repo's `.gitignore`.
+ *
+ * Committed on purpose: the rule then protects every clone rather than the one
+ * machine that happened to run init, and it sits next to the file it protects.
+ */
+async function ignoreCredentialFile(repoRoot: string): Promise<InitVerdict> {
+  const existing = await readRelayGitignore(repoRoot);
+  if (ignoresCredentialFile(existing)) {
+    return {
+      subject: RELAY_GITIGNORE_PATH,
+      outcome: "kept",
+      detail: `already ignores \`${CREDENTIAL_FILE_PATH}\``,
+    };
+  }
+
+  const path = join(repoRoot, RELAY_GITIGNORE_PATH);
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, withCredentialFileIgnored(existing), "utf8");
+
+  return {
+    subject: RELAY_GITIGNORE_PATH,
+    outcome: "written",
+    detail: `now ignores \`${CREDENTIAL_FILE_PATH}\``,
+  };
 }
 
 /**

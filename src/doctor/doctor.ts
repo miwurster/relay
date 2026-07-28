@@ -1,4 +1,10 @@
-import { CONFIG_FILE_PATH, loadConfig, type RelayConfig } from "../config.js";
+import {
+  CONFIG_FILE_PATH,
+  CREDENTIAL_FILE_PATH,
+  loadConfig,
+  RELAY_GITIGNORE_PATH,
+  type RelayConfig,
+} from "../config.js";
 import { ConfigError, reasonOf } from "../errors.js";
 import { ExitCode } from "../exit-codes.js";
 import {
@@ -11,13 +17,15 @@ import { type GateProbe, probeGate } from "./gate-probe.js";
 import { type GhRunner, ghAuthStatus, ghLabelNames, ghVersion, runGh } from "../tracker/github.js";
 import { missingLabels, PASS_LABELS, TRIAGE_LABELS, type LabelSpec } from "../tracker/labels.js";
 import { resolveSandboxImage, verifyPrebuiltImage } from "../sandbox/sandbox-image.js";
-import { loadSecrets } from "../host/secrets.js";
+import { loadSecrets, type Secrets, type SecretSource } from "../host/secrets.js";
 import {
   GITIGNORE_FILE_NAME,
   ignoresWorktreeDir,
   readGitignore,
   WORKTREE_DIR,
 } from "../host/worktree-dir.js";
+import { credentialFileIgnored } from "../host/credential-file.js";
+import { runGit, type GitRunner } from "../host/git.js";
 
 /** Why the label checks cannot run: nothing on this host can ask GitHub. */
 const NO_CREDENTIAL = "no `gh` credential to read this repo's labels with";
@@ -45,6 +53,7 @@ interface ResolvedImage {
 export interface DoctorOptions {
   repoRoot?: string;
   env?: NodeJS.ProcessEnv;
+  git?: GitRunner;
   docker?: DockerRunner;
   gh?: GhRunner;
   probe?: GateProbe;
@@ -84,6 +93,7 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<ExitCode> 
 export async function runDoctorChecks({
   repoRoot = process.cwd(),
   env = process.env,
+  git = runGit,
   docker = runDocker,
   gh = runGh,
   probe = probeGate,
@@ -104,11 +114,18 @@ export async function runDoctorChecks({
     () => `${GITIGNORE_FILE_NAME} ignores \`${WORKTREE_DIR}/\``,
   );
 
+  await record(
+    checks,
+    "credentials ignored",
+    () => assertCredentialFileIgnored({ repoRoot, git }),
+    () => `git ignores \`${CREDENTIAL_FILE_PATH}\``,
+  );
+
   const secrets = await record(
     checks,
     "secrets",
-    () => loadSecrets(env),
-    () => "every required secret resolves",
+    () => loadSecrets({ repoRoot, env }),
+    secretsDetail,
   );
 
   const installedGh = await record(
@@ -248,6 +265,58 @@ async function assertWorktreeDirIgnored(repoRoot: string): Promise<void> {
     `${GITIGNORE_FILE_NAME} does not ignore \`${WORKTREE_DIR}/\`, where a pass cuts its ` +
       "worktree — add it, or re-run `relay init`.",
   );
+}
+
+/**
+ * The credential file holds the tokens a pass runs on, so a repo that does not
+ * ignore it is one `git add` away from publishing them. A hard failure, checked
+ * unconditionally and whether or not the file is there yet: a repo set up
+ * before `relay init` wrote the rule never got one, and relay should refuse
+ * before the dangerous file exists rather than after.
+ */
+async function assertCredentialFileIgnored({
+  repoRoot,
+  git,
+}: {
+  repoRoot: string;
+  git: GitRunner;
+}): Promise<void> {
+  if (await credentialFileIgnored({ repoRoot, git })) return;
+  throw new ConfigError(
+    `git does not ignore \`${CREDENTIAL_FILE_PATH}\`, which holds this repo's credentials — ` +
+      `add \`.env\` to ${RELAY_GITIGNORE_PATH}, or re-run \`relay init\`. ` +
+      "If the file is already committed, rotate those tokens.",
+  );
+}
+
+/** Where each place a secret resolved from is named in doctor's report. */
+const SECRET_PLACES: readonly [SecretSource["from"], string][] = [
+  ["file", CREDENTIAL_FILE_PATH],
+  ["environment", "the environment"],
+];
+
+/**
+ * Which variables resolved and from where — names only, never values, so the
+ * report is safe to paste into an issue.
+ *
+ * Grouped by place so the ordinary case reads as one phrase, and an operator
+ * who filled the credential file in but sees `the environment` knows their
+ * shell is winning before they go looking for a typo in the file.
+ */
+function secretsDetail(secrets: Secrets): string {
+  return SECRET_PLACES.map(([from, place]) => ({
+    place,
+    variables: secrets.sources.filter((source) => source.from === from),
+  }))
+    .filter(({ variables }) => variables.length > 0)
+    .map(({ place, variables }) => `${joinWithAnd(variables.map((s) => s.variable))} from ${place}`)
+    .join(", ");
+}
+
+/** `a`, or `a and b`, or `a, b and c`. */
+function joinWithAnd(names: readonly string[]): string {
+  if (names.length < 2) return names.join("");
+  return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 }
 
 /**

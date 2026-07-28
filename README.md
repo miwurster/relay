@@ -11,13 +11,14 @@ It runs against a GitHub repo whose issues live in that same repo, and speaks Gi
 ## Quickstart
 
 You need Node 20+, Docker, an authenticated `gh`, a repo-scoped `GH_TOKEN`, and a Claude credential (`CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`).
-Secrets live in your environment or in `~/.config/relay/.env`.
+Secrets live in your environment or in `.relay/.env`, which `init` gives you a template for and git never sees.
 
 ```sh
-npx @miwurster/relay init      # write the missing config, sandbox recipe, .gitignore line, labels
-npx @miwurster/relay doctor    # check config, secrets, gh, labels, sandbox image, Docker, gate
-npx @miwurster/relay 42        # run a pass over issue 42
-npx @miwurster/relay           # or over the longest-waiting ready-for-agent item
+npx @miwurster/relay init            # write the missing config, sandbox recipe, credential template, .gitignore lines, labels
+cp .relay/.env.example .relay/.env   # then paste your tokens in
+npx @miwurster/relay doctor          # check config, secrets, gh, labels, sandbox image, Docker, gate
+npx @miwurster/relay 42              # run a pass over issue 42
+npx @miwurster/relay                 # or over the longest-waiting ready-for-agent item
 ```
 
 Label an issue `ready-for-agent` to make it eligible.

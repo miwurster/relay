@@ -30,11 +30,14 @@ It never overwrites, never stages, and never commits, so running it again only f
   Every other setting has a package default; add one only when you want to override it.
 - `.relay/Dockerfile`, a sandbox recipe for your stack, when it recognizes the repo's build manifest.
   If it recognizes nothing it says so and leaves the recipe to you.
+- `.relay/.env.example`, the template you copy to `.relay/.env` and paste your tokens into.
+  The example only — `init` never writes the credential file itself, and step 4 is where you fill it in.
+- `.relay/.gitignore`, carrying `.env`, so the credential file can never be committed from any clone.
 - One `.gitignore` line for `.sandcastle/`, where a pass cuts its git worktree.
   That path is fixed and lives inside your repo, so without the line every pass shows up in `git status` as untracked noise.
 
-Both written files live in `.relay/`, a directory relay owns, so nothing of relay's lands in a namespace your repo owns ([ADR-0013](adr/0013-relay-owns-a-dot-directory-in-the-target-repo.md)).
-Commit them.
+Everything written lives in `.relay/`, a directory relay owns, so nothing of relay's lands in a namespace your repo owns ([ADR-0013](adr/0013-relay-owns-a-dot-directory-in-the-target-repo.md)).
+Commit all of it except `.relay/.env`, which is yours alone and which `.relay/.gitignore` keeps out of git.
 
 `init` refuses before writing anything if the directory is not a git repo, or if its `origin` is not GitHub.
 
@@ -112,24 +115,36 @@ One fine-grained GitHub personal access token, scoped to this repo:
 | `Contents: write`      | pushing the pass branch                            |
 | `Metadata: read`       | required alongside the above                       |
 
-relay reads it as `GH_TOKEN`, from your environment or from its credential file at `~/.config/relay/.env` — the environment variable wins.
+relay reads it as `GH_TOKEN`, from your environment or from the **credential file** at `.relay/.env` in this repo — the environment variable wins.
 Your Claude credential resolves the same way, under `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`.
 
+`init` writes `.relay/.env.example` and never the credential file itself, so filling it in is yours:
+
 ```sh
-# ~/.config/relay/.env
+cp .relay/.env.example .relay/.env
+```
+
+```sh
+# .relay/.env
 GH_TOKEN=github_pat_...
 CLAUDE_CODE_OAUTH_TOKEN=...
 ```
+
+The credential file is per-repo, so a repo you point relay at can carry its own token rather than one token reaching every repo on your machine ([ADR-0014](adr/0014-credentials-live-in-the-target-repo-gitignored.md)).
+`init` also writes `.relay/.gitignore` carrying `.env`, and `relay doctor` fails outright if git does not ignore the credential file — a committed token is the one setup mistake relay will not run past.
+If it is already committed, rotate the tokens.
+
+CI needs no file at all: real environment variables win over the credential file, so exporting `GH_TOKEN` and a Claude credential is enough.
 
 This is the only GitHub token relay needs.
 It is the one a pass hands to the sandbox as `GH_TOKEN` — the variable `gh` prefers — so the `gh` running inside the container acts as that token and nothing else.
 There is no separate sandbox credential to name anywhere.
 
 Secrets reach the sandbox as environment variables and are never written to its disk.
-Nothing is ever read from the target repo, and no secret ships in the package.
+The credential file is read on the host, and no secret ships in the package.
 
 Your host's own `gh` is a different matter: it reads your shell environment and its own login, not relay's credential file.
-If you keep the token in `~/.config/relay/.env` without exporting it, run `gh auth login` on the host as well — otherwise `relay doctor`'s `gh authenticated` check has no credential to find.
+If you keep the token in `.relay/.env` without exporting it, run `gh auth login` on the host as well — otherwise `relay doctor`'s `gh authenticated` check has no credential to find.
 
 ## 5. Know what the sandbox can reach on your host
 
@@ -150,7 +165,8 @@ Point relay at a clone you are willing to have written to, and treat the same re
 npx @miwurster/relay doctor
 ```
 
-`doctor` checks your config, the `.gitignore` line, your secrets, `gh` and its credential, the sandbox image — building it if your repo has no prebuilt one — and the Docker daemon as the non-root sandbox user.
+`doctor` checks your config, the `.gitignore` line, that git ignores your credential file, your secrets and where each one resolved from, `gh` and its credential, the sandbox image — building it if your repo has no prebuilt one — and the Docker daemon as the non-root sandbox user.
+The secrets line names variables and never values, so it is safe to paste into an issue.
 It reports every failing check rather than the first, so one run tells you the whole state of the setup.
 Exit zero means you are ready.
 

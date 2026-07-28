@@ -2,7 +2,12 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { CONFIG_FILE_PATH, DEFAULT_DOCKERFILE_PATH, RELAY_DIR } from "../../src/config.js";
+import {
+  CONFIG_FILE_PATH,
+  CREDENTIAL_FILE_PATH,
+  DEFAULT_DOCKERFILE_PATH,
+  RELAY_DIR,
+} from "../../src/config.js";
 import type { ResolvedGate } from "../../src/crew/contract.js";
 import { type DoctorCheck, runDoctor, runDoctorChecks } from "../../src/doctor/doctor.js";
 import { ExitCode } from "../../src/exit-codes.js";
@@ -31,26 +36,24 @@ async function repoWith(configSource: string | undefined): Promise<string> {
   return root;
 }
 
-/** An env carrying every secret, and no home-dir file to fall back to. */
-async function envWithSecrets(overrides: Record<string, string> = {}): Promise<NodeJS.ProcessEnv> {
-  const configHome = await mkdtemp(join(tmpdir(), "relay-doctor-home-"));
-  return { XDG_CONFIG_HOME: configHome, ...completeSecrets, ...overrides };
-}
+/** An env carrying every secret, so no credential file is needed. */
+const envWithSecrets = (overrides: Record<string, string> = {}): NodeJS.ProcessEnv => ({
+  ...completeSecrets,
+  ...overrides,
+});
 
-/** An env carrying no secret at all, and no home-dir file to fall back to. */
-async function envWithoutSecrets(): Promise<NodeJS.ProcessEnv> {
-  const configHome = await mkdtemp(join(tmpdir(), "relay-doctor-home-"));
-  return { XDG_CONFIG_HOME: configHome };
-}
+/** An env carrying no secret at all. */
+const envWithoutSecrets = (): NodeJS.ProcessEnv => ({});
 
 /**
  * Every check doctor reports, in the order it reports them. The report is these
- * same ten lines whatever the host looks like: a check doctor cannot reach is
+ * same eleven lines whatever the host looks like: a check doctor cannot reach is
  * skipped, so nothing that failed ever shortens the list.
  */
 const EVERY_CHECK = [
   "config",
   "worktree ignored",
+  "credentials ignored",
   "secrets",
   "gh installed",
   "gh authenticated",
@@ -60,6 +63,14 @@ const EVERY_CHECK = [
   "gate",
   "docker daemon",
 ];
+
+/** A `GitRunner` for a repo that ignores the credential file. */
+const ignoringGit = async () => "";
+
+/** A `GitRunner` for a repo that does not — `check-ignore` exits non-zero. */
+const notIgnoringGit = async (args: readonly string[]) => {
+  throw new Error(`git ${args.join(" ")} failed: Command failed`);
+};
 
 /** Answers each docker invocation with a canned line, recording the calls. */
 function fakeDocker(answers: string[] = []) {
@@ -146,7 +157,8 @@ describe("runDoctorChecks", () => {
   it("reports every check as ok on a wired-up repo", async () => {
     const checks = await runDoctorChecks({
       repoRoot: await repoWith(validConfig),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
       probe: declaredProbe,
@@ -162,7 +174,8 @@ describe("runDoctorChecks", () => {
 
     const checks = await runDoctorChecks({
       repoRoot,
-      env: await envWithoutSecrets(),
+      env: envWithoutSecrets(),
+      git: notIgnoringGit,
       docker: async () => {
         throw new Error("Cannot connect to the Docker daemon at unix:///var/run/docker.sock");
       },
@@ -177,7 +190,8 @@ describe("runDoctorChecks", () => {
   it("names the resolved image so a human can eyeball it", async () => {
     const checks = await runDoctorChecks({
       repoRoot: await repoWith(validConfig),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
       probe: declaredProbe,
@@ -188,12 +202,13 @@ describe("runDoctorChecks", () => {
   });
 
   it("reports a missing secret without stopping at the first failure", async () => {
-    const env = await envWithSecrets();
+    const env = envWithSecrets();
     delete env["GH_TOKEN"];
 
     const checks = await runDoctorChecks({
       repoRoot: await repoWith(validConfig),
       env,
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
       probe: declaredProbe,
@@ -210,7 +225,8 @@ describe("runDoctorChecks", () => {
 
     const checks = await runDoctorChecks({
       repoRoot,
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
       probe: declaredProbe,
@@ -221,10 +237,103 @@ describe("runDoctorChecks", () => {
     expect(check(checks, "docker daemon").status).toBe("ok");
   });
 
+  it("names where each secret resolved from, and prints no value", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(validConfig),
+      env: envWithSecrets(),
+      git: ignoringGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+
+    const detail = check(checks, "secrets").detail;
+    expect(detail).toBe("GH_TOKEN and CLAUDE_CODE_OAUTH_TOKEN from the environment");
+    expect(detail).not.toContain("gh-token");
+    expect(detail).not.toContain("oauth-token");
+  });
+
+  it("distinguishes a secret from the credential file from one from the environment", async () => {
+    const repoRoot = await repoWith(validConfig);
+    await writeFile(join(repoRoot, CREDENTIAL_FILE_PATH), "GH_TOKEN=from-file\n", "utf8");
+
+    const checks = await runDoctorChecks({
+      repoRoot,
+      env: envWithSecrets({ GH_TOKEN: "" }),
+      git: ignoringGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "secrets").detail).toBe(
+      `GH_TOKEN from ${CREDENTIAL_FILE_PATH}, CLAUDE_CODE_OAUTH_TOKEN from the environment`,
+    );
+  });
+
+  it("reads the credential file out of the repo doctor was pointed at", async () => {
+    const repoRoot = await repoWith(validConfig);
+    await writeFile(
+      join(repoRoot, CREDENTIAL_FILE_PATH),
+      "GH_TOKEN=from-file\nANTHROPIC_API_KEY=from-file\n",
+      "utf8",
+    );
+
+    const checks = await runDoctorChecks({
+      repoRoot,
+      env: envWithoutSecrets(),
+      git: ignoringGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "secrets").status).toBe("ok");
+    expect(check(checks, "secrets").detail).toBe(
+      `GH_TOKEN and ANTHROPIC_API_KEY from ${CREDENTIAL_FILE_PATH}`,
+    );
+  });
+
+  it("fails a repo where git does not ignore the credential file", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(validConfig),
+      env: envWithSecrets(),
+      git: notIgnoringGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "credentials ignored").status).toBe("failed");
+    expect(check(checks, "credentials ignored").detail).toContain(CREDENTIAL_FILE_PATH);
+    expect(check(checks, "docker daemon").status).toBe("ok");
+  });
+
+  it("asks git whether the credential file is ignored, in the repo it was pointed at", async () => {
+    const repoRoot = await repoWith(validConfig);
+    const calls: string[][] = [];
+    const git = async (args: readonly string[]) => {
+      calls.push([...args]);
+      return "";
+    };
+
+    await runDoctorChecks({
+      repoRoot,
+      env: envWithSecrets(),
+      git,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+
+    expect(calls).toEqual([["-C", repoRoot, "check-ignore", "-q", CREDENTIAL_FILE_PATH]]);
+  });
+
   it("reports an invalid config and skips the checks that need it", async () => {
     const checks = await runDoctorChecks({
       repoRoot: await repoWith(`export default {};`),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
       probe: declaredProbe,
@@ -240,7 +349,8 @@ describe("runDoctorChecks", () => {
       repoRoot: await repoWith(`export default {
         defaultBranch: "main",
       };`),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
       probe: declaredProbe,
@@ -258,7 +368,8 @@ describe("runDoctorChecks", () => {
 
     const checks = await runDoctorChecks({
       repoRoot: await repoWith(validConfig),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker,
       gh: healthyGh().gh,
       probe: declaredProbe,
@@ -278,7 +389,8 @@ describe("runDoctorChecks", () => {
 
     const checks = await runDoctorChecks({
       repoRoot: await repoWith(validConfig),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker,
       gh: healthyGh().gh,
       probe: declaredProbe,
@@ -298,7 +410,8 @@ describe("runDoctorChecks", () => {
 
     const checks = await runDoctorChecks({
       repoRoot: root,
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker,
       gh: healthyGh().gh,
       probe: declaredProbe,
@@ -311,7 +424,8 @@ describe("runDoctorChecks", () => {
   it("names the host's gh version and the account it is logged in as", async () => {
     const checks = await runDoctorChecks({
       repoRoot: await repoWith(validConfig),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
       probe: declaredProbe,
@@ -324,7 +438,8 @@ describe("runDoctorChecks", () => {
   it("reports a missing gh, skips the auth check, and still runs the docker checks", async () => {
     const checks = await runDoctorChecks({
       repoRoot: await repoWith(validConfig),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: missingGh,
       probe: declaredProbe,
@@ -339,7 +454,8 @@ describe("runDoctorChecks", () => {
   it("reports a present-but-unauthenticated gh as a failure of its own", async () => {
     const checks = await runDoctorChecks({
       repoRoot: await repoWith(validConfig),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: unauthenticatedGh,
       probe: declaredProbe,
@@ -354,7 +470,8 @@ describe("runDoctorChecks", () => {
   it("reports the gh checks even when the config is invalid", async () => {
     const checks = await runDoctorChecks({
       repoRoot: await repoWith(`export default {};`),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
       probe: declaredProbe,
@@ -369,7 +486,8 @@ describe("runDoctorChecks", () => {
 
     await runDoctorChecks({
       repoRoot: await repoWith(validConfig),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh,
       probe: declaredProbe,
@@ -385,7 +503,8 @@ describe("runDoctorChecks", () => {
   it("fails on a missing pass label, which would kill a pass mid-flight", async () => {
     const checks = await runDoctorChecks({
       repoRoot: await repoWith(validConfig),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: healthyGh(ALL_LABELS.filter((name) => name !== "agent-in-progress")).gh,
       probe: declaredProbe,
@@ -399,7 +518,8 @@ describe("runDoctorChecks", () => {
   it("only warns on a missing triage label, which a repo may rename", async () => {
     const checks = await runDoctorChecks({
       repoRoot: await repoWith(validConfig),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: healthyGh(PASS_LABELS.map(({ name }) => name)).gh,
       probe: declaredProbe,
@@ -413,7 +533,8 @@ describe("runDoctorChecks", () => {
   it("counts a differently-cased label as present", async () => {
     const checks = await runDoctorChecks({
       repoRoot: await repoWith(validConfig),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: healthyGh(ALL_LABELS.map((name) => name.toUpperCase())).gh,
       probe: declaredProbe,
@@ -432,7 +553,8 @@ describe("runDoctorChecks", () => {
 
     const checks = await runDoctorChecks({
       repoRoot: await repoWith(validConfig),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh,
       probe: declaredProbe,
@@ -446,7 +568,8 @@ describe("runDoctorChecks", () => {
   it("skips both label checks when gh has no credential to read them with", async () => {
     const checks = await runDoctorChecks({
       repoRoot: await repoWith(validConfig),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: unauthenticatedGh,
       probe: declaredProbe,
@@ -459,7 +582,8 @@ describe("runDoctorChecks", () => {
   it("skips both label checks when there is no gh at all", async () => {
     const checks = await runDoctorChecks({
       repoRoot: await repoWith(validConfig),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: missingGh,
       probe: declaredProbe,
@@ -478,7 +602,8 @@ describe("runDoctorChecks", () => {
 
     const checks = await runDoctorChecks({
       repoRoot: await repoWith(validConfig),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh,
       probe: declaredProbe,
@@ -492,7 +617,8 @@ describe("runDoctorChecks", () => {
   it("names the command a pass will verify with, and the doc it was declared in", async () => {
     const checks = await runDoctorChecks({
       repoRoot: await repoWith(validConfig),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
       probe: declaredProbe,
@@ -506,7 +632,8 @@ describe("runDoctorChecks", () => {
   it("warns on a gate relay had to infer, and says what it inferred it from", async () => {
     const checks = await runDoctorChecks({
       repoRoot: await repoWith(validConfig),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
       probe: inferredProbe,
@@ -527,7 +654,8 @@ describe("runDoctorChecks", () => {
 
     await runDoctorChecks({
       repoRoot,
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
       probe,
@@ -539,7 +667,8 @@ describe("runDoctorChecks", () => {
   it("reports a probe that failed without stopping the checks after it", async () => {
     const checks = await runDoctorChecks({
       repoRoot: await repoWith(validConfig),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
       probe: async () => {
@@ -555,7 +684,8 @@ describe("runDoctorChecks", () => {
   it("skips the gate check when the config it would open a sandbox from is invalid", async () => {
     const checks = await runDoctorChecks({
       repoRoot: await repoWith(`export default {};`),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
       probe: declaredProbe,
@@ -566,12 +696,13 @@ describe("runDoctorChecks", () => {
   });
 
   it("skips the gate check when a secret the resolver's leg needs is missing", async () => {
-    const env = await envWithSecrets();
+    const env = envWithSecrets();
     delete env["CLAUDE_CODE_OAUTH_TOKEN"];
 
     const checks = await runDoctorChecks({
       repoRoot: await repoWith(validConfig),
       env,
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
       probe: declaredProbe,
@@ -586,7 +717,8 @@ describe("runDoctorChecks", () => {
       repoRoot: await repoWith(`export default {
         defaultBranch: "main",
       };`),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
       probe: declaredProbe,
@@ -602,7 +734,8 @@ describe("runDoctor", () => {
   it("succeeds when every check passes", async () => {
     const code = await runDoctor({
       repoRoot: await repoWith(validConfig),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
       probe: declaredProbe,
@@ -611,12 +744,13 @@ describe("runDoctor", () => {
   });
 
   it("exits with the error code when any check fails", async () => {
-    const env = await envWithSecrets();
+    const env = envWithSecrets();
     delete env["GH_TOKEN"];
 
     const code = await runDoctor({
       repoRoot: await repoWith(validConfig),
       env,
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
       probe: declaredProbe,
@@ -627,9 +761,22 @@ describe("runDoctor", () => {
   it("exits with the error code when gh is not authenticated", async () => {
     const code = await runDoctor({
       repoRoot: await repoWith(validConfig),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: unauthenticatedGh,
+      probe: declaredProbe,
+    });
+    expect(code).toBe(ExitCode.Error);
+  });
+
+  it("fails a repo where the credential file is not ignored", async () => {
+    const code = await runDoctor({
+      repoRoot: await repoWith(validConfig),
+      env: envWithSecrets(),
+      git: notIgnoringGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
       probe: declaredProbe,
     });
     expect(code).toBe(ExitCode.Error);
@@ -638,7 +785,8 @@ describe("runDoctor", () => {
   it("fails a repo whose label vocabulary a pass would die on", async () => {
     const code = await runDoctor({
       repoRoot: await repoWith(validConfig),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: healthyGh(ALL_LABELS.filter((name) => name !== "agent-blocked")).gh,
       probe: declaredProbe,
@@ -649,7 +797,8 @@ describe("runDoctor", () => {
   it("succeeds on missing triage labels — a repo may speak its own vocabulary", async () => {
     const code = await runDoctor({
       repoRoot: await repoWith(validConfig),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: healthyGh(PASS_LABELS.map(({ name }) => name)).gh,
       probe: declaredProbe,
@@ -662,7 +811,8 @@ describe("runDoctor", () => {
     try {
       await runDoctor({
         repoRoot: await repoWith(validConfig),
-        env: await envWithSecrets(),
+        env: envWithSecrets(),
+        git: ignoringGit,
         docker: healthyDocker().docker,
         gh: healthyGh().gh,
         probe: declaredProbe,
@@ -689,7 +839,8 @@ describe("runDoctor", () => {
   it("succeeds on an inferred gate — a guess is imperfect, not broken", async () => {
     const code = await runDoctor({
       repoRoot: await repoWith(validConfig),
-      env: await envWithSecrets(),
+      env: envWithSecrets(),
+      git: ignoringGit,
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
       probe: inferredProbe,
@@ -702,7 +853,8 @@ describe("runDoctor", () => {
     try {
       await runDoctor({
         repoRoot: await repoWith(validConfig),
-        env: await envWithSecrets(),
+        env: envWithSecrets(),
+        git: ignoringGit,
         docker: healthyDocker().docker,
         gh: healthyGh().gh,
         probe: inferredProbe,

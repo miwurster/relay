@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { carriesEntry, withEntry } from "./gitignore.js";
 
 /**
  * Where a pass's git worktree is cut: `<repo>/.sandcastle/worktrees/<branch>`,
@@ -18,19 +19,18 @@ export async function readGitignore(repoRoot: string): Promise<string> {
   return existsSync(path) ? readFile(path, "utf8") : "";
 }
 
+/** The worktree directory's entry, as it reads in the repo's own `.gitignore`. */
+const WORKTREE_ENTRY = { entry: `${WORKTREE_DIR}/`, why: "A relay pass's git worktree." };
+
 /** Whether these `.gitignore` contents already ignore the worktree directory. */
 export function ignoresWorktreeDir(gitignore: string): boolean {
-  return gitignore
-    .split("\n")
-    .some((line) => line.trim().replace(/^\/+|\/+$/g, "") === WORKTREE_DIR);
+  return carriesEntry(gitignore, WORKTREE_ENTRY.entry);
 }
 
 /**
- * The same contents with the worktree directory ignored. Appended, never
- * rewritten: a `.gitignore` is the repo's file, not relay's.
+ * The same contents with the worktree directory ignored — appended, since a
+ * root `.gitignore` is the repo's file and not relay's.
  */
 export function withWorktreeDirIgnored(gitignore: string): string {
-  const entry = `# A relay pass's git worktree.\n${WORKTREE_DIR}/\n`;
-  if (gitignore === "") return entry;
-  return `${gitignore}${gitignore.endsWith("\n") ? "\n" : "\n\n"}${entry}`;
+  return withEntry(gitignore, WORKTREE_ENTRY);
 }

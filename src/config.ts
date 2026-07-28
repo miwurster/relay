@@ -20,6 +20,18 @@ export const CONFIG_FILE_PATH = `${RELAY_DIR}/config.ts`;
 export const DEFAULT_DOCKERFILE_PATH = `${RELAY_DIR}/Dockerfile`;
 
 /**
+ * The credential file the operator fills in. The one file in `.relay` that is
+ * never committed ([ADR-0014](../docs/adr/0014-credentials-live-in-the-target-repo-gitignored.md)).
+ */
+export const CREDENTIAL_FILE_PATH = `${RELAY_DIR}/.env`;
+
+/** The committed template an operator copies to the credential file. */
+export const CREDENTIAL_EXAMPLE_FILE_PATH = `${CREDENTIAL_FILE_PATH}.example`;
+
+/** relay's own `.gitignore`, which is what keeps the credential file out of git. */
+export const RELAY_GITIGNORE_PATH = `${RELAY_DIR}/.gitignore`;
+
+/**
  * One key per distinct model choice a pass makes, which is not one per role:
  * the reviewer's four lenses each pick their own, and the fixer picks a second
  * one for the attempt it escalates. The defaults are relay's, and a repo may
@@ -47,7 +59,7 @@ const modelsSchema = z
  * The typed config surface the host harness reads.
  *
  * Strict on purpose: it carries **no secrets** (those resolve from the
- * home-dir file at runtime) and **no tracker ids** (`gh` infers the repo from
+ * credential file at runtime) and **no tracker ids** (`gh` infers the repo from
  * the clone's remote), so an unknown key is a mistake worth failing on — which
  * is also how a repo's leftover `jira` block reports itself.
  */

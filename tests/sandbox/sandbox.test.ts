@@ -17,6 +17,10 @@ vi.mock("@ai-hero/sandcastle/sandboxes/docker", () => ({ docker: vi.fn() }));
 const secrets: Secrets = {
   githubToken: "gh-token",
   claude: { variable: "CLAUDE_CODE_OAUTH_TOKEN", token: "claude-token" },
+  sources: [
+    { variable: "GH_TOKEN", from: "environment" },
+    { variable: "CLAUDE_CODE_OAUTH_TOKEN", from: "environment" },
+  ],
 };
 
 const plugins = [

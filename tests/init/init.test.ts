@@ -5,9 +5,11 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   CONFIG_FILE_PATH,
+  CREDENTIAL_EXAMPLE_FILE_PATH,
   DEFAULT_DOCKERFILE_PATH,
   loadConfig,
   RELAY_DIR,
+  RELAY_GITIGNORE_PATH,
 } from "../../src/config.js";
 import { ConfigError } from "../../src/errors.js";
 import { ExitCode } from "../../src/exit-codes.js";
@@ -87,9 +89,15 @@ const refusingGh = async (args: readonly string[]) => {
   throw new Error("HTTP 403: Resource not accessible by personal access token");
 };
 
-/** Every label verdict, which follows the three file verdicts. */
+/** Every label verdict, which follows the file verdicts. */
 function labelVerdicts(verdicts: readonly InitVerdict[]): InitVerdict[] {
-  const files = new Set([CONFIG_FILE_PATH, DEFAULT_DOCKERFILE_PATH, GITIGNORE_FILE_NAME]);
+  const files = new Set([
+    CONFIG_FILE_PATH,
+    DEFAULT_DOCKERFILE_PATH,
+    CREDENTIAL_EXAMPLE_FILE_PATH,
+    RELAY_GITIGNORE_PATH,
+    GITIGNORE_FILE_NAME,
+  ]);
   return verdicts.filter((verdict) => !files.has(verdict.subject));
 }
 
@@ -302,6 +310,79 @@ describe("runInitChecks", () => {
     expect(untouched).toBe("dist\n/.sandcastle\n");
   });
 
+  it("writes the credential example for the operator to copy and fill in", async () => {
+    const repoRoot = await tempRepo();
+
+    const verdicts = await runInitChecks({ repoRoot, git: githubClone().git, gh: fakeGh().gh });
+
+    expect(verdict(verdicts, CREDENTIAL_EXAMPLE_FILE_PATH).outcome).toBe("written");
+    const written = await readFile(join(repoRoot, CREDENTIAL_EXAMPLE_FILE_PATH), "utf8");
+    expect(written).toContain("GH_TOKEN=");
+    expect(written).toContain("CLAUDE_CODE_OAUTH_TOKEN=");
+    expect(written).toContain("# ANTHROPIC_API_KEY=");
+    expect(written).toContain("https://github.com/miwurster/relay/blob/main/docs/setup.md");
+  });
+
+  it("writes no credential file of its own — only the example", async () => {
+    const repoRoot = await tempRepo();
+
+    await runInitChecks({ repoRoot, git: githubClone().git, gh: fakeGh().gh });
+
+    expect(existsSync(join(repoRoot, ".relay/.env"))).toBe(false);
+  });
+
+  it("keeps an existing credential example rather than overwriting it", async () => {
+    const repoRoot = await tempRepo();
+    await mkdir(join(repoRoot, RELAY_DIR), { recursive: true });
+    await writeFile(join(repoRoot, CREDENTIAL_EXAMPLE_FILE_PATH), "GH_TOKEN=mine\n", "utf8");
+
+    const verdicts = await runInitChecks({ repoRoot, git: githubClone().git, gh: fakeGh().gh });
+
+    expect(verdict(verdicts, CREDENTIAL_EXAMPLE_FILE_PATH)).toEqual({
+      subject: CREDENTIAL_EXAMPLE_FILE_PATH,
+      outcome: "kept",
+      detail: "already exists",
+    });
+    const untouched = await readFile(join(repoRoot, CREDENTIAL_EXAMPLE_FILE_PATH), "utf8");
+    expect(untouched).toBe("GH_TOKEN=mine\n");
+  });
+
+  it("writes relay's own .gitignore so the credential file can never be committed", async () => {
+    const repoRoot = await tempRepo();
+
+    const verdicts = await runInitChecks({ repoRoot, git: githubClone().git, gh: fakeGh().gh });
+
+    expect(verdict(verdicts, RELAY_GITIGNORE_PATH).outcome).toBe("written");
+    const written = await readFile(join(repoRoot, RELAY_GITIGNORE_PATH), "utf8");
+    expect(written).toBe("# The credentials a relay pass runs on. Never commit this.\n.env\n");
+  });
+
+  it("appends to an existing .relay/.gitignore rather than replacing it", async () => {
+    const repoRoot = await tempRepo();
+    await mkdir(join(repoRoot, RELAY_DIR), { recursive: true });
+    await writeFile(join(repoRoot, RELAY_GITIGNORE_PATH), "scratch/\n", "utf8");
+
+    const verdicts = await runInitChecks({ repoRoot, git: githubClone().git, gh: fakeGh().gh });
+
+    expect(verdict(verdicts, RELAY_GITIGNORE_PATH).outcome).toBe("written");
+    const written = await readFile(join(repoRoot, RELAY_GITIGNORE_PATH), "utf8");
+    expect(written).toBe(
+      "scratch/\n\n# The credentials a relay pass runs on. Never commit this.\n.env\n",
+    );
+  });
+
+  it("leaves a .relay/.gitignore that already ignores the credential file alone", async () => {
+    const repoRoot = await tempRepo();
+    await mkdir(join(repoRoot, RELAY_DIR), { recursive: true });
+    await writeFile(join(repoRoot, RELAY_GITIGNORE_PATH), "scratch/\n/.env\n", "utf8");
+
+    const verdicts = await runInitChecks({ repoRoot, git: githubClone().git, gh: fakeGh().gh });
+
+    expect(verdict(verdicts, RELAY_GITIGNORE_PATH).outcome).toBe("kept");
+    const untouched = await readFile(join(repoRoot, RELAY_GITIGNORE_PATH), "utf8");
+    expect(untouched).toBe("scratch/\n/.env\n");
+  });
+
   it("creates every label the repo is missing, colour and description included", async () => {
     const repoRoot = await tempRepo();
     const { gh, calls } = fakeGh();
@@ -408,8 +489,14 @@ describe("runInit", () => {
       await runInit({ repoRoot, git: githubClone().git, gh: fakeGh().gh });
       const printed = log.mock.calls.map((call) => String(call[0])).join("\n");
       expect(printed).toMatch(/AGENTS\.md/);
-      expect(printed).toMatch(/GH_TOKEN/);
       expect(printed).toMatch(/relay doctor/);
+      // Filling the credential file in is the one step relay cannot do for an
+      // operator, so it names both the file to copy and the variables it wants.
+      const remaining = printed.split("Still yours to do")[1] ?? "";
+      expect(remaining).toContain(CREDENTIAL_EXAMPLE_FILE_PATH);
+      expect(remaining).toContain(".relay/.env");
+      expect(remaining).toMatch(/GH_TOKEN/);
+      expect(remaining).toMatch(/CLAUDE_CODE_OAUTH_TOKEN/);
       // The labels are no longer an operator's job, so they are reported as
       // done rather than listed as remaining.
       expect(printed).toMatch(/ready-for-agent/);
