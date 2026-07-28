@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { Crew, GateResult, LandResult } from "../contract.js";
 import { reasonOf } from "../../errors.js";
-import { fastForwardTo, pushBranch, runGit, type GitRunner } from "../../host/git.js";
+import { fastForwardTo, isCheckedOut, pushBranch, runGit, type GitRunner } from "../../host/git.js";
 import { type RoleDeps, runRole } from "../run-role.js";
 
 /** The block the lander ends its run with, and the prompt it runs from. */
@@ -44,7 +44,7 @@ export function createLander({
   branch: string;
   baseBranch: string;
   git?: GitRunner;
-}): NonNullable<Crew["land"]> {
+}): Crew["land"] {
   return async function land(regate: () => Promise<GateResult>): Promise<LandResult> {
     const integrated = await runRole({
       ...deps,
@@ -78,6 +78,10 @@ export function createLander({
  * The host-side move: fast-forward the base branch onto the pass branch, then
  * push it — in that order, so nothing is ever closed over work that only exists
  * on the operator's machine.
+ *
+ * The fast-forward moves the branch the host has checked out, and a pass runs
+ * for long enough for that to have become another branch since the base branch
+ * was read, so a checkout that moved is refused rather than followed.
  */
 async function moveBaseBranch({
   how,
@@ -92,6 +96,16 @@ async function moveBaseBranch({
   baseBranch: string;
   git: GitRunner;
 }): Promise<LandResult> {
+  if (!(await isCheckedOut({ repoRoot, branch: baseBranch, git }))) {
+    return {
+      kind: "not-landed",
+      reason:
+        `this clone is no longer standing on ${baseBranch}, which is the branch this pass ` +
+        `was cut from and reports on, so nothing was moved, pushed or closed — check ` +
+        `${baseBranch} out again and review ${branch} yourself.`,
+    };
+  }
+
   try {
     await fastForwardTo({ repoRoot, branch, git });
   } catch (error) {

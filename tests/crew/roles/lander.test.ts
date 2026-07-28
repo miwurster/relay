@@ -22,17 +22,20 @@ const red: GateResult = { green: false, detail: "`npm run verify`: two cart test
 const tagged = (json: string) => `Rebased it.\n<${LAND_TAG}>${json}</${LAND_TAG}>`;
 
 /**
- * A lander over a leg that reported `stdout`, a gate that answered `verdict`,
- * and a host `git` that records what it was asked and fails what `refuse` names.
+ * A lander over a leg that reported `stdout`, a gate that answered `verdict`, a
+ * host standing on `checkedOut`, and a `git` that records what it was asked and
+ * fails what `refuse` names.
  */
 function landing({
   stdout,
   verdict = green,
   refuse,
+  checkedOut = baseBranch,
 }: {
   stdout: string;
   verdict?: GateResult;
   refuse?: "merge" | "push";
+  checkedOut?: string;
 }) {
   const runs: SandboxRunOptions[] = [];
   const sandbox = {
@@ -48,7 +51,7 @@ function landing({
     if (refuse && args.includes(refuse)) {
       throw new GitError(`git ${args.join(" ")} failed: refused`);
     }
-    return "";
+    return args.includes("symbolic-ref") ? checkedOut : "";
   };
 
   const regates: number[] = [];
@@ -110,6 +113,7 @@ describe("createLander", () => {
     await land();
 
     expect(gitCalls).toEqual([
+      ["-C", repoRoot, "symbolic-ref", "--short", "HEAD"],
       ["-C", repoRoot, "merge", "--ff-only", branch],
       ["-C", repoRoot, "push", "origin", baseBranch],
     ]);
@@ -145,7 +149,24 @@ describe("createLander", () => {
 
     expect(result).toMatchObject({ kind: "not-landed" });
     expect(result).toHaveProperty("reason", expect.stringContaining("never forces one"));
-    expect(gitCalls.map(([, , command]) => command)).toEqual(["merge"]);
+    expect(gitCalls.map(([, , command]) => command)).toEqual(["symbolic-ref", "merge"]);
+  });
+
+  it("refuses a host that moved off the base branch mid-pass, without calling it a refused fast-forward", async () => {
+    const { land, gitCalls } = landing({
+      stdout: tagged('{"kind":"rebased"}'),
+      checkedOut: "spike/x",
+    });
+
+    const result = await land();
+
+    expect(result).toMatchObject({ kind: "not-landed" });
+    expect(result).toHaveProperty(
+      "reason",
+      expect.stringContaining("this clone is no longer standing on main"),
+    );
+    expect(result).not.toHaveProperty("reason", expect.stringContaining("fast-forward onto"));
+    expect(gitCalls.map(([, , command]) => command)).toEqual(["symbolic-ref"]);
   });
 
   it("reports a rejected push rather than retrying it", async () => {
@@ -155,7 +176,7 @@ describe("createLander", () => {
 
     expect(result).toMatchObject({ kind: "not-landed" });
     expect(result).toHaveProperty("reason", expect.stringContaining("nothing was closed"));
-    expect(gitCalls.map(([, , command]) => command)).toEqual(["merge", "push"]);
+    expect(gitCalls.map(([, , command]) => command)).toEqual(["symbolic-ref", "merge", "push"]);
   });
 
   it("reports a leg that could not resolve the conflict, without gating or pushing", async () => {

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { currentBranch, isGitHubRemote, isGitRepo, originUrl } from "../../src/host/git.js";
+import {
+  currentBranch,
+  isCheckedOut,
+  isGitHubRemote,
+  isGitRepo,
+  originUrl,
+} from "../../src/host/git.js";
 import { ConfigError } from "../../src/errors.js";
 
 /** A fake `GitRunner` answering canned responses keyed by the joined args. */
@@ -57,6 +63,25 @@ describe("originUrl", () => {
       "-C /repo remote get-url origin": new Error("No such remote 'origin'"),
     });
     expect(await originUrl({ repoRoot: "/repo", git })).toBeUndefined();
+  });
+});
+
+describe("isCheckedOut", () => {
+  const HEAD_BRANCH = "-C /repo symbolic-ref --short HEAD";
+
+  it("is true when HEAD names the branch", async () => {
+    const { git } = fakeGit({ [HEAD_BRANCH]: "main" });
+    expect(await isCheckedOut({ repoRoot: "/repo", branch: "main", git })).toBe(true);
+  });
+
+  it("is false when the checkout has moved to another branch", async () => {
+    const { git } = fakeGit({ [HEAD_BRANCH]: "spike/x" });
+    expect(await isCheckedOut({ repoRoot: "/repo", branch: "main", git })).toBe(false);
+  });
+
+  it("is false when HEAD names no branch at all", async () => {
+    const { git } = fakeGit({ [HEAD_BRANCH]: new Error("ref HEAD is not a symbolic ref") });
+    expect(await isCheckedOut({ repoRoot: "/repo", branch: "main", git })).toBe(false);
   });
 });
 

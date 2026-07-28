@@ -1,13 +1,14 @@
-import type {
-  Crew,
-  Finding,
-  FixTarget,
-  LandResult,
-  Outcome,
-  ResolvedGate,
-  ReviewLens,
-  ReviewScope,
-  TicketRef,
+import {
+  type Crew,
+  type Finding,
+  type FixTarget,
+  type LandResult,
+  NO_LANDING,
+  type Outcome,
+  type ResolvedGate,
+  type ReviewLens,
+  type ReviewScope,
+  type TicketRef,
 } from "../crew/contract.js";
 import { ExitCode } from "../exit-codes.js";
 import type { GitHubIssue } from "../tracker/github.js";
@@ -30,7 +31,7 @@ export const MAX_GATE_FIX_ATTEMPTS = 2;
  *
  * The topology is fixed: plan once, then per ticket implement → both fast
  * lenses → fix, then both in-depth lenses over the whole branch → fix, then
- * the gate → fixer loop, then the lander when the crew has one, then handover.
+ * the gate → fixer loop, then the lander, then handover.
  * Every exit path ends at the same handover call, so no outcome can skip it.
  *
  * A multi-ticket plan is the shape that topology is for. A single-ticket plan
@@ -52,8 +53,8 @@ export function exitCodeFor(outcome: Outcome): ExitCode {
 interface LegsResult {
   outcome: Outcome;
   committed: TicketRef[];
-  /** What the lander did, present exactly when the legs got as far as running it. */
-  land?: LandResult;
+  /** What the lander did, or no landing at all when the legs never reached it. */
+  land: LandResult;
 }
 
 async function runLegs(crew: Crew, issue: GitHubIssue): Promise<LegsResult> {
@@ -64,7 +65,11 @@ async function runLegs(crew: Crew, issue: GitHubIssue): Promise<LegsResult> {
 
   const plan = await crew.plan(issue);
   if (plan.kind === "under-specified") {
-    return { outcome: { kind: "early-bail", reason: plan.reason }, committed: [] };
+    return {
+      outcome: { kind: "early-bail", reason: plan.reason },
+      committed: [],
+      land: NO_LANDING,
+    };
   }
 
   const { committed, blocked } = await implementTickets(
@@ -72,24 +77,25 @@ async function runLegs(crew: Crew, issue: GitHubIssue): Promise<LegsResult> {
     plan.tickets,
     perTicketLenses(plan.tickets),
   );
-  if (blocked) return { outcome: blocked, committed };
+  if (blocked) return { outcome: blocked, committed, land: NO_LANDING };
 
   await reviewAndFix(crew, WHOLE_BRANCH_LENSES, { kind: "branch", workItem: issue.number });
 
   const { outcome, runs } = await driveGate(crew, gate);
-  // A crew with no lander is a `pull-request` repo, whose pass ends here.
-  if (outcome.kind !== "success" || !crew.land) return { outcome, committed };
+  // Only a green branch is worth landing, so a blocked pass never asks.
+  if (outcome.kind !== "success") return { outcome, committed, land: NO_LANDING };
 
   // The loop's verdict said nothing about what the base branch has gained since
   // it was taken, so the lander's result is gated once more — the same resolved
   // gate, numbered as the run after the loop's last.
   const land = await crew.land(() => crew.greenGate(runs + 1, gate));
-  // A base branch that was not landed on is a `mid-block` with everything the
-  // pass committed still only on its own branch — nothing landed, nothing
-  // closed. A landing leaves the gate loop's verdict as the outcome: the gate is
-  // what verified what landed, and the lander's own story travels beside it.
+  // A base branch that was meant to be landed on and was not is a `mid-block`
+  // with everything the pass committed still only on its own branch — nothing
+  // landed, nothing closed. Anything else leaves the gate loop's verdict as the
+  // outcome: the gate is what verified what landed, and the lander's own story
+  // travels beside it.
   return {
-    outcome: land.kind === "landed" ? outcome : { kind: "mid-block", reason: land.reason },
+    outcome: land.kind === "not-landed" ? { kind: "mid-block", reason: land.reason } : outcome,
     committed,
     land,
   };

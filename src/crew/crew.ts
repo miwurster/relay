@@ -1,4 +1,4 @@
-import type { Crew } from "./contract.js";
+import { type Crew, NO_LANDING } from "./contract.js";
 import { runGit, type GitRunner } from "../host/git.js";
 import { createFixer } from "./roles/fixer.js";
 import { createGateResolver } from "./roles/gate-resolver.js";
@@ -40,12 +40,19 @@ export function createCrew({
     review: createReviewer({ ...deps, baseBranch }),
     fix: createFixer(deps),
     greenGate: createGreenGate(deps),
-    // A lander only under `merge` landing: a `pull-request` repo's pass pays
-    // nothing for a mode it did not choose, and the crew's size says which
-    // landing the repo declared.
-    ...(deps.config.landing === "merge"
-      ? { land: createLander({ ...deps, repoRoot, branch, baseBranch, git }) }
-      : {}),
+    // The one place the declared landing decides anything: a `pull-request`
+    // repo's pass pays nothing for a mode it did not choose, and every later
+    // step reads the landing off what the lander reported.
+    land:
+      deps.config.landing === "merge"
+        ? createLander({ ...deps, repoRoot, branch, baseBranch, git })
+        : landsNothing,
     handover: createHandover({ ...deps, workItem, branch, baseBranch }),
   };
 }
+
+/**
+ * The lander of a `pull-request` repo: no pass of one moves a branch, so it
+ * opens no session, runs no gate and reports that nothing landed.
+ */
+const landsNothing: Crew["land"] = () => Promise.resolve(NO_LANDING);

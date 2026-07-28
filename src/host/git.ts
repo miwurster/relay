@@ -59,6 +59,28 @@ export async function originUrl({
 }
 
 /**
+ * Whether the host still has `branch` checked out.
+ *
+ * A detached HEAD counts as no: what matters is that the branch relay is about
+ * to move is the one HEAD names.
+ */
+export async function isCheckedOut({
+  repoRoot,
+  branch,
+  git = runGit,
+}: {
+  repoRoot: string;
+  branch: string;
+  git?: GitRunner;
+}): Promise<boolean> {
+  try {
+    return (await git(["-C", repoRoot, "symbolic-ref", "--short", "HEAD"])) === branch;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Move the host's checked-out branch onto `branch`, refusing anything that is
  * not a fast-forward.
  *
@@ -66,6 +88,9 @@ export async function originUrl({
  * only ever move it forward: the lander merged the base branch *into* the pass
  * branch, so the base branch is an ancestor of what lands
  * ([ADR-0017](../../docs/adr/0017-the-lander-rebases-and-the-host-only-fast-forwards.md)).
+ *
+ * It moves whatever HEAD names, so the caller has to have established with
+ * `isCheckedOut` that HEAD still names the base branch it means to move.
  */
 export async function fastForwardTo({
   repoRoot,

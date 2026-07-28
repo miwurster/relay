@@ -4,11 +4,13 @@ import { join } from "node:path";
 import type { Sandbox, SandboxRunOptions, SandboxRunResult } from "@ai-hero/sandcastle";
 import { beforeEach, describe, expect, it } from "vitest";
 import { relayConfigSchema } from "../../src/config.js";
+import { NO_LANDING } from "../../src/crew/contract.js";
 import { createCrew } from "../../src/crew/crew.js";
 import { FIX_TAG } from "../../src/crew/roles/fixer.js";
 import { RESOLVED_GATE_TAG } from "../../src/crew/roles/gate-resolver.js";
 import { HANDOVER_TAG } from "../../src/crew/roles/handover.js";
 import { IMPLEMENT_TAG } from "../../src/crew/roles/implementer.js";
+import { LAND_TAG } from "../../src/crew/roles/lander.js";
 import type { GitHubIssue } from "../../src/tracker/github.js";
 import { PLAN_TAG } from "../../src/crew/roles/planner.js";
 import { FINDINGS_TAG } from "../../src/crew/roles/reviewer.js";
@@ -251,9 +253,11 @@ describe("createCrew", () => {
     });
 
     await crew.review("inDepthCodeReview", { kind: "branch", workItem: issue.number });
-    await crew.handover({ kind: "success", detail: "`make test` exited 0" }, [
-      { number: 8, summary: "the one ticket" },
-    ]);
+    await crew.handover(
+      { kind: "success", detail: "`make test` exited 0" },
+      [{ number: 8, summary: "the one ticket" }],
+      NO_LANDING,
+    );
 
     expect(runs[0]?.promptArgs).toMatchObject({ SCOPE: "branch", BASE: "spike/foo" });
     expect(runs[1]?.promptArgs).toMatchObject({ BASE_BRANCH: "spike/foo" });
@@ -281,9 +285,11 @@ describe("createCrew", () => {
       baseBranch,
     });
 
-    await crew.handover({ kind: "success", detail: "`make test` exited 0" }, [
-      { number: 8, summary: "the one ticket" },
-    ]);
+    await crew.handover(
+      { kind: "success", detail: "`make test` exited 0" },
+      [{ number: 8, summary: "the one ticket" }],
+      NO_LANDING,
+    );
 
     expect(runs.map((run) => run.name)).toEqual(["handover"]);
     expect(runs[0]?.promptArgs).toMatchObject({
@@ -292,8 +298,18 @@ describe("createCrew", () => {
     });
   });
 
-  it("has a lander only where the repo's landing needs one", async () => {
-    const sandbox = {} as unknown as Sandbox;
+  it("runs a lander leg only where the repo's landing needs one", async () => {
+    const runs: SandboxRunOptions[] = [];
+    const sandbox = {
+      async run(options: SandboxRunOptions): Promise<SandboxRunResult> {
+        runs.push(options);
+        return {
+          iterations: [],
+          commits: [],
+          stdout: `<${LAND_TAG}>{"kind":"stuck","reason":"a conflict nobody could resolve"}</${LAND_TAG}>`,
+        };
+      },
+    } as unknown as Sandbox;
     const crewFor = (landing: "pull-request" | "merge") =>
       createCrew({
         sandbox,
@@ -304,8 +320,13 @@ describe("createCrew", () => {
         branch,
         baseBranch,
       });
+    const regate = () => Promise.resolve({ green: true, detail: "green" });
 
-    expect(crewFor("merge").land).toBeTypeOf("function");
-    expect(crewFor("pull-request").land).toBeUndefined();
+    expect(await crewFor("merge").land(regate)).toEqual({
+      kind: "not-landed",
+      reason: "a conflict nobody could resolve",
+    });
+    expect(await crewFor("pull-request").land(regate)).toEqual(NO_LANDING);
+    expect(runs.map((run) => run.name)).toEqual(["lander"]);
   });
 });

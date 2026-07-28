@@ -21,18 +21,9 @@ import {
 } from "../tracker/github.js";
 import { missingLabels, PASS_LABELS, TRIAGE_LABELS, type LabelSpec } from "../tracker/labels.js";
 import { readResource } from "../resources.js";
-import {
-  GITIGNORE_FILE_NAME,
-  ignoresWorktreeDir,
-  readGitignore,
-  withWorktreeDirIgnored,
-  WORKTREE_DIR,
-} from "../host/worktree-dir.js";
-import {
-  ignoresCredentialFile,
-  readRelayGitignore,
-  withCredentialFileIgnored,
-} from "../host/credential-file.js";
+import { GITIGNORE_FILE_NAME, WORKTREE_DIR, WORKTREE_RULE } from "../host/worktree-dir.js";
+import { CREDENTIAL_RULE } from "../host/credential-file.js";
+import { ensureIgnored } from "../host/gitignore.js";
 
 /** One thing init considered — a file or a label — and what it did with it. */
 export interface InitVerdict {
@@ -202,23 +193,11 @@ async function writeCredentialExample(repoRoot: string): Promise<InitVerdict> {
  * machine that happened to run init, and it sits next to the file it protects.
  */
 async function ignoreCredentialFile(repoRoot: string): Promise<InitVerdict> {
-  const existing = await readRelayGitignore(repoRoot);
-  if (ignoresCredentialFile(existing)) {
-    return {
-      subject: RELAY_GITIGNORE_PATH,
-      outcome: "kept",
-      detail: `already ignores \`${CREDENTIAL_FILE_PATH}\``,
-    };
-  }
-
-  const path = join(repoRoot, RELAY_GITIGNORE_PATH);
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, withCredentialFileIgnored(existing), "utf8");
-
+  const written = await ensureIgnored(repoRoot, CREDENTIAL_RULE);
   return {
     subject: RELAY_GITIGNORE_PATH,
-    outcome: "written",
-    detail: `now ignores \`${CREDENTIAL_FILE_PATH}\``,
+    outcome: written ? "written" : "kept",
+    detail: `${written ? "now" : "already"} ignores \`${CREDENTIAL_FILE_PATH}\``,
   };
 }
 
@@ -228,21 +207,11 @@ async function ignoreCredentialFile(repoRoot: string): Promise<InitVerdict> {
  * already there, and writes the file when the repo has none.
  */
 async function ignoreWorktreeDir(repoRoot: string): Promise<InitVerdict> {
-  const existing = await readGitignore(repoRoot);
-  if (ignoresWorktreeDir(existing)) {
-    return {
-      subject: GITIGNORE_FILE_NAME,
-      outcome: "kept",
-      detail: `already ignores \`${WORKTREE_DIR}/\``,
-    };
-  }
-
-  await writeFile(join(repoRoot, GITIGNORE_FILE_NAME), withWorktreeDirIgnored(existing), "utf8");
-
+  const written = await ensureIgnored(repoRoot, WORKTREE_RULE);
   return {
     subject: GITIGNORE_FILE_NAME,
-    outcome: "written",
-    detail: `now ignores \`${WORKTREE_DIR}/\``,
+    outcome: written ? "written" : "kept",
+    detail: `${written ? "now" : "already"} ignores \`${WORKTREE_DIR}/\``,
   };
 }
 

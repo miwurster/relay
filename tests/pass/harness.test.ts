@@ -1,17 +1,18 @@
 import { describe, expect, it } from "vitest";
-import type {
-  Crew,
-  Finding,
-  FixTarget,
-  GateResult,
-  ImplementResult,
-  LandResult,
-  Outcome,
-  PlanResult,
-  ResolvedGate,
-  ReviewLens,
-  ReviewScope,
-  TicketRef,
+import {
+  type Crew,
+  type Finding,
+  type FixTarget,
+  type GateResult,
+  type ImplementResult,
+  type LandResult,
+  NO_LANDING,
+  type Outcome,
+  type PlanResult,
+  type ResolvedGate,
+  type ReviewLens,
+  type ReviewScope,
+  type TicketRef,
 } from "../../src/crew/contract.js";
 import { ExitCode } from "../../src/exit-codes.js";
 import { exitCodeFor, MAX_GATE_FIX_ATTEMPTS, runHarness } from "../../src/pass/harness.js";
@@ -59,7 +60,7 @@ function recordingCrew(overrides: Partial<Crew> = {}) {
   const fixTargets: FixTarget[] = [];
   let handedOver: Outcome | undefined;
   let handedOverTickets: readonly TicketRef[] = [];
-  let handedOverLand: LandResult | undefined;
+  let handedOverLand: LandResult = NO_LANDING;
 
   const crew: Crew = {
     async resolveGate(): Promise<ResolvedGate> {
@@ -87,6 +88,11 @@ function recordingCrew(overrides: Partial<Crew> = {}) {
       calls.push("gate");
       return { green: true, detail: "green" };
     },
+    // The lander of a `pull-request` repo: it runs, and lands nothing.
+    async land(): Promise<LandResult> {
+      calls.push("land");
+      return NO_LANDING;
+    },
     async handover(outcome, committed, land): Promise<void> {
       calls.push(`handover:${outcome.kind}`);
       handedOver = outcome;
@@ -108,7 +114,7 @@ function recordingCrew(overrides: Partial<Crew> = {}) {
 }
 
 describe("runHarness", () => {
-  it("runs the full topology in order: plan, per-ticket loop, branch review, gate, handover", async () => {
+  it("runs the full topology in order: plan, per-ticket loop, branch review, gate, land, handover", async () => {
     const { crew, calls } = recordingCrew({
       async plan() {
         calls.push("plan");
@@ -131,6 +137,7 @@ describe("runHarness", () => {
       "review:inDepthCodeReview:branch",
       "review:inDepthSpecReview:branch",
       "gate",
+      "land",
       "handover:success",
     ]);
   });
@@ -218,6 +225,7 @@ describe("runHarness", () => {
       "review:inDepthCodeReview:branch",
       "review:inDepthSpecReview:branch",
       "gate",
+      "land",
       "handover:success",
     ]);
   });
@@ -384,8 +392,9 @@ describe("runHarness", () => {
 });
 
 /**
- * A lander in the crew is what `merge` landing looks like to the harness, so
- * these say what the pass does with one and what it does without.
+ * A lander that reports a landing is what `merge` landing looks like to the
+ * harness, so these say what the pass does with one and what it does with the
+ * lander of a repo that lands nothing.
  */
 describe("runHarness under merge landing", () => {
   /** A crew whose lander reports `result`, recording its own leg and its re-gate. */
@@ -422,12 +431,11 @@ describe("runHarness under merge landing", () => {
     ]);
   });
 
-  it("runs no lander leg when the crew has none", async () => {
+  it("re-gates nothing when the lander lands nothing", async () => {
     const { crew, calls } = recordingCrew();
 
     await run(crew);
 
-    expect(calls).not.toContain("land");
     expect(calls.filter((call) => call === "gate")).toHaveLength(1);
   });
 
@@ -448,12 +456,12 @@ describe("runHarness under merge landing", () => {
     expect(land()).toEqual(notLanded);
   });
 
-  it("hands the handover no landing at all when the crew has no lander", async () => {
+  it("hands the handover the no landing a lander that lands nothing reported", async () => {
     const { crew, land } = recordingCrew();
 
     await run(crew);
 
-    expect(land()).toBeUndefined();
+    expect(land()).toEqual(NO_LANDING);
   });
 
   it("hands the handover no landing when a merge pass blocked before its lander ran", async () => {
@@ -467,7 +475,7 @@ describe("runHarness under merge landing", () => {
     await run(crew);
 
     expect(calls).not.toContain("land");
-    expect(land()).toBeUndefined();
+    expect(land()).toEqual(NO_LANDING);
   });
 
   it("re-gates the lander's result with the resolved gate, on the run after the loop's last", async () => {

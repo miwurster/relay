@@ -4,7 +4,12 @@ import { join } from "node:path";
 import type { Sandbox, SandboxRunOptions, SandboxRunResult } from "@ai-hero/sandcastle";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { relayConfigSchema } from "../../../src/config.js";
-import type { LandResult, Outcome, TicketRef } from "../../../src/crew/contract.js";
+import {
+  type LandResult,
+  NO_LANDING,
+  type Outcome,
+  type TicketRef,
+} from "../../../src/crew/contract.js";
 import { RoleError } from "../../../src/errors.js";
 import { readResource } from "../../../src/resources.js";
 import { createHandover, HANDOVER_TAG } from "../../../src/crew/roles/handover.js";
@@ -71,7 +76,7 @@ describe("createHandover", () => {
   it("hands over in one leg, on the handover model", async () => {
     const { handover, runs } = handing({ stdout: published });
 
-    await handover(success, tickets);
+    await handover(success, tickets, NO_LANDING);
 
     expect(runs.map((run) => run.name)).toEqual(["handover"]);
     expect(
@@ -82,7 +87,7 @@ describe("createHandover", () => {
   it("tells the leg which outcome it is handing over, and on what", async () => {
     const { handover, runs } = handing({ stdout: published });
 
-    await handover(success, tickets);
+    await handover(success, tickets, NO_LANDING);
 
     expect(runs[0]?.promptArgs).toEqual({
       OUTCOME: "success",
@@ -103,7 +108,7 @@ describe("createHandover", () => {
   it("names the committed tickets, which the leg cannot read out of the commits", async () => {
     const { handover, runs } = handing({ stdout: published });
 
-    await handover(midBlock, [{ number: 8, summary: "reject an empty cart" }]);
+    await handover(midBlock, [{ number: 8, summary: "reject an empty cart" }], NO_LANDING);
 
     expect(runs[0]?.promptArgs).toMatchObject({ COMMITTED_TICKETS: "#8" });
   });
@@ -113,7 +118,7 @@ describe("createHandover", () => {
       stdout: tagged('{"report":"#7 needs acceptance criteria; nothing was built."}'),
     });
 
-    await handover(earlyBail, nothing);
+    await handover(earlyBail, nothing, NO_LANDING);
 
     expect(runs[0]?.promptArgs).toMatchObject({ COMMITTED_TICKETS: "nothing" });
   });
@@ -123,7 +128,7 @@ describe("createHandover", () => {
       stdout: tagged('{"report":"#7 blocked before it committed anything."}'),
     });
 
-    await handover(midBlock, nothing);
+    await handover(midBlock, nothing, NO_LANDING);
 
     expect(runs[0]?.promptArgs).toMatchObject({ PULL_REQUEST: "forbidden" });
   });
@@ -131,7 +136,7 @@ describe("createHandover", () => {
   it("passes a blocked outcome's own reason on as the cause", async () => {
     const { handover, runs } = handing({ stdout: published });
 
-    await handover(midBlock, tickets);
+    await handover(midBlock, tickets, NO_LANDING);
 
     expect(runs[0]?.promptArgs).toMatchObject({
       OUTCOME: "mid-block",
@@ -143,7 +148,7 @@ describe("createHandover", () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     const { handover } = handing({ stdout: published });
 
-    await handover(success, tickets);
+    await handover(success, tickets, NO_LANDING);
 
     const printed = log.mock.calls.map((call) => call.join(" ")).join("\n");
     expect(printed).toContain("success");
@@ -157,7 +162,7 @@ describe("createHandover", () => {
     // judges it, so the report is the human's only record of that.
     const { handover } = handing({ stdout: tagged('{"report":"#7 is agent-in-review."}') });
 
-    await expect(handover(success, tickets)).rejects.toThrow(RoleError);
+    await expect(handover(success, tickets, NO_LANDING)).rejects.toThrow(RoleError);
 
     expect(log).toHaveBeenCalledWith(expect.stringContaining("#7 is agent-in-review."));
     log.mockRestore();
@@ -168,7 +173,7 @@ describe("createHandover", () => {
       stdout: tagged('{"report":"#7 needs acceptance criteria; nothing was built."}'),
     });
 
-    await handover(earlyBail, nothing);
+    await handover(earlyBail, nothing, NO_LANDING);
 
     expect(runs[0]?.promptArgs).toMatchObject({ OUTCOME: "early-bail" });
   });
@@ -176,7 +181,7 @@ describe("createHandover", () => {
   it("refuses a success that opened no pull request", async () => {
     const { handover } = handing({ stdout: tagged('{"report":"#7 is agent-in-review."}') });
 
-    await expect(handover(success, tickets)).rejects.toThrow(RoleError);
+    await expect(handover(success, tickets, NO_LANDING)).rejects.toThrow(RoleError);
   });
 
   it("lets a mid-block on an empty branch hand over without a pull request", async () => {
@@ -184,7 +189,7 @@ describe("createHandover", () => {
       stdout: tagged('{"report":"#7 blocked on its first ticket; nothing was committed."}'),
     });
 
-    await expect(handover(midBlock, nothing)).resolves.toBeUndefined();
+    await expect(handover(midBlock, nothing, NO_LANDING)).resolves.toBeUndefined();
   });
 
   it("refuses a mid-block that left committed tickets unpublished", async () => {
@@ -192,31 +197,31 @@ describe("createHandover", () => {
       stdout: tagged('{"report":"#7 blocked after two tickets; the branch was not pushed."}'),
     });
 
-    await expect(handover(midBlock, tickets)).rejects.toThrow(RoleError);
+    await expect(handover(midBlock, tickets, NO_LANDING)).rejects.toThrow(RoleError);
   });
 
   it("refuses a mid-block that opened a pull request on an empty branch", async () => {
     const { handover } = handing({ stdout: published });
 
-    await expect(handover(midBlock, nothing)).rejects.toThrow(RoleError);
+    await expect(handover(midBlock, nothing, NO_LANDING)).rejects.toThrow(RoleError);
   });
 
   it("refuses an early bail that opened a pull request on an empty branch", async () => {
     const { handover } = handing({ stdout: published });
 
-    await expect(handover(earlyBail, nothing)).rejects.toThrow(RoleError);
+    await expect(handover(earlyBail, nothing, NO_LANDING)).rejects.toThrow(RoleError);
   });
 
   it("refuses a handover that committed to the branch", async () => {
     const { handover } = handing({ stdout: published, commits: [{ sha: "c0ffee" }] });
 
-    await expect(handover(success, tickets)).rejects.toThrow(RoleError);
+    await expect(handover(success, tickets, NO_LANDING)).rejects.toThrow(RoleError);
   });
 
   it("leaves the leg's answer on the host, even when the leg broke its own rule", async () => {
     const { handover } = handing({ stdout: tagged('{"report":"#7 is agent-in-review."}') });
 
-    await expect(handover(success, tickets)).rejects.toThrow(RoleError);
+    await expect(handover(success, tickets, NO_LANDING)).rejects.toThrow(RoleError);
 
     const written = await readFile(join(recordDir, "handover.status.json"), "utf8");
     expect(JSON.parse(written)).toEqual({
@@ -229,7 +234,7 @@ describe("createHandover", () => {
   it("refuses a handover that reported nothing", async () => {
     const { handover } = handing({ stdout: "Pushed it." });
 
-    await expect(handover(success, tickets)).rejects.toThrow(RoleError);
+    await expect(handover(success, tickets, NO_LANDING)).rejects.toThrow(RoleError);
   });
 });
 
@@ -266,10 +271,10 @@ describe("createHandover under merge landing", () => {
     });
   });
 
-  it("says nothing landed when there was no lander at all", async () => {
+  it("says nothing landed when there was no landing at all", async () => {
     const { handover, runs } = merging(tagged('{"report":"#7 blocked; agent/7 pushed."}'));
 
-    await handover(success, tickets);
+    await handover(success, tickets, NO_LANDING);
 
     expect(runs[0]?.promptArgs).toMatchObject({ LANDED: "no" });
   });
@@ -277,7 +282,7 @@ describe("createHandover under merge landing", () => {
   it("forbids a pull request on a successful pass, which has already landed", async () => {
     const { handover, runs } = merging(tagged('{"report":"#7 landed on main."}'));
 
-    await handover(success, tickets);
+    await handover(success, tickets, NO_LANDING);
 
     expect(runs[0]?.promptArgs).toMatchObject({ PULL_REQUEST: "forbidden" });
   });
@@ -285,27 +290,39 @@ describe("createHandover under merge landing", () => {
   it("forbids a pull request on a blocked pass that committed work, and says nothing landed", async () => {
     const { handover, runs } = merging(tagged('{"report":"#7 blocked; agent/7 pushed."}'));
 
-    await handover(midBlock, tickets);
+    await handover(midBlock, tickets, NO_LANDING);
 
     expect(runs[0]?.promptArgs).toMatchObject({ PULL_REQUEST: "forbidden", LANDED: "no" });
   });
 
   it("still refuses a leg that opened a pull request anyway, on any outcome", async () => {
     await expect(
-      handing({ stdout: published, withConfig: mergeConfig }).handover(success, tickets),
+      handing({ stdout: published, withConfig: mergeConfig }).handover(
+        success,
+        tickets,
+        NO_LANDING,
+      ),
     ).rejects.toThrow(/opens none on any path/);
     await expect(
-      handing({ stdout: published, withConfig: mergeConfig }).handover(midBlock, tickets),
+      handing({ stdout: published, withConfig: mergeConfig }).handover(
+        midBlock,
+        tickets,
+        NO_LANDING,
+      ),
     ).rejects.toThrow(RoleError);
     await expect(
-      handing({ stdout: published, withConfig: mergeConfig }).handover(earlyBail, nothing),
+      handing({ stdout: published, withConfig: mergeConfig }).handover(
+        earlyBail,
+        nothing,
+        NO_LANDING,
+      ),
     ).rejects.toThrow(RoleError);
   });
 
   it("lets a success hand over with no pull request at all", async () => {
     const { handover } = merging(tagged('{"report":"#7 landed on main."}'));
 
-    await expect(handover(success, tickets)).resolves.toBeUndefined();
+    await expect(handover(success, tickets, NO_LANDING)).resolves.toBeUndefined();
   });
 });
 

@@ -1,16 +1,21 @@
 import type { Landing } from "../../src/config.js";
-import type { Crew, GateResult, LandResult } from "../../src/crew/contract.js";
+import {
+  type Crew,
+  type GateResult,
+  type LandResult,
+  NO_LANDING,
+} from "../../src/crew/contract.js";
 
 /**
  * A crew of stubs: the whole topology runs and every exit path is reachable
  * without an agent, a model or a network — which is what lets the harness's own
  * decisions be tested without running one.
  *
- * A stub crew has a lander exactly where a real one does: under `merge` landing.
+ * A stub crew lands exactly where a real one does: under `merge` landing.
  */
 export function createStubCrew({ landing = "pull-request" }: { landing?: Landing } = {}): Crew {
   return {
-    ...(landing === "merge" ? { land: stubLand } : {}),
+    land: landing === "merge" ? stubLand : () => Promise.resolve(NO_LANDING),
 
     async resolveGate() {
       log("gateResolver", "would read the repo's docs for its green gate");

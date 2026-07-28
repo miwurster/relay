@@ -72,14 +72,21 @@ export type FixTarget =
   { kind: "ticket"; ticket: TicketRef } | { kind: "branch" } | { kind: "gate"; attempt: number };
 
 /**
- * What became of the base branch under `merge` landing.
+ * What became of the base branch.
  *
  * `landed` means it has moved and is pushed, so the work is reachable by
  * somebody other than the operator who ran the pass; `not-landed` means it was
- * left where it was, and why.
+ * left where it was, and why, which blocks the pass. `no-landing` is neither
+ * of those: there was nothing to land, because the repo lands through a pull
+ * request or because the pass blocked before it reached its lander.
  */
 export type LandResult =
-  { kind: "landed"; detail: string } | { kind: "not-landed"; reason: string };
+  | { kind: "landed"; detail: string }
+  | { kind: "not-landed"; reason: string }
+  | { kind: "no-landing" };
+
+/** The one `no-landing`, since it has nothing to say beyond its kind. */
+export const NO_LANDING: LandResult = { kind: "no-landing" };
 
 /**
  * How the pass ended, and therefore which handover it gets.
@@ -116,29 +123,30 @@ export interface Crew {
    */
   greenGate(attempt: number, gate: ResolvedGate): Promise<GateResult>;
   /**
-   * Put the pass branch's work on the base branch. Present only under `merge`
-   * landing, so a crew's size says which landing the repo declared.
+   * Put the pass branch's work on the base branch, and say what became of it.
+   * A repo that lands through a pull request has nothing to put anywhere and
+   * reports `no-landing` without running a leg at all.
    *
-   * The one member that is a leg plus a host git action: the leg gets the base
-   * branch's commits into the pass branch, and the host's own `git` then
-   * fast-forwards the base branch onto the result and pushes it.
+   * Under `merge` landing this is the one member that is a leg plus a host git
+   * action: the leg gets the base branch's commits into the pass branch, and
+   * the host's own `git` then fast-forwards the base branch onto the result and
+   * pushes it.
    *
    * `regate` is the harness's green gate, run on what the leg produced —
    * nothing reaches the host until a gate has passed on what will actually
    * land, because the earlier verdict said nothing about code that has since
    * moved.
    */
-  land?(regate: () => Promise<GateResult>): Promise<LandResult>;
+  land(regate: () => Promise<GateResult>): Promise<LandResult>;
   /**
    * Hand the baton over. `committed` is the tickets whose change the branch
    * carries, in the order they were implemented — what the pull request closes,
    * and what decides whether there is a pull request at all.
    *
-   * `land` is what the lander did, present exactly when the lander ran — a pass
-   * that blocked before it reached one landed nothing either way. The
-   * handover is told it rather than working it out from the landing and the
+   * `land` is what the lander did, or `no-landing` when there was none to do.
+   * The handover is told it rather than working it out from the landing and the
    * outcome, because closing an issue is the pass's one irreversible tracker
    * act and the leg that does it has to be reading the lander's own verdict.
    */
-  handover(outcome: Outcome, committed: readonly TicketRef[], land?: LandResult): Promise<void>;
+  handover(outcome: Outcome, committed: readonly TicketRef[], land: LandResult): Promise<void>;
 }

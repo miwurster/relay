@@ -35,7 +35,7 @@ export function createHandover({
   return async function handover(
     outcome: Outcome,
     committed: readonly TicketRef[],
-    land?: LandResult,
+    land: LandResult,
   ): Promise<void> {
     const leg = describeLeg(outcome, committed, deps.config.landing, land);
 
@@ -107,7 +107,7 @@ function describeLeg(
   outcome: Outcome,
   committed: readonly TicketRef[],
   landing: Landing,
-  land: LandResult | undefined,
+  land: LandResult,
 ): HandoverLeg {
   return {
     cause: outcome.kind === "success" ? outcome.detail : outcome.reason,
@@ -117,10 +117,10 @@ function describeLeg(
         ? "this repo's landing is `merge`, which opens none on any path"
         : "the branch carries nothing worth publishing",
     // The lander's own verdict, never the landing and the outcome read together:
-    // a crew with no lander landed nothing, and one that reported `not-landed`
-    // left the base branch where it was.
-    landed: land?.kind === "landed" ? "yes" : "no",
-    landedDetail: land?.kind === "landed" ? land.detail : "nothing was landed",
+    // a lander that had nothing to land landed nothing, and one that reported
+    // `not-landed` left the base branch where it was.
+    landed: land.kind === "landed" ? "yes" : "no",
+    landedDetail: land.kind === "landed" ? land.detail : "nothing was landed",
     committed: committed.map((ticket) => `#${ticket.number}`).join(", ") || "nothing",
   };
 }

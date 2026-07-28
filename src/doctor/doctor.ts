@@ -26,13 +26,9 @@ import {
 import { missingLabels, PASS_LABELS, TRIAGE_LABELS, type LabelSpec } from "../tracker/labels.js";
 import { resolveSandboxImage, verifyPrebuiltImage } from "../sandbox/sandbox-image.js";
 import { loadSecrets, type Secrets, type SecretSource } from "../host/secrets.js";
-import {
-  GITIGNORE_FILE_NAME,
-  ignoresWorktreeDir,
-  readGitignore,
-  WORKTREE_DIR,
-} from "../host/worktree-dir.js";
+import { GITIGNORE_FILE_NAME, WORKTREE_DIR, WORKTREE_RULE } from "../host/worktree-dir.js";
 import { credentialFileIgnored } from "../host/credential-file.js";
+import { isIgnored } from "../host/gitignore.js";
 import { currentBranch, isWorktreeDirty, runGit, type GitRunner } from "../host/git.js";
 
 /** Why the label checks cannot run: nothing on this host can ask GitHub. */
@@ -167,12 +163,16 @@ export async function runDoctorChecks({
     skip(checks, "triage labels", NO_CREDENTIAL);
   }
 
-  const baseBranch = await recordLanding({ checks, config, repoRoot, git });
+  const landedOn = await recordLanding({ checks, config, repoRoot, git });
 
   // Both of these ask about landing on the base branch itself, which only
   // `merge` landing does — under `pull-request` they are skipped rather than
   // answered as passing.
-  if (config?.landing === "merge" && baseBranch !== undefined) {
+  if ("why" in landedOn) {
+    skip(checks, "base branch ruleset", landedOn.why);
+    skip(checks, "worktree clean", landedOn.why);
+  } else {
+    const baseBranch = landedOn.branch;
     if (authenticated === undefined) {
       skip(checks, "base branch ruleset", NO_CREDENTIAL_FOR_RULESETS);
     } else {
@@ -191,10 +191,6 @@ export async function runDoctorChecks({
       worktreeDetail,
       (dirty) => (dirty ? "warning" : "ok"),
     );
-  } else {
-    const why = whyNotLandingOnBase(config);
-    skip(checks, "base branch ruleset", why);
-    skip(checks, "worktree clean", why);
   }
 
   let image: ResolvedImage | undefined;
@@ -241,8 +237,16 @@ export async function runDoctorChecks({
 }
 
 /**
+ * Either the base branch a pass would land on, or the one reason the
+ * `merge`-only checks after it have nothing to ask about. A repo that lands
+ * through a pull request is not a repo that nearly failed them: relay pushes
+ * only its own pass branch there, and never touches this host's worktree.
+ */
+type LandedOn = { branch: string } | { why: string };
+
+/**
  * What a pass would land and where, and the base branch every check after it
- * asks about — or `undefined` when there is no branch to name.
+ * asks about — or why there is none to ask about.
  *
  * The landing comes from the config and the branch from this host's checkout
  * ([ADR-0016](../../docs/adr/0016-the-base-branch-is-the-hosts-checkout.md)), so
@@ -258,17 +262,20 @@ async function recordLanding({
   config: RelayConfig | undefined;
   repoRoot: string;
   git: GitRunner;
-}): Promise<string | undefined> {
+}): Promise<LandedOn> {
   if (!config) {
     skip(checks, "landing", NO_LANDING_TO_READ);
-    return undefined;
+    return { why: NO_LANDING_TO_READ };
   }
-  return record(
+  const branch = await record(
     checks,
     "landing",
     () => currentBranch({ repoRoot, git }),
-    (branch: string) => landingDetail(config.landing, branch),
+    (resolved: string) => landingDetail(config.landing, resolved),
   );
+  if (config.landing !== "merge") return { why: "this repo lands through a pull request" };
+  if (branch === undefined) return { why: "no base branch resolved to ask about" };
+  return { branch };
 }
 
 /** What a pass would do with the branch this host is standing on. */
@@ -277,17 +284,6 @@ function landingDetail(landing: Landing, baseBranch: string): string {
     return `\`merge\` — a green pass would land on ${baseBranch} and push it`;
   }
   return `\`pull-request\` — a green pass would open a pull request against ${baseBranch}`;
-}
-
-/**
- * Why the two `merge`-only checks were not answered. A repo that lands through
- * a pull request is not a repo that nearly failed them: relay pushes only its
- * own pass branch there, and never touches this host's worktree.
- */
-function whyNotLandingOnBase(config: RelayConfig | undefined): string {
-  if (!config) return NO_LANDING_TO_READ;
-  if (config.landing !== "merge") return "this repo lands through a pull request";
-  return "no base branch resolved to ask about";
 }
 
 /** Why the ruleset check cannot run: nothing on this host can ask GitHub. */
@@ -388,7 +384,7 @@ function labelCheck({
  * writes the line now, but a repo migrated before it did never got one.
  */
 async function assertWorktreeDirIgnored(repoRoot: string): Promise<void> {
-  if (ignoresWorktreeDir(await readGitignore(repoRoot))) return;
+  if (await isIgnored(repoRoot, WORKTREE_RULE)) return;
   throw new ConfigError(
     `${GITIGNORE_FILE_NAME} does not ignore \`${WORKTREE_DIR}/\`, where a pass cuts its ` +
       "worktree — add it, or re-run `relay init`.",
