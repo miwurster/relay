@@ -85,11 +85,6 @@ The five canonical triage roles, each label string equal to its name (`needs-tri
 
 Single-context — one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
-### Serena MCP
-
-Prefer Serena's semantic tools (symbol lookup, references, navigation, targeted edits) over raw file reads / grep when Serena is available.
-See `docs/agents/serena.md`.
-
 ---
 
 @README.md
