@@ -1,0 +1,15 @@
+{
+  "name": "pnpm-testcontainers",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "verify": "vitest run"
+  },
+  "dependencies": {
+    "@testcontainers/postgresql": "12.0.4",
+    "pg": "8.22.0"
+  },
+  "devDependencies": {
+    "vitest": "4.1.10"
+  }
+}

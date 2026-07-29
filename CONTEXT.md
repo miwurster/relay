@@ -237,3 +237,9 @@ _Avoid_: soft failure, notice
 How **doctor** answers what a **pass** would verify with, without being a pass: it opens a **sandbox**, runs the **gate resolver** in it, and takes both the sandbox and its own branch back down.
 That branch is named off the configured prefix rather than numbered, so it is never a **pass branch** — which is what lets the probe delete it, the one exception to relay never deleting a branch.
 _Avoid_: gate check, doctor pass
+
+**Sandbox probe**:
+How a contributor answers whether a **sandbox** can still run a repo's Testcontainers tier against the host daemon, without being a **pass**.
+It opens a sandbox over a scripted fixture repo and runs that repo's own command in it, so what it proves is the container contract rather than any **role**'s judgement.
+Hand-run and outside relay's own **green gate**, because that gate runs inside a sandbox and a probe within it would nest.
+_Avoid_: e2e test, smoke test, test driver, harness

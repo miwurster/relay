@@ -4,7 +4,9 @@ import vitest from "@vitest/eslint-plugin";
 import tseslint from "typescript-eslint";
 
 export default defineConfig(
-  { ignores: ["dist", "node_modules", "coverage", ".scratch"] },
+  // `fixtures` is not relay's source: each fixture is a target repo with its
+  // own package manager and dependencies, which this repo's config cannot type.
+  { ignores: ["dist", "node_modules", "coverage", ".scratch", "fixtures"] },
   ...tseslint.configs.strictTypeChecked,
   {
     languageOptions: {

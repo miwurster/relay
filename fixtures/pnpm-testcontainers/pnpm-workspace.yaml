@@ -1,0 +1,8 @@
+# Transitive build scripts pnpm 11 refuses to run without a decision. None of
+# them are needed here: they are optional native fast paths under
+# `testcontainers`, and an install that stops to ask would fail the probe on its
+# setup step rather than on what it is meant to prove.
+allowBuilds:
+  cpu-features: false
+  protobufjs: false
+  ssh2: false
