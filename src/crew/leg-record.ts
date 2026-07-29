@@ -49,10 +49,10 @@ export async function writeStatusFile({
 }
 
 /**
- * Write one lens's findings to its own file in the leg's record directory.
+ * Write one review's findings to its own file in the leg's record directory.
  *
- * A file per lens, never a shared one: each file is attributable to the lens
- * that wrote it, and merging what they return is the harness's job.
+ * A file per review, never a shared one: each file is attributable to the leg
+ * that wrote it.
  */
 export async function writeFindingsFile({
   dir,

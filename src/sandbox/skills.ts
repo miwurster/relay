@@ -12,10 +12,7 @@ import { ConfigError } from "../errors.js";
  * directories are bind-mounted and each role passes `--plugin-dir`, so a role
  * runs the same skill version the operator has installed. Proven in spike 02.
  */
-export const SKILL_PLUGINS = [
-  "relay-skills@relay",
-  "mattpocock-skills@claude-plugins-official",
-] as const;
+export const SKILL_PLUGINS = ["mattpocock-skills@claude-plugins-official"] as const;
 
 /** Where the mounted plugin directories appear inside the sandbox. */
 export const SANDBOX_PLUGIN_ROOT = "/opt/relay/plugins";

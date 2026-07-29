@@ -187,7 +187,7 @@ describe("createCrew", () => {
     expect(commands).toEqual(["make test"]);
   });
 
-  it("reviews each lens of a scope in its own review run", async () => {
+  it("reviews a scope in its own review run", async () => {
     const runs: SandboxRunOptions[] = [];
     const sandbox = {
       async run(options: SandboxRunOptions): Promise<SandboxRunResult> {
@@ -198,7 +198,7 @@ describe("createCrew", () => {
           stdout: `<${FINDINGS_TAG}>["src/a.ts:3 duplicated parsing"]</${FINDINGS_TAG}>`,
         };
       },
-      // The lens is read-only, so its run is followed by a clean-worktree check.
+      // The review is read-only, so its run is followed by a clean-worktree check.
       async exec() {
         return { stdout: "", stderr: "", exitCode: 0 };
       },
@@ -213,7 +213,7 @@ describe("createCrew", () => {
       baseBranch,
     });
 
-    const findings = await crew.review("ticketReview", {
+    const findings = await crew.review({
       kind: "ticket",
       ticket: { number: 8, summary: "the schema" },
       base: "abc1234",
@@ -252,7 +252,7 @@ describe("createCrew", () => {
       baseBranch: "spike/foo",
     });
 
-    await crew.review("inDepthCodeReview", { kind: "branch", workItem: issue.number });
+    await crew.review({ kind: "branch", workItem: issue.number });
     await crew.handover(
       { kind: "success", detail: "`make test` exited 0" },
       [{ number: 8, summary: "the one ticket" }],

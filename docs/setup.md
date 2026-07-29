@@ -16,9 +16,9 @@ It speaks GitHub and only GitHub, for the tracker and the forge alike — there 
   One token covers everything: relay's own tracker calls on the host, and the `gh` running inside every sandbox.
 - **A Claude credential**, either `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`.
   Every agent leg of a pass runs on it, inside the sandbox.
-- **Two Claude plugins installed on your host**, `relay-skills@relay` and `mattpocock-skills@claude-plugins-official`.
-  A pass mounts their directories into the sandbox rather than shipping their skills, so a host without them cannot run a pass at all.
-  Step 6 installs them.
+- **One Claude plugin installed on your host**, `mattpocock-skills@claude-plugins-official`.
+  A pass mounts its directory into the sandbox rather than shipping its skills, so a host without it cannot run a pass at all.
+  Step 6 installs it.
 
 ## 1. Bootstrap the repo
 
@@ -200,28 +200,20 @@ The credential file is read on the host, and no secret ships in the package.
 Your host's own `gh` is a different matter: it reads your shell environment and its own login, not relay's credential file.
 If you keep the token in `.relay/.env` without exporting it, run `gh auth login` on the host as well — otherwise `relay doctor`'s `gh authenticated` check has no credential to find.
 
-## 6. Install the skill plugins
+## 6. Install the skill plugin
 
-Every agent leg of a pass runs skills, and those skills come from Claude plugins **you** have installed.
-relay bind-mounts each plugin's install directory into the sandbox and never bakes a copy into its image, so a leg runs the version on your host ([ADR-0004](adr/0004-skills-are-mounted-not-baked-into-the-image.md)).
-Two plugins are needed, from two marketplaces.
+Every agent leg of a pass runs skills, and those skills come from a Claude plugin **you** have installed.
+relay bind-mounts the plugin's install directory into the sandbox and never bakes a copy into its image, so a leg runs the version on your host ([ADR-0004](adr/0004-skills-are-mounted-not-baked-into-the-image.md)).
+relay ships no skills of its own ([ADR-0020](adr/0020-relay-ships-no-skills-of-its-own.md)), so one plugin is all a pass needs.
 
-`relay-skills` lives in relay's own repo, which is itself a Claude plugin marketplace named `relay` ([ADR-0019](adr/0019-relays-own-skills-ship-as-an-installed-plugin.md)).
-Add the marketplace, then install the plugin — in Claude Code:
-
-```
-/plugin marketplace add miwurster/relay
-/plugin install relay-skills@relay
-```
-
-`mattpocock-skills` lives in `claude-plugins-official`, the marketplace that ships with Claude Code, so there is no marketplace to add for it:
+`mattpocock-skills` lives in `claude-plugins-official`, the marketplace that ships with Claude Code, so there is no marketplace to add — in Claude Code:
 
 ```
 /plugin install mattpocock-skills@claude-plugins-official
 ```
 
-relay finds both by reading Claude's own `installed_plugins.json`, and `relay doctor`'s `skill plugins` check names any that are missing — and, when they are all there, the versions a pass would mount.
-`relay init` installs neither: what an operator installs on their own machine is not relay's to write.
+relay finds it by reading Claude's own `installed_plugins.json`, and `relay doctor`'s `skill plugins` check names it when it is missing — and, when it is there, the version a pass would mount.
+`relay init` does not install it: what an operator installs on their own machine is not relay's to write.
 
 ## 7. Know what the sandbox can reach on your host
 

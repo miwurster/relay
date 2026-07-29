@@ -62,14 +62,14 @@ describe("createFixer", () => {
     await expectPromptParity(runs[0], "fixer.md");
   });
 
-  it("tells the fixer to collapse the lenses' overlapping findings", async () => {
+  it("tells the fixer to collapse overlapping findings", async () => {
     expect(await readResource("fixer.md")).toContain("more than once");
   });
 
-  it("names the skills it works under: tdd, and relay's own commit skill", async () => {
+  it("names the one skill it works under, and commits without one", async () => {
     const prompt = await readResource("fixer.md");
     expect(prompt).toContain("mattpocock-skills:tdd");
-    expect(prompt).toContain("relay-skills:commit");
+    expect(prompt).toContain("Commit your work to the current branch, as one commit");
   });
 
   it("accepts a run that judged there was nothing to fix and committed nothing", async () => {

@@ -6,18 +6,11 @@ import {
   NO_LANDING,
   type Outcome,
   type ResolvedGate,
-  type ReviewLens,
   type ReviewScope,
   type TicketRef,
 } from "../crew/contract.js";
 import { ExitCode } from "../exit-codes.js";
 import type { GitHubIssue } from "../tracker/github.js";
-
-/** The lenses one ticket's change is read by, right after it was implemented. */
-const PER_TICKET_LENSES: ReviewLens[] = ["ticketReview"];
-
-/** The lenses that read the whole branch, once, after the last ticket. */
-const WHOLE_BRANCH_LENSES: ReviewLens[] = ["inDepthCodeReview", "inDepthSpecReview"];
 
 /**
  * How many times a red gate may be handed to the fixer. Only the objective
@@ -30,13 +23,13 @@ export const MAX_GATE_FIX_ATTEMPTS = 2;
  * Run the pass's crew over one work item and return how it ended.
  *
  * The topology is fixed: plan once, then per ticket implement → the ticket
- * lens → fix, then both in-depth lenses over the whole branch → fix, then
- * the gate → fixer loop, then the lander, then handover.
+ * review → fix, then the whole-branch review → fix, then the gate → fixer
+ * loop, then the lander, then handover.
  * Every exit path ends at the same handover call, so no outcome can skip it.
  *
  * A multi-ticket plan is the shape that topology is for. A single-ticket plan
- * drops the per-ticket lens, since its one ticket is the work item and the two
- * scopes would ask the same question twice — see `perTicketLenses`.
+ * drops the per-ticket review, since its one ticket is the work item and the
+ * two scopes would ask the same question twice — see `reviewsEachTicket`.
  */
 export async function runHarness(crew: Crew, issue: GitHubIssue): Promise<Outcome> {
   const { outcome, committed, land } = await runLegs(crew, issue);
@@ -75,11 +68,11 @@ async function runLegs(crew: Crew, issue: GitHubIssue): Promise<LegsResult> {
   const { committed, blocked } = await implementTickets(
     crew,
     plan.tickets,
-    perTicketLenses(plan.tickets),
+    reviewsEachTicket(plan.tickets),
   );
   if (blocked) return { outcome: blocked, committed, land: NO_LANDING };
 
-  await reviewAndFix(crew, WHOLE_BRANCH_LENSES, { kind: "branch", workItem: issue.number });
+  await reviewAndFix(crew, { kind: "branch", workItem: issue.number });
 
   const { outcome, runs } = await driveGate(crew, gate);
   // Only a green branch is worth landing, so a blocked pass never asks.
@@ -102,17 +95,17 @@ async function runLegs(crew: Crew, issue: GitHubIssue): Promise<LegsResult> {
 }
 
 /**
- * The lenses each ticket is reviewed by once it is implemented.
+ * Whether each ticket is reviewed as it is implemented.
  *
  * A single-ticket plan is the work item itself, so its ticket scope and the
  * branch scope are one question asked twice — the same intent, over the same
  * diff but for the fixer's own commit. The per-ticket round is the one to drop:
  * it is there to keep a bad ticket out of the tickets that follow it, and there
- * are none. The branch lenses then read strictly more, at a fuller depth, and
- * they stay what they always were — the only legs that read a fixer's commit.
+ * are none. The branch review then reads strictly more, and it stays what it
+ * always was — the only review that reads a fixer's commit.
  */
-function perTicketLenses(tickets: readonly TicketRef[]): readonly ReviewLens[] {
-  return tickets.length === 1 ? [] : PER_TICKET_LENSES;
+function reviewsEachTicket(tickets: readonly TicketRef[]): boolean {
+  return tickets.length > 1;
 }
 
 /**
@@ -124,7 +117,7 @@ function perTicketLenses(tickets: readonly TicketRef[]): readonly ReviewLens[] {
 async function implementTickets(
   crew: Crew,
   tickets: readonly TicketRef[],
-  lenses: readonly ReviewLens[],
+  reviewEachTicket: boolean,
 ): Promise<{ committed: TicketRef[]; blocked?: Outcome }> {
   const committed: TicketRef[] = [];
   for (const ticket of tickets) {
@@ -133,29 +126,16 @@ async function implementTickets(
       return { committed, blocked: { kind: "mid-block", reason: result.reason } };
     }
     committed.push(ticket);
-    await reviewAndFix(crew, lenses, { kind: "ticket", ticket, base: result.base });
+    if (reviewEachTicket) {
+      await reviewAndFix(crew, { kind: "ticket", ticket, base: result.base });
+    }
   }
   return { committed };
 }
 
-/**
- * Run every lens of a scope and hand the merged findings to the fixer. The
- * merge is a blind concatenation — overlapping findings are the fixer's to
- * dedup, since only it can tell two phrasings of one problem apart.
- *
- * The lenses run one after another, not together. They are independent reads
- * and would happily run in parallel, but the whole crew shares one sandbox and
- * therefore one git worktree: each leg takes a HEAD baseline before it starts
- * and detaches, merges and deletes its branch afterwards, so two legs at once
- * race on the same refs and misattribute each other's commits.
- */
-async function reviewAndFix(
-  crew: Crew,
-  lenses: readonly ReviewLens[],
-  scope: ReviewScope,
-): Promise<void> {
-  const findings: Finding[] = [];
-  for (const lens of lenses) findings.push(...(await crew.review(lens, scope)));
+/** Review one scope and hand whatever it wants changed to the fixer. */
+async function reviewAndFix(crew: Crew, scope: ReviewScope): Promise<void> {
+  const findings: Finding[] = await crew.review(scope);
   if (findings.length > 0) await crew.fix(findings, fixTargetFor(scope));
 }
 

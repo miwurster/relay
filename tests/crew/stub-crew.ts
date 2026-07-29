@@ -32,9 +32,9 @@ export function createStubCrew({ landing = "pull-request" }: { landing?: Landing
       return { kind: "done", base: "HEAD" };
     },
 
-    async review(lens, scope) {
+    async review(scope) {
       const target = scope.kind === "ticket" ? `#${scope.ticket.number}` : "the branch";
-      log(lens, `would review ${target}`);
+      log(scope.kind === "ticket" ? "ticketReview" : "branchReview", `would review ${target}`);
       return [];
     },
 

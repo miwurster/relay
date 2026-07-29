@@ -11,7 +11,6 @@ const printCommand = () =>
 describe("roleAgent", () => {
   it("loads every mounted plugin so the role's skills are the operator's", () => {
     const { command } = printCommand();
-    expect(command).toContain(`--plugin-dir ${SANDBOX_PLUGIN_ROOT}/relay-skills`);
     expect(command).toContain(`--plugin-dir ${SANDBOX_PLUGIN_ROOT}/mattpocock-skills`);
   });
 

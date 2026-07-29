@@ -19,13 +19,13 @@ export type ImplementResult =
   { kind: "done"; base: string } | { kind: "needs-input"; reason: string };
 
 /**
- * The three review lenses, named as the per-role model map names them: one
- * two-axis lens over a ticket, and code and spec over the whole branch.
+ * The two reviews, named as the per-role model map names them: one per review
+ * scope, since a scope is the only thing that differs between them.
  */
-export type ReviewLens = "ticketReview" | "inDepthCodeReview" | "inDepthSpecReview";
+export type ReviewKind = "ticketReview" | "branchReview";
 
 /** Whatever produced a finding the fixer has to act on. */
-export type FindingSource = ReviewLens | "greenGate";
+export type FindingSource = ReviewKind | "greenGate";
 
 /** One thing a reviewer or the gate wants changed. */
 export interface Finding {
@@ -66,7 +66,7 @@ export type ReviewScope =
   { kind: "ticket"; ticket: TicketRef; base: string } | { kind: "branch"; workItem: number };
 
 /**
- * What one fixer leg is fixing: a ticket's own lenses, the whole-branch lenses,
+ * What one fixer leg is fixing: a ticket's own review, the whole-branch review,
  * or a red gate. A gate fix carries which attempt of the loop it is, because
  * the gate is the pass's one leg that runs more than once.
  */
@@ -116,7 +116,7 @@ export interface Crew {
   resolveGate(): Promise<ResolvedGate>;
   plan(issue: GitHubIssue): Promise<PlanResult>;
   implement(ticket: TicketRef): Promise<ImplementResult>;
-  review(lens: ReviewLens, scope: ReviewScope): Promise<Finding[]>;
+  review(scope: ReviewScope): Promise<Finding[]>;
   fix(findings: readonly Finding[], target: FixTarget): Promise<void>;
   /**
    * Run the gate once, on the resolved gate the harness hands it. `attempt` is

@@ -60,12 +60,12 @@ const findingsFile = (name: string) =>
   readFile(join(recordDir, name), "utf8").then((text) => JSON.parse(text) as unknown);
 
 describe("createReviewer", () => {
-  it("stamps each finding with its lens and the ticket it is about", async () => {
+  it("stamps each finding with its review and the ticket it is about", async () => {
     const { review } = reviewing(
       taggedFindings('["src/a.ts:3 duplicated parsing","src/b.ts:9 dead branch"]'),
     );
 
-    await expect(review("ticketReview", ticketScope)).resolves.toEqual([
+    await expect(review(ticketScope)).resolves.toEqual([
       { source: "ticketReview", ticket: 8, summary: "src/a.ts:3 duplicated parsing" },
       { source: "ticketReview", ticket: 8, summary: "src/b.ts:9 dead branch" },
     ]);
@@ -74,59 +74,59 @@ describe("createReviewer", () => {
   it("leaves a whole-branch finding without a ticket", async () => {
     const { review } = reviewing(taggedFindings('["the two loaders should be one"]'));
 
-    await expect(review("inDepthCodeReview", branchScope)).resolves.toEqual([
-      { source: "inDepthCodeReview", summary: "the two loaders should be one" },
+    await expect(review(branchScope)).resolves.toEqual([
+      { source: "branchReview", summary: "the two loaders should be one" },
     ]);
   });
 
   it("reads a clean review as no findings", async () => {
     const { review } = reviewing(taggedFindings("[]"));
 
-    await expect(review("ticketReview", ticketScope)).resolves.toEqual([]);
+    await expect(review(ticketScope)).resolves.toEqual([]);
   });
 
   it("refuses a run that reported no findings block", async () => {
     const { review } = reviewing("I read it all and had some thoughts.");
 
-    await expect(review("ticketReview", ticketScope)).rejects.toThrow(RoleError);
+    await expect(review(ticketScope)).rejects.toThrow(RoleError);
   });
 
   it("refuses a finding with nothing in it", async () => {
     const { review } = reviewing(taggedFindings('[""]'));
 
-    await expect(review("ticketReview", ticketScope)).rejects.toThrow(RoleError);
+    await expect(review(ticketScope)).rejects.toThrow(RoleError);
   });
 
-  it("refuses a lens that committed, since every lens is read-only", async () => {
+  it("refuses a review that committed, since every review is read-only", async () => {
     const { review } = reviewing(taggedFindings("[]"), [{ sha: "beef" }]);
 
-    await expect(review("ticketReview", ticketScope)).rejects.toThrow(RoleError);
+    await expect(review(ticketScope)).rejects.toThrow(RoleError);
   });
 
-  it("refuses a lens that edited without committing, which the next leg would inherit", async () => {
+  it("refuses a review that edited without committing, which the next leg would inherit", async () => {
     const { review } = reviewing(taggedFindings("[]"), [], " M src/a.ts\n?? notes.md");
 
-    await expect(review("ticketReview", ticketScope)).rejects.toThrow(/left the worktree changed/);
+    await expect(review(ticketScope)).rejects.toThrow(/left the worktree changed/);
   });
 
-  it("writes each lens's findings to its own file for the harness to merge", async () => {
+  it("writes each review's findings to its own file", async () => {
     const { review } = reviewing(taggedFindings('["src/a.ts:3 duplicated parsing"]'));
 
-    await review("ticketReview", ticketScope);
-    await review("inDepthSpecReview", branchScope);
+    await review(ticketScope);
+    await review(branchScope);
 
     await expect(findingsFile("8-ticketReview.json")).resolves.toEqual([
       { source: "ticketReview", ticket: 8, summary: "src/a.ts:3 duplicated parsing" },
     ]);
-    await expect(findingsFile("branch-inDepthSpecReview.json")).resolves.toEqual([
-      { source: "inDepthSpecReview", summary: "src/a.ts:3 duplicated parsing" },
+    await expect(findingsFile("branch-branchReview.json")).resolves.toEqual([
+      { source: "branchReview", summary: "src/a.ts:3 duplicated parsing" },
     ]);
   });
 
-  it("runs the per-ticket lens one-shot on its own model, over the ticket's own diff", async () => {
+  it("runs the ticket review one-shot on its own model, over the ticket's own diff", async () => {
     const { review, runs } = reviewing(taggedFindings("[]"));
 
-    await review("ticketReview", ticketScope);
+    await review(ticketScope);
 
     expect(runs).toHaveLength(1);
     expect(runs[0]?.maxIterations).toBe(1);
@@ -137,69 +137,55 @@ describe("createReviewer", () => {
       BASE: "c0ffee",
       TRACKER_DOC: TRACKER_DOC_PATH,
     });
-    await expectPromptParity(runs[0], "ticket-review.md");
+    await expectPromptParity(runs[0], "review.md");
   });
 
-  it("runs the code lens on its own model, with no depth left to pass it", async () => {
+  it("runs the branch review on its own model, over the whole branch", async () => {
     const { review, runs } = reviewing(taggedFindings("[]"));
 
-    await review("inDepthCodeReview", branchScope);
+    await review(branchScope);
 
-    expect(commandOf(runs[0])).toContain(`--model '${config.models.inDepthCodeReview}'`);
-    expect(runs[0]?.promptArgs).toEqual({ SCOPE: "branch", ITEM: "#7", BASE: baseBranch });
-    await expectPromptParity(runs[0], "code-review.md");
-  });
-
-  it("sends the spec lens to the tracker doc for the intent", async () => {
-    const { review, runs } = reviewing(taggedFindings("[]"));
-
-    await review("inDepthSpecReview", branchScope);
-
-    expect(commandOf(runs[0])).toContain(`--model '${config.models.inDepthSpecReview}'`);
+    expect(commandOf(runs[0])).toContain(`--model '${config.models.branchReview}'`);
     expect(runs[0]?.promptArgs).toEqual({
       SCOPE: "branch",
       ITEM: "#7",
       BASE: baseBranch,
       TRACKER_DOC: TRACKER_DOC_PATH,
     });
-    await expectPromptParity(runs[0], "spec-review.md");
+    await expectPromptParity(runs[0], "review.md");
   });
 
-  it("names each run for the lens and what it read, so each lens gets its own findings file", async () => {
+  it("names each run for its scope, so each gets its own findings file", async () => {
     const { review, runs } = reviewing(taggedFindings("[]"));
 
-    await review("ticketReview", ticketScope);
-    await review("inDepthCodeReview", branchScope);
+    await review(ticketScope);
+    await review(branchScope);
 
     expect(runs[0]?.name).toBe("ticketReview-8");
-    expect(runs[1]?.name).toBe("inDepthCodeReview-branch");
+    expect(runs[1]?.name).toBe("branchReview-branch");
   });
 });
 
 /**
- * A lens's behaviour lives in its prompt, so what each prompt instructs is the
- * only thing there is to assert about how it reads the diff.
+ * The review's behaviour lives in its prompt, so what that prompt instructs is
+ * the only thing there is to assert about how it reads the diff.
  */
-describe("the lens prompts", () => {
-  it("tells every lens it is read-only", async () => {
-    for (const file of ["ticket-review.md", "code-review.md", "spec-review.md"]) {
-      expect(await readResource(file)).toContain("read-only");
-    }
+describe("the review prompt", () => {
+  it("tells the review it is read-only", async () => {
+    expect(await readResource("review.md")).toContain("read-only");
   });
 
-  it("runs each lens that has a skill under the skill that is mounted for it", async () => {
-    expect(await readResource("ticket-review.md")).toContain("mattpocock-skills:code-review");
-    expect(await readResource("code-review.md")).toContain("relay-skills:code-quality-review");
+  it("runs the review under the skill that is mounted for it", async () => {
+    expect(await readResource("review.md")).toContain("mattpocock-skills:code-review");
   });
 
-  it("has the per-ticket lens translate the skill's report into relay's findings", async () => {
-    const prompt = await readResource("ticket-review.md");
+  it("names no skill relay would have to ship itself", async () => {
+    expect(await readResource("review.md")).not.toContain("relay-skills:");
+  });
+
+  it("translates the skill's report into relay's findings", async () => {
+    const prompt = await readResource("review.md");
     expect(prompt).toContain("## Standards");
     expect(prompt).toContain("`<relay-findings>`");
-  });
-
-  it("leaves the spec lens naming no skill, since none provides that axis alone", async () => {
-    // Any skill a prompt invokes is named plugin-qualified, as the two that do.
-    expect(await readResource("spec-review.md")).not.toMatch(/`[\w-]+:[\w-]+`/);
   });
 });

@@ -27,7 +27,7 @@ A finding you judge wrong, or already handled by another finding's fix, is not o
 
 ## 3. Commit your work
 
-Commit your work to the current branch with the `relay-skills:commit` skill, as one commit for this round of fixes.
+Commit your work to the current branch, as one commit for this round of fixes.
 Never push, never merge, never branch.
 
 ## Output

@@ -66,5 +66,5 @@ The host's `installed_plugins.json` is read to find each plugin's install path, 
 ## More Information
 
 - Provenance: `.scratch/relay-build/research/spike-02-plugin-skills/FINDINGS.md`, 2026-07-24.
-- Related: [ADR-0019](0019-relays-own-skills-ship-as-an-installed-plugin.md), which ships relay's own skills as one of these host-installed plugins.
+- Related: [ADR-0020](0020-relay-ships-no-skills-of-its-own.md), which leaves one public plugin to mount this way.
 - Domain language: [`CONTEXT.md`](../../CONTEXT.md)

@@ -1,6 +1,6 @@
 # 0019. relay's own skills ship as a plugin installed from this repo's marketplace
 
-- **Status:** accepted
+- **Status:** superseded by [ADR-0020](0020-relay-ships-no-skills-of-its-own.md)
 - **Date:** 2026-07-29
 
 ## Context and Problem Statement

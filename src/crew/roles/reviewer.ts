@@ -1,36 +1,25 @@
 import { z } from "zod";
-import type { Crew, Finding, ReviewLens, ReviewScope } from "../contract.js";
+import type { Crew, Finding, ReviewKind, ReviewScope } from "../contract.js";
 import { writeFindingsFile } from "../leg-record.js";
 import { type RoleDeps, runRole } from "../run-role.js";
 import { TRACKER_DOC_PATH } from "../../tracker/tracker-doc.js";
 
-/** The block every review lens ends its run with. */
+/** The block every review ends its run with. */
 export const FINDINGS_TAG = "relay-findings";
 
-const TICKET_REVIEW_PROMPT = "ticket-review.md";
-const CODE_REVIEW_PROMPT = "code-review.md";
-const SPEC_REVIEW_PROMPT = "spec-review.md";
+const REVIEW_PROMPT = "review.md";
 
 /**
- * What a lens reports: one line per thing it wants changed, and nothing else.
- * The lens and the ticket are the harness's own facts, so a reviewer is never
+ * What a review reports: one line per thing it wants changed, and nothing else.
+ * The scope and the ticket are the harness's own facts, so a reviewer is never
  * asked to repeat them — relay stamps them on.
  */
 const findingsSchema = z.array(z.string().min(1));
 
-/**
- * The three lenses: which prompt each runs, and the arguments only that prompt
- * takes. Every lens that measures a change against what was asked needs the
- * tracker doc, because that intent comes from the tracker.
- */
-const LENSES: Record<ReviewLens, { prompt: string; args: Record<string, string> }> = {
-  ticketReview: { prompt: TICKET_REVIEW_PROMPT, args: { TRACKER_DOC: TRACKER_DOC_PATH } },
-  inDepthCodeReview: { prompt: CODE_REVIEW_PROMPT, args: {} },
-  inDepthSpecReview: { prompt: SPEC_REVIEW_PROMPT, args: { TRACKER_DOC: TRACKER_DOC_PATH } },
-};
-
-/** What one scope means to a lens, resolved once per review run. */
+/** What one scope means to a review run, resolved once per run. */
 interface ReviewTarget {
+  /** Which review this is, in the model map and on every finding it reports. */
+  kind: ReviewKind;
   /** What the scope is called in the run's name and its findings file. */
   name: string;
   /** The issue whose intent the change is measured against, as the prompt names it. */
@@ -42,35 +31,44 @@ interface ReviewTarget {
 }
 
 /**
- * The real reviewers: one cold read-only agent run per lens, on that lens's
+ * The real reviewer: one cold read-only agent run per scope, on that scope's
  * model, reporting the findings the fixer will act on.
  *
- * Ordering is the harness's — it runs a scope's lenses and merges what they
- * return — so a lens here knows nothing about the other two.
+ * One prompt for both scopes, because the review itself is the same two-axis
+ * skill either way — only the fixed point it reviews since, and the issue it
+ * measures against, differ.
  */
 export function createReviewer({
   baseBranch,
   ...deps
 }: RoleDeps & { baseBranch: string }): Crew["review"] {
-  return async function review(lens: ReviewLens, scope: ReviewScope): Promise<Finding[]> {
-    const lensRun = LENSES[lens];
+  return async function review(scope: ReviewScope): Promise<Finding[]> {
     const target = describeScope(scope, baseBranch);
 
     const summaries = await runRole({
       ...deps,
-      name: `${lens}-${target.name}`,
-      model: deps.config.models[lens],
-      prompt: lensRun.prompt,
-      promptArgs: { SCOPE: scope.kind, ITEM: target.item, BASE: target.base, ...lensRun.args },
+      name: `${target.kind}-${target.name}`,
+      model: deps.config.models[target.kind],
+      prompt: REVIEW_PROMPT,
+      promptArgs: {
+        SCOPE: scope.kind,
+        ITEM: target.item,
+        BASE: target.base,
+        TRACKER_DOC: TRACKER_DOC_PATH,
+      },
       tag: FINDINGS_TAG,
       schema: findingsSchema,
-      // A lens that changed the branch broke the one rule every lens runs
-      // under, and its change would reach the human as nobody's work.
+      // A review that changed the branch broke the one rule it runs under, and
+      // its change would reach the human as nobody's work.
       branchRule: () => "read-only",
     });
 
-    const findings = summaries.map((summary) => toFinding(lens, target, summary));
-    await writeFindingsFile({ dir: deps.recordDir, name: `${target.name}-${lens}`, findings });
+    const findings = summaries.map((summary) => toFinding(target, summary));
+    await writeFindingsFile({
+      dir: deps.recordDir,
+      name: `${target.name}-${target.kind}`,
+      findings,
+    });
     return findings;
   };
 }
@@ -83,14 +81,15 @@ export function createReviewer({
 function describeScope(scope: ReviewScope, baseBranch: string): ReviewTarget {
   return scope.kind === "ticket"
     ? {
+        kind: "ticketReview",
         name: String(scope.ticket.number),
         item: `#${scope.ticket.number}`,
         base: scope.base,
         ticket: scope.ticket.number,
       }
-    : { name: "branch", item: `#${scope.workItem}`, base: baseBranch };
+    : { kind: "branchReview", name: "branch", item: `#${scope.workItem}`, base: baseBranch };
 }
 
-function toFinding(lens: ReviewLens, target: ReviewTarget, summary: string): Finding {
-  return { source: lens, ticket: target.ticket, summary };
+function toFinding(target: ReviewTarget, summary: string): Finding {
+  return { source: target.kind, ticket: target.ticket, summary };
 }

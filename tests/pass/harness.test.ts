@@ -10,7 +10,6 @@ import {
   type Outcome,
   type PlanResult,
   type ResolvedGate,
-  type ReviewLens,
   type ReviewScope,
   type TicketRef,
 } from "../../src/crew/contract.js";
@@ -44,7 +43,7 @@ const finding = (source: Finding["source"], summary: string, ticket?: number): F
 });
 
 /**
- * A two-ticket plan, for the tests about what a ticket's own lenses do: a
+ * A two-ticket plan, for the tests about what a ticket's own review does: a
  * single-ticket plan has no per-ticket round at all.
  */
 const twoTicketPlan = {
@@ -75,8 +74,8 @@ function recordingCrew(overrides: Partial<Crew> = {}) {
       calls.push(`implement:${ref.number}`);
       return { kind: "done", base: "c0ffee" };
     },
-    async review(lens: ReviewLens, scope: ReviewScope): Promise<Finding[]> {
-      calls.push(`review:${lens}:${scope.kind === "ticket" ? scope.ticket.number : "branch"}`);
+    async review(scope: ReviewScope): Promise<Finding[]> {
+      calls.push(`review:${scope.kind === "ticket" ? scope.ticket.number : "branch"}`);
       return [];
     },
     async fix(findings, target): Promise<void> {
@@ -129,50 +128,22 @@ describe("runHarness", () => {
       "resolveGate",
       "plan",
       "implement:1",
-      "review:ticketReview:1",
+      "review:1",
       "implement:2",
-      "review:ticketReview:2",
-      "review:inDepthCodeReview:branch",
-      "review:inDepthSpecReview:branch",
+      "review:2",
+      "review:branch",
       "gate",
       "land",
       "handover:success",
     ]);
   });
 
-  it("runs the lenses of a scope one at a time, since they share one worktree", async () => {
-    const events: string[] = [];
-
-    const { crew } = recordingCrew({
-      ...twoTicketPlan,
-      async review(lens: ReviewLens) {
-        events.push(`start:${lens}`);
-        await Promise.resolve();
-        events.push(`end:${lens}`);
-        return [];
-      },
-    });
-
-    await run(crew);
-
-    expect(events).toEqual([
-      "start:ticketReview",
-      "end:ticketReview",
-      "start:ticketReview",
-      "end:ticketReview",
-      "start:inDepthCodeReview",
-      "end:inDepthCodeReview",
-      "start:inDepthSpecReview",
-      "end:inDepthSpecReview",
-    ]);
-  });
-
-  it("array-merges the lenses of a scope into one fixer call", async () => {
+  it("hands a scope's findings to the fixer as the review reported them", async () => {
     const { crew, fixed } = recordingCrew({
       ...twoTicketPlan,
-      async review(lens, scope) {
+      async review(scope) {
         if (scope.kind !== "ticket") return [];
-        return [finding(lens, "same problem", scope.ticket.number)];
+        return [finding("ticketReview", "same problem", scope.ticket.number)];
       },
     });
 
@@ -184,9 +155,9 @@ describe("runHarness", () => {
   it("tells each fixer leg what it is fixing", async () => {
     const { crew, fixTargets } = recordingCrew({
       ...twoTicketPlan,
-      async review(lens, scope) {
+      async review(scope) {
         const ticketNumber = scope.kind === "ticket" ? scope.ticket.number : undefined;
-        return [finding(lens, "same problem", ticketNumber)];
+        return [finding("ticketReview", "same problem", ticketNumber)];
       },
       async greenGate() {
         return { green: false, detail: "still red" };
@@ -213,15 +184,14 @@ describe("runHarness", () => {
       "resolveGate",
       "plan",
       "implement:1",
-      "review:inDepthCodeReview:branch",
-      "review:inDepthSpecReview:branch",
+      "review:branch",
       "gate",
       "land",
       "handover:success",
     ]);
   });
 
-  it("does not call the fixer when no lens found anything", async () => {
+  it("does not call the fixer when the review found nothing", async () => {
     const { crew, calls } = recordingCrew();
 
     await run(crew);
@@ -413,8 +383,7 @@ describe("runHarness under merge landing", () => {
       "resolveGate",
       "plan",
       "implement:1",
-      "review:inDepthCodeReview:branch",
-      "review:inDepthSpecReview:branch",
+      "review:branch",
       "gate",
       "land",
       "gate",

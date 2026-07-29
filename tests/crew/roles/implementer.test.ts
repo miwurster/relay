@@ -179,9 +179,11 @@ describe("the implementer prompt", () => {
     expect(prompt).toContain(`<${IMPLEMENT_TAG}>`);
   });
 
-  it("names the skills it works under: tdd, and relay's own commit skill to commit itself", () => {
+  it("names the one skill it works under, and commits without one", () => {
     expect(prompt).toContain("mattpocock-skills:tdd");
-    expect(prompt).toContain("relay-skills:commit");
+    expect(prompt).toContain(
+      "Commit your work to the current branch, as one commit for this ticket",
+    );
   });
 
   it("shows the pass's commits where it tells the leg to build on them", () => {

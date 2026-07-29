@@ -440,9 +440,7 @@ describe("runDoctorChecks", () => {
     });
 
     expect(check(checks, "skill plugins").status).toBe("ok");
-    expect(check(checks, "skill plugins").detail).toBe(
-      "relay-skills 1.0.0, mattpocock-skills 1.1.0",
-    );
+    expect(check(checks, "skill plugins").detail).toBe("mattpocock-skills 1.0.0");
   });
 
   it("still passes a plugin whose install Claude recorded no version for", async () => {
@@ -456,9 +454,7 @@ describe("runDoctorChecks", () => {
     });
 
     expect(check(checks, "skill plugins").status).toBe("ok");
-    expect(check(checks, "skill plugins").detail).toBe(
-      "relay-skills (no version), mattpocock-skills (no version)",
-    );
+    expect(check(checks, "skill plugins").detail).toBe("mattpocock-skills (no version)");
   });
 
   it("names every missing plugin in one check, and how to install them", async () => {

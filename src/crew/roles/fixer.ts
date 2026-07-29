@@ -31,9 +31,9 @@ interface FixLeg {
  * The real fixer: one cold agent run that acts on the findings it is handed and
  * commits the result itself.
  *
- * The same role runs all three fixer legs — after a ticket's lenses, after the
- * whole-branch lenses, and inside the gate loop — because all three are the
- * same job: a merged list of findings over the branch as it stands. Only the
+ * The same role runs all three fixer legs — after a ticket's review, after the
+ * whole-branch review, and inside the gate loop — because all three are the
+ * same job: a list of findings over the branch as it stands. Only the
  * leg's name, the scope it is told, and its model differ.
  */
 export function createFixer(deps: RoleDeps): Crew["fix"] {
@@ -53,7 +53,7 @@ export function createFixer(deps: RoleDeps): Crew["fix"] {
       },
       tag: FIX_TAG,
       schema: fixSchema,
-      // The commit is what carries the fix to the lenses and the gate that read
+      // The commit is what carries the fix to the reviews and the gate that read
       // the branch next, so a fix nobody committed is a fix that did not happen.
       branchRule: (answer) => (answer.kind === "fixed" ? "must-commit" : "any"),
     });

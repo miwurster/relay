@@ -38,7 +38,7 @@ Stay inside the ticket: no work the ticket did not ask for, and no changes to co
 
 ## 4. Commit your work
 
-Commit your work to the current branch with the `relay-skills:commit` skill, as one commit for this ticket.
+Commit your work to the current branch, as one commit for this ticket.
 Never push, never merge, never branch.
 
 You do not review your own change and you do not fix findings — later roles in the pass own both.

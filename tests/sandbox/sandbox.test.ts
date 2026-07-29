@@ -25,9 +25,9 @@ const secrets: Secrets = {
 
 const plugins = [
   {
-    name: "relay-skills",
-    hostPath: "/host/relay-skills",
-    sandboxPath: "/opt/relay/plugins/relay-skills",
+    name: "mattpocock-skills",
+    hostPath: "/host/mattpocock-skills",
+    sandboxPath: "/opt/relay/plugins/mattpocock-skills",
   },
 ];
 
@@ -38,8 +38,8 @@ describe("sandboxMounts", () => {
     expect(sandboxMounts({ plugins })).toEqual([
       { hostPath: DOCKER_SOCKET_PATH, sandboxPath: DOCKER_SOCKET_PATH },
       {
-        hostPath: "/host/relay-skills",
-        sandboxPath: "/opt/relay/plugins/relay-skills",
+        hostPath: "/host/mattpocock-skills",
+        sandboxPath: "/opt/relay/plugins/mattpocock-skills",
         readonly: true,
       },
     ]);

@@ -22,12 +22,9 @@ async function configDirWith(installed: unknown): Promise<NodeJS.ProcessEnv> {
   return { CLAUDE_CONFIG_DIR: configDir };
 }
 
-const bothPlugins = {
+const everyPlugin = {
   version: 2,
   plugins: {
-    "relay-skills@relay": [
-      { scope: "user", installPath: "/plugins/relay-skills/0.1.0", version: "0.1.0" },
-    ],
     "mattpocock-skills@claude-plugins-official": [
       { scope: "user", installPath: "/plugins/mattpocock-skills/abc", version: "1.0.0" },
     ],
@@ -50,14 +47,8 @@ describe("pluginsFilePath", () => {
 
 describe("resolveSkillPlugins", () => {
   it("maps each required plugin to its host install path and sandbox mount path", async () => {
-    const plugins = await resolveSkillPlugins(await configDirWith(bothPlugins));
+    const plugins = await resolveSkillPlugins(await configDirWith(everyPlugin));
     expect(plugins).toEqual([
-      {
-        name: "relay-skills",
-        version: "0.1.0",
-        hostPath: "/plugins/relay-skills/0.1.0",
-        sandboxPath: `${SANDBOX_PLUGIN_ROOT}/relay-skills`,
-      },
       {
         name: "mattpocock-skills",
         version: "1.0.0",
@@ -74,7 +65,7 @@ describe("resolveSkillPlugins", () => {
   it("names every plugin that is not installed", async () => {
     const env = await configDirWith({ version: 2, plugins: {} });
     await expect(resolveSkillPlugins(env)).rejects.toThrow(
-      /relay-skills@relay, mattpocock-skills@claude-plugins-official/,
+      /mattpocock-skills@claude-plugins-official/,
     );
   });
 
@@ -86,10 +77,7 @@ describe("resolveSkillPlugins", () => {
   it("rejects an installed plugin whose entry carries no install path", async () => {
     const env = await configDirWith({
       version: 2,
-      plugins: {
-        ...bothPlugins.plugins,
-        "mattpocock-skills@claude-plugins-official": [{ scope: "user" }],
-      },
+      plugins: { "mattpocock-skills@claude-plugins-official": [{ scope: "user" }] },
     });
     await expect(resolveSkillPlugins(env)).rejects.toThrow(/mattpocock-skills/);
   });

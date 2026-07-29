@@ -55,7 +55,7 @@ describe("loadConfig", () => {
     expect(config.models.planner).toBe("claude-opus-4-8");
     expect(config.models.implementer).toBe("claude-sonnet-5");
     expect(config.models.ticketReview).toBe("claude-opus-4-8");
-    expect(config.models.inDepthCodeReview).toBe("claude-fable-5");
+    expect(config.models.branchReview).toBe("claude-fable-5");
     expect(config.models.greenGate).toBe("claude-sonnet-5");
   });
 
@@ -107,12 +107,12 @@ describe("loadConfig", () => {
     await expect(loadConfig(root)).rejects.toThrow(ConfigError);
   });
 
-  it("rejects a config still setting one of the collapsed per-ticket lens models", async () => {
+  it("rejects a config still setting one of the collapsed review models", async () => {
     const root = await repoWith(`export default {
       landing: "merge",
-      models: { fastCodeReview: "claude-opus-4-8" },
+      models: { inDepthCodeReview: "claude-opus-4-8" },
     };`);
-    await expect(loadConfig(root)).rejects.toThrow(/fastCodeReview/);
+    await expect(loadConfig(root)).rejects.toThrow(/inDepthCodeReview/);
   });
 
   it("rejects non-secret tracker ids that belong in issue-tracker.md", async () => {

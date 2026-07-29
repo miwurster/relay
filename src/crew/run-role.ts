@@ -96,7 +96,7 @@ export async function runRole<Schema extends z.ZodType>({
  * Hold the leg to what it was allowed to do to the branch.
  *
  * A read-only leg is checked for uncommitted work as well as for commits: the
- * legs share one worktree, so an edit a lens never committed is still there
+ * legs share one worktree, so an edit a review never committed is still there
  * for the next leg to read and for the fixer to commit as nobody's work.
  */
 async function enforceBranchRule(

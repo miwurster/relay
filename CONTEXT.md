@@ -33,14 +33,8 @@ The **roles** one pass runs, as one interface.
 Seven of them always, and the **lander** as an eighth when the repo's **landing** is `merge`.
 _Avoid_: pipeline, team, orchestrator
 
-**Lens**:
-One of the reviewer's three configurations — one that reads both code and spec over a **ticket**, and in-depth code and in-depth spec over the whole branch.
-A lens is not a **role**; the harness passes it to the one reviewer role.
-Each lens has its own key in the model map, because each is its own model choice.
-_Avoid_: review type, review mode
-
 **Leg record**:
-What one **leg** leaves on the host for a human to read: its status, and — for a reviewer leg — the **findings** its **lens** reported.
+What one **leg** leaves on the host for a human to read: its status, and — for a reviewer leg — the **findings** it reported.
 A file per leg, never a shared one, so every file is attributable to the leg that wrote it.
 It lives on the host rather than in the **sandbox**'s worktree, because that worktree is disposed of once the **pass** ends ([ADR-0003](docs/adr/0003-a-crashed-pass-leaves-the-work-for-a-human.md)).
 A **pass** records under `.relay/<work item>`; the **gate probe** records under `.relay/doctor`.
@@ -63,11 +57,12 @@ The planner's answer: **tickets** in dependency order, or a refusal to start on 
 _Avoid_: backlog, task list
 
 **Review scope**:
-What a **lens** reads: one **ticket**'s own change from the commit it started at, or the whole branch from the **base branch**.
-_Avoid_: diff range, target
+What one review reads: one **ticket**'s own change from the commit it started at, or the whole branch from the **base branch**.
+It is the only thing that differs between the reviewer's two runs, so it is also what names them and what picks each one's model.
+_Avoid_: diff range, target, lens
 
 **Finding**:
-One thing a **lens** or the **green gate** wants changed, stamped with its source and the **ticket** it is about.
+One thing a review or the **green gate** wants changed, stamped with its source and the **ticket** it is about.
 _Avoid_: issue, comment, remark
 
 ## Finishing
