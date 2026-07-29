@@ -17,7 +17,7 @@ Secrets live in your environment or in `.relay/.env`, which `init` gives you a t
 ```sh
 npx @miwurster/relay init            # write the missing config, sandbox recipe, credential template, .gitignore lines, labels
 cp .relay/.env.example .relay/.env   # then paste your tokens in
-npx @miwurster/relay doctor          # check config, landing, secrets, gh, labels, sandbox image, Docker, gate
+npx @miwurster/relay doctor          # check config, landing, secrets, plugins, tracker doc, gh, labels, sandbox image, Docker, gate
 npx @miwurster/relay 42              # run a pass over issue 42
 npx @miwurster/relay                 # or over the longest-waiting ready-for-agent item
 ```

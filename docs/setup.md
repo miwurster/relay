@@ -220,7 +220,7 @@ It stays a fast-forward of a gated result, and it requires the worktree to be cl
 npx @miwurster/relay doctor
 ```
 
-`doctor` checks your config, the `.gitignore` line, that git ignores your credential file, your secrets and where each one resolved from, `gh` and its credential, the sandbox image — building it if your repo has no prebuilt one — and the Docker daemon as the non-root sandbox user.
+`doctor` checks your config, the `.gitignore` line, that git ignores your credential file, your secrets and where each one resolved from, the skill plugins a pass mounts and the versions they are installed at, the tracker doc every tracker-facing leg reads first, `gh` and its credential, the sandbox image — building it if your repo has no prebuilt one — and the Docker daemon as the non-root sandbox user.
 It also prints your `landing` and the branch a pass would resolve from your checkout, and fails on a detached or unborn `HEAD`.
 The secrets line names variables and never values, so it is safe to paste into an issue.
 It reports every failing check rather than the first, so one run tells you the whole state of the setup.

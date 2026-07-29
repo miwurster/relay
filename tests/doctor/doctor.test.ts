@@ -13,6 +13,8 @@ import { type DoctorCheck, runDoctor, runDoctorChecks } from "../../src/doctor/d
 import { ExitCode } from "../../src/exit-codes.js";
 import type { GateProbe } from "../../src/doctor/gate-probe.js";
 import { PASS_LABELS, TRIAGE_LABELS } from "../../src/tracker/labels.js";
+import { TRACKER_DOC_PATH } from "../../src/tracker/tracker-doc.js";
+import { SKILL_PLUGINS } from "../../src/sandbox/skills.js";
 
 const validConfig = `export default {
   landing: "pull-request",
@@ -30,7 +32,10 @@ const completeSecrets = {
   CLAUDE_CODE_OAUTH_TOKEN: "oauth-token",
 };
 
-/** A repo root holding the given `.relay/config.ts`, if any, and a wired-up `.gitignore`. */
+/**
+ * A repo root holding the given `.relay/config.ts`, if any, a wired-up
+ * `.gitignore`, and the tracker doc every tracker-facing role reads first.
+ */
 async function repoWith(configSource: string | undefined): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "relay-doctor-"));
   if (configSource !== undefined) {
@@ -39,21 +44,65 @@ async function repoWith(configSource: string | undefined): Promise<string> {
     await writeFile(configPath, configSource, "utf8");
   }
   await writeFile(join(root, ".gitignore"), ".sandcastle/\n", "utf8");
+  const trackerDoc = join(root, TRACKER_DOC_PATH);
+  await mkdir(dirname(trackerDoc), { recursive: true });
+  await writeFile(trackerDoc, "# Issue tracker\n", "utf8");
   return root;
 }
+
+/**
+ * A Claude config directory holding the given installed-plugins file.
+ *
+ * Every env fixture points at one of these rather than at the real machine's,
+ * so the plugin check never reads whatever the host running the suite happens
+ * to have installed.
+ */
+async function claudeConfigDirWith(installed: unknown): Promise<string> {
+  const configDir = await mkdtemp(join(tmpdir(), "relay-doctor-claude-"));
+  await mkdir(join(configDir, "plugins"), { recursive: true });
+  await writeFile(
+    join(configDir, "plugins", "installed_plugins.json"),
+    JSON.stringify(installed),
+    "utf8",
+  );
+  return configDir;
+}
+
+/** A host with every plugin a pass mounts installed, at a known version. */
+const hostWithEveryPlugin = await claudeConfigDirWith({
+  version: 2,
+  plugins: Object.fromEntries(
+    SKILL_PLUGINS.map((key, index) => [
+      key,
+      [{ scope: "user", installPath: `/plugins/${key}`, version: `1.${index}.0` }],
+    ]),
+  ),
+});
+
+/** A host whose Claude has none of the plugins a pass mounts. */
+const hostWithNoPlugins = await claudeConfigDirWith({ version: 2, plugins: {} });
+
+/** A host whose Claude recorded an install without the version it installed. */
+const hostWithoutPluginVersions = await claudeConfigDirWith({
+  version: 2,
+  plugins: Object.fromEntries(
+    SKILL_PLUGINS.map((key) => [key, [{ scope: "user", installPath: `/plugins/${key}` }]]),
+  ),
+});
 
 /** An env carrying every secret, so no credential file is needed. */
 const envWithSecrets = (overrides: Record<string, string> = {}): NodeJS.ProcessEnv => ({
   ...completeSecrets,
+  CLAUDE_CONFIG_DIR: hostWithEveryPlugin,
   ...overrides,
 });
 
-/** An env carrying no secret at all. */
-const envWithoutSecrets = (): NodeJS.ProcessEnv => ({});
+/** An env carrying no secret at all, on a host that still has its plugins. */
+const envWithoutSecrets = (): NodeJS.ProcessEnv => ({ CLAUDE_CONFIG_DIR: hostWithEveryPlugin });
 
 /**
  * Every check doctor reports, in the order it reports them. The report is these
- * same fourteen lines whatever the host looks like: a check doctor cannot reach
+ * same sixteen lines whatever the host looks like: a check doctor cannot reach
  * is skipped, so nothing that failed ever shortens the list.
  */
 const EVERY_CHECK = [
@@ -61,6 +110,8 @@ const EVERY_CHECK = [
   "worktree ignored",
   "credentials ignored",
   "secrets",
+  "skill plugins",
+  "tracker doc",
   "gh installed",
   "gh authenticated",
   "labels",
@@ -239,10 +290,11 @@ describe("runDoctorChecks", () => {
   it("reports the same checks in the same order on a host with nothing wired up", async () => {
     const repoRoot = await repoWith(undefined);
     await rm(join(repoRoot, ".gitignore"));
+    await rm(join(repoRoot, TRACKER_DOC_PATH));
 
     const checks = await runDoctorChecks({
       repoRoot,
-      env: envWithoutSecrets(),
+      env: { CLAUDE_CONFIG_DIR: hostWithNoPlugins },
       git: notIgnoringGit,
       docker: async () => {
         throw new Error("Cannot connect to the Docker daemon at unix:///var/run/docker.sock");
@@ -377,6 +429,86 @@ describe("runDoctorChecks", () => {
     expect(check(checks, "docker daemon").status).toBe("ok");
   });
 
+  it("names every plugin a pass mounts, and the version installed", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(validConfig),
+      env: envWithSecrets(),
+      git: ignoringGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "skill plugins").status).toBe("ok");
+    expect(check(checks, "skill plugins").detail).toBe(
+      "relay-skills 1.0.0, mattpocock-skills 1.1.0",
+    );
+  });
+
+  it("still passes a plugin whose install Claude recorded no version for", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(validConfig),
+      env: envWithSecrets({ CLAUDE_CONFIG_DIR: hostWithoutPluginVersions }),
+      git: ignoringGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "skill plugins").status).toBe("ok");
+    expect(check(checks, "skill plugins").detail).toBe(
+      "relay-skills (no version), mattpocock-skills (no version)",
+    );
+  });
+
+  it("names every missing plugin in one check, and how to install them", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(validConfig),
+      env: envWithSecrets({ CLAUDE_CONFIG_DIR: hostWithNoPlugins }),
+      git: ignoringGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+
+    const plugins = check(checks, "skill plugins");
+    expect(plugins.status).toBe("failed");
+    for (const key of SKILL_PLUGINS) expect(plugins.detail).toContain(key);
+    expect(plugins.detail).toContain("/plugin install");
+  });
+
+  it("passes the tracker doc check on a repo that commits its tracker doc", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(validConfig),
+      env: envWithSecrets(),
+      git: ignoringGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "tracker doc").status).toBe("ok");
+    expect(check(checks, "tracker doc").detail).toContain(TRACKER_DOC_PATH);
+  });
+
+  it("fails a repo that commits no tracker doc, without stopping the checks after it", async () => {
+    const repoRoot = await repoWith(validConfig);
+    await rm(join(repoRoot, TRACKER_DOC_PATH));
+
+    const checks = await runDoctorChecks({
+      repoRoot,
+      env: envWithSecrets(),
+      git: ignoringGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "tracker doc").status).toBe("failed");
+    expect(check(checks, "tracker doc").detail).toContain(TRACKER_DOC_PATH);
+    expect(check(checks, "docker daemon").status).toBe("ok");
+  });
+
   it("asks git only what the checks need, in the repo it was pointed at", async () => {
     const repoRoot = await repoWith(validConfig);
     const calls: string[][] = [];
@@ -416,6 +548,10 @@ describe("runDoctorChecks", () => {
     expect(check(checks, "config").status).toBe("failed");
     expect(check(checks, "sandbox image").status).toBe("skipped");
     expect(check(checks, "docker daemon").status).toBe("skipped");
+    // Both prerequisites read only the host's own state, so neither is ever
+    // skipped for something earlier in the report.
+    expect(check(checks, "skill plugins").status).toBe("ok");
+    expect(check(checks, "tracker doc").status).toBe("ok");
   });
 
   it("reports an unbuildable image and skips the daemon check that needs it", async () => {

@@ -31,9 +31,16 @@ function sandboxPluginPath(name: string): string {
   return `${SANDBOX_PLUGIN_ROOT}/${name}`;
 }
 
-/** One host plugin directory and the sandbox path it is mounted at. */
+/**
+ * One host plugin directory and the sandbox path it is mounted at.
+ *
+ * The version is the one Claude recorded at install time, so an operator can
+ * see which skill version a pass will run. Optional: the file is Claude's, and
+ * an entry that carries an install path need not carry a version.
+ */
 export interface SkillPlugin {
   name: string;
+  version?: string;
   hostPath: string;
   sandboxPath: string;
 }
@@ -62,9 +69,15 @@ export async function resolveSkillPlugins(
     const name = pluginName(key);
     // A plugin may be installed at more than one scope; the first entry
     // carrying an install path wins.
-    const hostPath = installed.plugins[key]?.find((entry) => entry.installPath)?.installPath;
+    const entry = installed.plugins[key]?.find((candidate) => candidate.installPath);
+    const hostPath = entry?.installPath;
     if (hostPath) {
-      plugins.push({ name, hostPath, sandboxPath: sandboxPluginPath(name) });
+      plugins.push({
+        name,
+        version: entry.version,
+        hostPath,
+        sandboxPath: sandboxPluginPath(name),
+      });
     } else {
       missing.push(key);
     }
@@ -73,7 +86,9 @@ export async function resolveSkillPlugins(
   if (missing.length > 0) {
     throw new ConfigError(
       `Plugin(s) not installed: ${missing.join(", ")}. ` +
-        `relay mounts their skills into the sandbox; install them first (see ${path}).`,
+        "relay mounts their skills into the sandbox; in Claude Code, add each one's marketplace " +
+        `and run ${missing.map((key) => `\`/plugin install ${key}\``).join(", ")}. ` +
+        `relay read this host's installed plugins from ${path}.`,
     );
   }
   return plugins;
@@ -86,7 +101,15 @@ export async function resolveSkillPlugins(
  */
 const installedPluginsSchema = z.looseObject({
   plugins: z
-    .record(z.string(), z.array(z.looseObject({ installPath: z.string().min(1).optional() })))
+    .record(
+      z.string(),
+      z.array(
+        z.looseObject({
+          installPath: z.string().min(1).optional(),
+          version: z.string().min(1).optional(),
+        }),
+      ),
+    )
     .default({}),
 });
 

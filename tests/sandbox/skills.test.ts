@@ -54,11 +54,13 @@ describe("resolveSkillPlugins", () => {
     expect(plugins).toEqual([
       {
         name: "relay-skills",
+        version: "0.1.0",
         hostPath: "/plugins/relay-skills/0.1.0",
         sandboxPath: `${SANDBOX_PLUGIN_ROOT}/relay-skills`,
       },
       {
         name: "mattpocock-skills",
+        version: "1.0.0",
         hostPath: "/plugins/mattpocock-skills/abc",
         sandboxPath: `${SANDBOX_PLUGIN_ROOT}/mattpocock-skills`,
       },
@@ -74,6 +76,11 @@ describe("resolveSkillPlugins", () => {
     await expect(resolveSkillPlugins(env)).rejects.toThrow(
       /relay-skills@relay, mattpocock-skills@claude-plugins-official/,
     );
+  });
+
+  it("says how to install what is missing", async () => {
+    const env = await configDirWith({ version: 2, plugins: {} });
+    await expect(resolveSkillPlugins(env)).rejects.toThrow(/\/plugin install/);
   });
 
   it("rejects an installed plugin whose entry carries no install path", async () => {

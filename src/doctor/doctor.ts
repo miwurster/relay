@@ -27,6 +27,8 @@ import { missingLabels, PASS_LABELS, TRIAGE_LABELS, type LabelSpec } from "../tr
 import { resolveSandboxImage, verifyPrebuiltImage } from "../sandbox/sandbox-image.js";
 import { loadSecrets, type Secrets, type SecretSource } from "../host/secrets.js";
 import { GITIGNORE_FILE_NAME, WORKTREE_DIR, WORKTREE_RULE } from "../host/worktree-dir.js";
+import { resolveSkillPlugins, type SkillPlugin } from "../sandbox/skills.js";
+import { requireTrackerDoc, TRACKER_DOC_PATH } from "../tracker/tracker-doc.js";
 import { credentialFileIgnored } from "../host/credential-file.js";
 import { isIgnored } from "../host/gitignore.js";
 import { currentBranch, isWorktreeDirty, runGit, type GitRunner } from "../host/git.js";
@@ -108,7 +110,7 @@ export async function runDoctor({
  * says, in its own words, what it wanted the value for — so a prerequisite
  * that failed skips its dependents without any path shortening the report.
  * The checks are hand-wired rather than declared as a graph a runner resolves:
- * at fourteen checks the graph would cost more in generics than the guards cost
+ * at sixteen checks the graph would cost more in generics than the guards cost
  * in lines.
  */
 export async function runDoctorChecks({
@@ -148,6 +150,17 @@ export async function runDoctorChecks({
     "secrets",
     () => loadSecrets({ repoRoot, env }),
     secretsDetail,
+  );
+
+  // Neither of these depends on anything earlier in the report — they read the
+  // host's own state — so neither is ever skipped.
+  await record(ledger, "skill plugins", () => resolveSkillPlugins(env), pluginsDetail);
+
+  await record(
+    ledger,
+    "tracker doc",
+    () => requireTrackerDoc(repoRoot),
+    () => `this repo commits ${TRACKER_DOC_PATH}`,
   );
 
   const installedGh = await record(
@@ -452,6 +465,15 @@ function secretsDetail(secrets: Secrets): string {
     .filter(({ variables }) => variables.length > 0)
     .map(({ place, variables }) => `${joinWithAnd(variables.map((s) => s.variable))} from ${place}`)
     .join(", ");
+}
+
+/**
+ * Which plugin versions a pass would mount, so an operator can see which skill
+ * versions their legs will actually run. A missing plugin never reaches here:
+ * the resolver reports every one of them in one error, which is the detail.
+ */
+function pluginsDetail(plugins: readonly SkillPlugin[]): string {
+  return plugins.map((plugin) => `${plugin.name} ${plugin.version ?? "(no version)"}`).join(", ");
 }
 
 /** `a`, or `a and b`, or `a, b and c`. */
