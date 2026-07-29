@@ -1,163 +1,158 @@
 ---
-name: commit
-description: Write one Conventional Commits message for the current changes and commit it to the current branch, unattended. Use when a relay leg — or a person — wants the current changes committed.
+name: kipu-commit
+version: 3.0.0
+description: Commit the current changes as a Conventional Commits message. Use for every commit, including when another skill's step says to commit, whether or not it names this skill.
 ---
 
-<!--
-  Adapted from the `kipu-commit` skill of the private `kipu-all` Claude plugin,
-  rewritten to stand alone: it delegates its message rules to no other skill.
--->
+# Kipu commit message
 
-# Commit
+## Resolve from context
 
-Write one Conventional Commits message for the current changes, then commit it to the branch that is checked out right now.
+Every gate resolves from context by the deterministic rules below — **attended** at the keyboard or **unattended** from another skill's build step, the path is the same.
+When a gate does not resolve:
 
-This skill runs **unattended**.
-It never asks and never waits for a reply — every gate resolves from context by the rules below.
-When a gate cannot be resolved:
-
-- Take the documented **safe default** where one exists — scope omitted, change treated as non-breaking.
-- Where no safe default exists, **stop** at the written message and report one specific, actionable reason, so the invoker can surface it to a human.
-
-It never pushes, never branches, never merges, never amends.
-Moving branches belongs to whoever lands the work.
+- Take the documented **safe default** where one exists.
+- Otherwise **stop** at the printed message and report a specific, actionable reason.
 
 ## Process
 
-Open with **one batch** of parallel tool calls — `git diff --staged`, `git status`, the branch name, and `docs/agents/issue-tracker.md` (for scope) are independent, so issue them together rather than one turn each.
+Open with **one batch** of parallel tool calls — `git diff --staged`, `git diff`, `git status`, the branch name, and `docs/agents/issue-tracker.md` (for scope) are independent, so issue them together, not one turn each.
 
 1. **Read the changes.** Inspect `git diff --staged`; if nothing is staged, use `git diff` plus `git status`.
-   The diff decides the summary, and the type unless the invocation names one.
+   The diff decides the summary; the type comes from **Types**.
 2. **Resolve the scope.** See **Scope**.
-3. **Decide breaking.** See **Breaking**. Default: not breaking.
-4. **Compose** the message. See **Message**.
-5. **Output** the message in a single code block.
-6. **Commit** it. See **Commit**.
+3. **Decide breaking.** See **Breaking**.
+4. **Compose** the message. See **Message shape**.
+5. **Copy** the message to the clipboard, best-effort. See **Clipboard**.
+6. **Output** it in a single code block, ready to paste.
+7. **Commit** when the repo permits. See **Commit**.
+   The run ends in exactly one of three states — committed, blocked (message printed, specific reason reported), or nothing to commit.
 
-## Message
+## Message shape
 
 Subject:
 
-- `<type>(<scope>): <imperative summary>` — the scope is optional.
+- `<type>(<scope>): <summary>` — the scope is optional (see **Scope**).
 - Imperative mood: "add", "fix", "remove" — not "added", "adds", "adding".
-- ≤50 chars when possible, hard cap 72.
+- Lowercase after the colon.
+- ≤50 chars; hard cap 72.
 - No trailing period.
-- Match the repo's convention for capitalization after the colon.
 
-Body — only when it earns its place:
+Body — omit it when the subject speaks for itself.
+Write one for a non-obvious *why*, and always for a breaking change, a security fix, or a data migration.
+Wrap at 72 chars; bullets are `-`.
 
-- Skip it entirely when the subject is self-explanatory.
-- Add one for a non-obvious *why*, a breaking change, migration notes, or linked issues.
-- Wrap at 72 chars.
-- Bullets `-`, not `*`.
-- Reference issues at the end: `Closes #42`, `Refs #17`.
+The ticket reference lives in the **scope** and nowhere else — no `Closes`/`Fixes`/`Resolves` footer.
+The one footer this skill writes is `BREAKING CHANGE:` (see **Breaking**).
 
-Always include a body for a breaking change, a security fix, a data migration, or a revert — a future debugger needs the context.
+Subject and body describe the change — not the author, not the act of committing.
+Omit the file name when the scope already names it.
 
-Never include:
-
-- "This commit does X", "I", "we", "now", "currently" — the diff says what.
-- "As requested by …".
-- `Co-authored-by:`, `Generated with Claude Code`, `Assisted-by:`, or any other AI-attribution trailer.
-  Not ever, not opt-in: relay's commits do not advertise the agent that wrote them.
-- Emoji, unless the repo's convention requires them.
-- The file name, when the scope already says it.
+Never include `Co-authored-by:`, `Generated with Claude Code`, or any other AI-attribution trailer, for Claude or any agent.
 
 ## Types
 
-Plain Conventional Commits types:
+Release column is what `semantic-release` bumps from that type; `none` releases nothing on its own.
 
-| Type       | Use for                        |
-|------------|--------------------------------|
-| `feat`     | new feature                    |
-| `fix`      | bug fix                        |
-| `perf`     | performance improvement        |
-| `refactor` | code change, no feature or fix |
-| `docs`     | documentation only             |
-| `test`     | add or correct tests           |
-| `build`    | build system or dependencies   |
-| `ci`       | CI config and scripts          |
-| `style`    | formatting only, no behaviour  |
-| `revert`   | reverts an earlier commit      |
-| `chore`    | chores, no src or test change  |
+| Type       | Use for                        | Release   |
+|------------|--------------------------------|-----------|
+| `feat`     | new feature                    | **minor** |
+| `fix`      | bug fix                        | **patch** |
+| `perf`     | performance improvement        | **patch** |
+| `refactor` | code change, no feature or fix | none      |
+| `docs`     | documentation only             | none      |
+| `test`     | add or correct tests           | none      |
+| `build`    | build system or dependencies   | none      |
+| `ci`       | CI config and scripts          | none      |
+| `chore`    | chores, no src or test change  | none      |
 
-When the invocation names a type — a bare `feat`/`fix`/… — use it verbatim and skip the diff-based choice.
-Otherwise pick the type that matches the change.
+When the invocation names a type — a bare `feat`/`fix`/… or a `--feat`/`--fix`/… flag matching a row above — use that type verbatim and skip the diff-based choice.
+Otherwise pick the type that matches the change, not the bump you want — except a major, which is a deliberate gate (see **Breaking**).
 
 ## Scope
 
-When a tracker reference is in context, the scope **is** that reference — the whole reference, not a component name.
-Its shape comes from the target repo's tracker convention, declared in `docs/agents/issue-tracker.md`: for issues in the git host, the issue number as `#<number>`, e.g. `fix(#142): handle empty cart`, which the host auto-links.
+When the repo tracks work in an issue tracker **and** a ticket is in context, the scope **is** that ticket's reference — the whole reference, not a component name.
+The reference shape comes from the tracker (`docs/agents/issue-tracker.md`):
+
+- **Jira** → the issue key, `<KEY>-<number>`, with the **project key** from the tracker doc's "Setup constants".
+- **GitHub / GitLab** (issues in the git host) → the issue number as `#<number>` — the host auto-links it.
 
 Find the reference in this order; stop at the first hit:
 
-1. The reference the invoker supplied for this run.
-2. The reference encoded in the branch name (`git rev-parse --abbrev-ref HEAD`) — commonly a leading `<number>-` segment.
-3. Nothing found → the safe default: omit the scope, or use a component scope (`api`, `auth`, …) when one is obvious.
-
-When `docs/agents/issue-tracker.md` is absent, or states no reference shape, skip the tracker scope and take the same default.
+1. `docs/agents/issue-tracker.md` — the tracker and its project key.
+   None, or any other tracker → skip ticket scope.
+2. A reference given in the task context this run — explicit beats inferred, so it wins over the branch.
+3. The branch name (`git rev-parse --abbrev-ref HEAD`) — a spec's branch is cut from its ticket, so the reference is usually here.
+   Jira spells it out; GitHub / GitLab commonly encode it as a leading `<number>-` segment.
+4. Nothing found → the **safe default**: an optional component scope (`api`, `auth`, …), or omit the scope.
 
 ## Breaking
 
-A breaking change is a gate.
-Stay non-breaking unless the invocation **explicitly** asks — "these are breaking changes", "major bump", or a clear equivalent in the work item or instructions driving this run.
+A breaking change cuts a **major** release, so it is a gate.
+Stay non-breaking unless the task **explicitly** asks — "these are breaking changes", "I want a new major version", "major bump", or a clear equivalent in the ticket or instructions driving this run.
 A large or risky-looking diff is **not** a signal.
-Implicit or ambiguous wording → stay non-breaking; never guess.
+Implicit or ambiguous wording → the **safe default**: non-breaking.
 
 When triggered, and only then:
 
-- Mark the subject with `!` after the type and scope: `feat(#204)!: …`.
-- Add the footer after a blank line:
+- Mark the subject with `!` after the type/scope: `feat(PSD-123)!: …`.
+- Add the footer after a blank line — it is what makes semantic-release bump major, so it goes in alongside the `!`, never instead of it:
   ```
   BREAKING CHANGE: <what broke and how to migrate>
   ```
 
-Include the footer whenever the change is breaking, even alongside the `!`.
+## Clipboard
+
+Copy the full message — subject, body, footer — to the clipboard the moment it is composed.
+The clipboard is the fallback when **Commit** is blocked or denied, so the copy is its own tool call, before the printing and before the commit: bundled into the commit command, a denied commit takes the copy down with it.
+
+Write the message to a scratch file (see `scratch-file.md`), then `pbcopy < <path>`.
+Keep that file — **Commit** reuses it, so the copied text and the committed text stay one source.
+
+Report the copy outcome:
+
+- Copied → say the message is on the clipboard.
+- Failed for any reason — denied, no clipboard utility, anything else → on an **attended** run say so and point the human at the printed code block; on an **unattended** run skip silently and carry on.
 
 ## Commit
 
 Check the target repo's agent instructions (`AGENTS.md`, `CLAUDE.md`).
-If they forbid `git commit` or commit-like actions, stop at the printed message and report that the repo forbids autonomous commits — never commit.
-Absent such a rule, commits are permitted and need no approval.
+If they forbid `git commit` or commit-like actions, stop at the printed message and report that the repo forbids agent commits — never commit.
+Absent any such rule, commits are permitted.
 
-Commit the exact message shown, body and footer preserved.
-Write it to a temp file with `mktemp` and a shell heredoc — via shell, not the Write tool, which refuses to overwrite a stale file a prior run left behind — then `git commit -F <file>`.
-Reuse the literal path `mktemp` printed; shell variables do not survive between separate tool calls.
+Commit the exact message shown, preserving the body and footer — reuse the temp file from **Clipboard** and `git commit -F <file>`.
 
 Staging:
 
 - Commit what is already staged.
-- If nothing is staged, stage only the changes this run produced — the files this run created or modified for the task — then commit.
+- If nothing is staged, stage the working-tree changes that belong to the task being committed — the files created or modified for it, whoever wrote them — then commit.
 - Never `git add -A`, never stage unrelated working-tree changes.
 - If there is nothing to commit, stop and report it.
 
-Commit on the **current branch** and stay on it.
-This holds on the default branch (`main`/`master`) too: commit there, on the branch as it is, and never create, switch or check out a branch first.
-The general "branch before committing on the default branch" harness default does **not** apply here — this skill commits where the change already lives, and the invoker owns which branch that is.
-
-Whenever a commit does not happen — the repo forbids it, the harness denies it, or nothing is staged — end the report with the written message and the specific reason it was not committed.
+Commit on the branch checked out right now — the default branch (`main`/`master`) included.
+The branch is cut upstream, before this skill runs, so the harness's "branch before committing on the default branch" default does **not** apply here: commit where the change already lives.
+Never `--amend`, never `push`, never merge — merges stay a human step.
 
 ## Examples
 
-Bug fix on a GitHub-issue repo (branch `142-cart`), self-explanatory — no body:
+Bodies appear only when the *why* is non-obvious.
 
+Bug fix on a Jira ticket (branch `feature/PSD-123-cart`), self-explanatory — no body:
 ```
-fix(#142): stop double-charge on retry
+fix(PSD-123): stop double-charge on retry
 ```
 
-New feature, no work item in context — the scope is omitted and the body carries the non-obvious *why*:
-
+New feature, minor bump, no ticket — body carries the non-obvious *why*:
 ```
-feat: add passkey login
+feat(auth): add passkey login
 
 WebAuthn lets users skip passwords on trusted devices, ahead of
 the SMS-OTP provider being sunset next quarter.
 ```
 
-Breaking change, asked for explicitly — the footer is what states the migration:
-
+Breaking change, major bump (task asked for it) — footer is what cuts the major:
 ```
-feat(#204)!: drop v1 token endpoint
+feat(PSD-204)!: drop v1 token endpoint
 
 BREAKING CHANGE: /v1/token removed. Move clients to /v2/token;
 old route returns 410.
