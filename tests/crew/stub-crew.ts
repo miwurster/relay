@@ -40,6 +40,9 @@ export function createStubCrew({ landing = "pull-request" }: { landing?: Landing
 
     async fix(findings, target) {
       log("fixer", `would fix ${findings.length} findings in ${target.kind}`);
+      // A stub fixes everything: declining is what makes a pass block, and the
+      // stub crew is the one that reaches every exit path on its own.
+      return { fixed: findings, skipped: [] };
     },
 
     async greenGate(attempt, gate) {
@@ -47,8 +50,12 @@ export function createStubCrew({ landing = "pull-request" }: { landing?: Landing
       return { green: true, detail: "stub gate is always green" };
     },
 
-    async handover(outcome, committed) {
-      log("handover", `would hand over: ${outcome.kind}, closing ${committed.length} tickets`);
+    async handover(outcome, committed, _land, unaddressed) {
+      log(
+        "handover",
+        `would hand over: ${outcome.kind}, closing ${committed.length} tickets, ` +
+          `with ${unaddressed.length} findings left unaddressed`,
+      );
     },
   };
 }

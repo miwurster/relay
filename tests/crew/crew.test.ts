@@ -138,7 +138,7 @@ describe("createCrew", () => {
         return {
           iterations: [],
           commits: [{ sha: "c0ffee" }],
-          stdout: `<${FIX_TAG}>{"kind":"fixed"}</${FIX_TAG}>`,
+          stdout: `<${FIX_TAG}>[{"id":"standards-1","kind":"fixed"}]</${FIX_TAG}>`,
         };
       },
     } as unknown as Sandbox;
@@ -152,10 +152,10 @@ describe("createCrew", () => {
       baseBranch,
     });
 
-    await crew.fix([{ source: "ticketReview", ticket: 8, summary: "src/a.ts:3 dead" }], {
-      kind: "ticket",
-      ticket: { number: 8, summary: "the schema" },
-    });
+    await crew.fix(
+      [{ source: "ticketReview", axis: "standards", ticket: 8, summary: "src/a.ts:3 dead" }],
+      { kind: "ticket", ticket: { number: 8, summary: "the schema" } },
+    );
 
     expect(runs.map((run) => run.name)).toEqual(["fixer-8"]);
   });
@@ -195,7 +195,9 @@ describe("createCrew", () => {
         return {
           iterations: [],
           commits: [],
-          stdout: `<${FINDINGS_TAG}>["src/a.ts:3 duplicated parsing"]</${FINDINGS_TAG}>`,
+          stdout:
+            `<${FINDINGS_TAG}>{"standards":["src/a.ts:3 duplicated parsing"],"spec":[]}` +
+            `</${FINDINGS_TAG}>`,
         };
       },
       // The review is read-only, so its run is followed by a clean-worktree check.
@@ -220,7 +222,12 @@ describe("createCrew", () => {
     });
 
     expect(findings).toEqual([
-      { source: "ticketReview", ticket: 8, summary: "src/a.ts:3 duplicated parsing" },
+      {
+        source: "ticketReview",
+        axis: "standards",
+        ticket: 8,
+        summary: "src/a.ts:3 duplicated parsing",
+      },
     ]);
     expect(runs.map((run) => run.name)).toEqual(["ticketReview-8"]);
   });
@@ -235,7 +242,7 @@ describe("createCrew", () => {
           commits: [],
           stdout: options.name?.startsWith("handover")
             ? `<${HANDOVER_TAG}>{"prUrl":"https://github.com/g/r/pull/1","report":"done"}</${HANDOVER_TAG}>`
-            : `<${FINDINGS_TAG}>[]</${FINDINGS_TAG}>`,
+            : `<${FINDINGS_TAG}>{"standards":[],"spec":[]}</${FINDINGS_TAG}>`,
         };
       },
       async exec() {
@@ -252,11 +259,12 @@ describe("createCrew", () => {
       baseBranch: "spike/foo",
     });
 
-    await crew.review({ kind: "branch", workItem: issue.number });
+    await crew.review({ kind: "branch", workItem: issue.number, rereview: false });
     await crew.handover(
       { kind: "success", detail: "`make test` exited 0" },
       [{ number: 8, summary: "the one ticket" }],
       NO_LANDING,
+      [],
     );
 
     expect(runs[0]?.promptArgs).toMatchObject({ SCOPE: "branch", BASE: "spike/foo" });
@@ -289,6 +297,7 @@ describe("createCrew", () => {
       { kind: "success", detail: "`make test` exited 0" },
       [{ number: 8, summary: "the one ticket" }],
       NO_LANDING,
+      [],
     );
 
     expect(runs.map((run) => run.name)).toEqual(["handover"]);

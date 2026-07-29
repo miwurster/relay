@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { RELAY_DIR, RELAY_GITIGNORE_PATH } from "../config.js";
 import type { IgnoreRule } from "../host/gitignore.js";
-import type { Finding } from "./contract.js";
+import type { Finding, Verdict } from "./contract.js";
 
 const DOCTOR_RECORD_DIR = "doctor";
 
@@ -64,6 +64,33 @@ export async function writeFindingsFile({
   findings: readonly Finding[];
 }): Promise<void> {
   await writeRecordFile({ dir, name: `${name}.json`, value: findings });
+}
+
+/** One finding as the fixer was handed it, and what the fixer did with it. */
+export interface FindingVerdict {
+  /** The id the fix leg handed the finding to its own run by. */
+  id: string;
+  finding: Finding;
+  verdict: Verdict;
+}
+
+/**
+ * Write one fixer leg's verdicts to its own file in the leg's record directory.
+ *
+ * A file of its own rather than an annotation on the review's findings file: the
+ * fixer's facts belong next to the fixer, and a review's file stays the review's
+ * ([ADR-0012](../../docs/adr/0012-a-legs-facts-stay-next-to-the-leg.md)).
+ */
+export async function writeVerdictsFile({
+  dir,
+  name,
+  verdicts,
+}: {
+  dir: string;
+  name: string;
+  verdicts: readonly FindingVerdict[];
+}): Promise<void> {
+  await writeRecordFile({ dir, name: `${name}.verdicts.json`, value: verdicts });
 }
 
 /**

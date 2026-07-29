@@ -34,7 +34,7 @@ Seven of them always, and the **lander** as an eighth when the repo's **landing*
 _Avoid_: pipeline, team, orchestrator
 
 **Leg record**:
-What one **leg** leaves on the host for a human to read: its status, and — for a reviewer leg — the **findings** it reported.
+What one **leg** leaves on the host for a human to read: its status, the **findings** a reviewer leg reported, and the **verdicts** a fixer leg gave them.
 A file per leg, never a shared one, so every file is attributable to the leg that wrote it.
 It lives on the host rather than in the **sandbox**'s worktree, because that worktree is disposed of once the **pass** ends ([ADR-0003](docs/adr/0003-a-crashed-pass-leaves-the-work-for-a-human.md)).
 A **pass** records under `.relay/<work item>`; the **gate probe** records under `.relay/doctor`.
@@ -61,9 +61,38 @@ What one review reads: one **ticket**'s own change from the commit it started at
 It is the only thing that differs between the reviewer's two runs, so it is also what names them and what picks each one's model.
 _Avoid_: diff range, target, lens
 
+**Re-review**:
+The branch review's second run, over the **fixer**'s own commit, when the first run's fix changed something.
+Exactly one, never a loop, and report-only: there is no fixer after it, so its **spec** findings block and its **standards** findings are reported and landed ([ADR-0022](docs/adr/0022-a-fix-is-verified-once.md)).
+It exists because the **green gate** that runs next is objective, so without it a fix could address the wrong half of what was asked and still land green.
+_Avoid_: recheck, second pass, verification
+
 **Finding**:
-One thing a review or the **green gate** wants changed, stamped with its source and the **ticket** it is about.
+One thing a review or the **green gate** wants changed, stamped with its source, its **axis** and the **ticket** it is about.
+A review finding carries an axis; the green gate's carries none.
 _Avoid_: issue, comment, remark
+
+**Axis**:
+Which of the review's two questions a **finding** answers: `standards`, whether the change follows this repo's own documented conventions, or `spec`, whether it built what the **work item** asked for.
+The two do not weigh the same — a `spec` finding is **binding** and a `standards` finding is not.
+A problem both axes name is a `spec` finding: the stricter axis wins, because filing it under the other would quietly drop the part that stops a **pass**.
+_Avoid_: category, kind, dimension
+
+**Binding**:
+A **finding** the **pass** may not land without addressing.
+Spec findings are binding and standards findings are not, because a branch that does not do what was asked is worse to land than one that landed with a standards call overridden ([ADR-0021](docs/adr/0021-spec-findings-are-binding.md)).
+The **fixer** still decides whether code changes; whether a finding nobody addressed stops the pass is the **harness**'s.
+_Avoid_: mandatory, blocking, required
+
+**Verdict**:
+What the **fixer** did with one **finding**: fixed, or skipped with a reason.
+One per finding and never one per **leg**, and on the **leg record** either way — so declining is a report rather than a veto, and a **binding** finding nobody addressed stops the pass on the sentence the fixer wrote.
+_Avoid_: decision, disposition, outcome
+
+**Unaddressed finding**:
+A **finding** nobody acted on, and why: one the **fixer** declined, or one the **re-review** raised, which by design reaches no fixer.
+Every one of them reaches the **handover** — a green pass names how many, a blocked pass names them all.
+_Avoid_: ignored finding, leftover, open finding
 
 ## Finishing
 
@@ -85,7 +114,7 @@ It is on the record of every **pass** — the **handover** names it, and the **d
 _Avoid_: source, origin, confidence
 
 **Handover**:
-The pass's last **leg**: it publishes what the **landing** and the **outcome** owe, and tells the human what state the work is in.
+The pass's last **leg**: it publishes what the **landing** and the **outcome** owe, names what the pass left as an **unaddressed finding**, and tells the human what state the work is in.
 Every outcome reaches it — no path skips the handover.
 It is the only role that writes to the tracker, so closing a **ticket** is its act and never the **lander**'s.
 _Avoid_: finalize, wrap-up, publish

@@ -19,7 +19,8 @@ const ticketScope: ReviewScope = {
   ticket: { number: 8, summary: "the schema" },
   base: "c0ffee",
 };
-const branchScope: ReviewScope = { kind: "branch", workItem: 7 };
+const branchScope: ReviewScope = { kind: "branch", workItem: 7, rereview: false };
+const rereviewScope: ReviewScope = { kind: "branch", workItem: 7, rereview: true };
 
 let recordDir: string;
 
@@ -59,28 +60,47 @@ const commandOf = (run: SandboxRunOptions | undefined) =>
 const findingsFile = (name: string) =>
   readFile(join(recordDir, name), "utf8").then((text) => JSON.parse(text) as unknown);
 
+const clean = taggedFindings('{"standards":[],"spec":[]}');
+
 describe("createReviewer", () => {
-  it("stamps each finding with its review and the ticket it is about", async () => {
+  it("stamps each finding with its review, its axis and the ticket it is about", async () => {
     const { review } = reviewing(
-      taggedFindings('["src/a.ts:3 duplicated parsing","src/b.ts:9 dead branch"]'),
+      taggedFindings(
+        '{"standards":["src/a.ts:3 duplicated parsing"],"spec":["src/b.ts:9 no cap"]}',
+      ),
     );
 
     await expect(review(ticketScope)).resolves.toEqual([
-      { source: "ticketReview", ticket: 8, summary: "src/a.ts:3 duplicated parsing" },
-      { source: "ticketReview", ticket: 8, summary: "src/b.ts:9 dead branch" },
+      { source: "ticketReview", axis: "spec", ticket: 8, summary: "src/b.ts:9 no cap" },
+      {
+        source: "ticketReview",
+        axis: "standards",
+        ticket: 8,
+        summary: "src/a.ts:3 duplicated parsing",
+      },
     ]);
   });
 
+  it("reports the binding axis first, since that is the one the fixer should read first", async () => {
+    const { review } = reviewing(taggedFindings('{"standards":["a","b"],"spec":["c"]}'));
+
+    const findings = await review(branchScope);
+
+    expect(findings.map(({ summary }) => summary)).toEqual(["c", "a", "b"]);
+  });
+
   it("leaves a whole-branch finding without a ticket", async () => {
-    const { review } = reviewing(taggedFindings('["the two loaders should be one"]'));
+    const { review } = reviewing(
+      taggedFindings('{"standards":["the two loaders should be one"],"spec":[]}'),
+    );
 
     await expect(review(branchScope)).resolves.toEqual([
-      { source: "branchReview", summary: "the two loaders should be one" },
+      { source: "branchReview", axis: "standards", summary: "the two loaders should be one" },
     ]);
   });
 
   it("reads a clean review as no findings", async () => {
-    const { review } = reviewing(taggedFindings("[]"));
+    const { review } = reviewing(clean);
 
     await expect(review(ticketScope)).resolves.toEqual([]);
   });
@@ -92,39 +112,70 @@ describe("createReviewer", () => {
   });
 
   it("refuses a finding with nothing in it", async () => {
-    const { review } = reviewing(taggedFindings('[""]'));
+    const { review } = reviewing(taggedFindings('{"standards":[""],"spec":[]}'));
+
+    await expect(review(ticketScope)).rejects.toThrow(RoleError);
+  });
+
+  it("refuses an answer that left an axis out, rather than reading it as empty", async () => {
+    const { review } = reviewing(taggedFindings('{"standards":["src/a.ts:3 dead"]}'));
+
+    await expect(review(ticketScope)).rejects.toThrow(RoleError);
+  });
+
+  it("refuses the flat array a review used to report", async () => {
+    const { review } = reviewing(taggedFindings('["src/a.ts:3 dead"]'));
 
     await expect(review(ticketScope)).rejects.toThrow(RoleError);
   });
 
   it("refuses a review that committed, since every review is read-only", async () => {
-    const { review } = reviewing(taggedFindings("[]"), [{ sha: "beef" }]);
+    const { review } = reviewing(clean, [{ sha: "beef" }]);
 
     await expect(review(ticketScope)).rejects.toThrow(RoleError);
   });
 
   it("refuses a review that edited without committing, which the next leg would inherit", async () => {
-    const { review } = reviewing(taggedFindings("[]"), [], " M src/a.ts\n?? notes.md");
+    const { review } = reviewing(clean, [], " M src/a.ts\n?? notes.md");
 
     await expect(review(ticketScope)).rejects.toThrow(/left the worktree changed/);
   });
 
   it("writes each review's findings to its own file", async () => {
-    const { review } = reviewing(taggedFindings('["src/a.ts:3 duplicated parsing"]'));
+    const { review } = reviewing(
+      taggedFindings('{"standards":["src/a.ts:3 duplicated parsing"],"spec":[]}'),
+    );
 
     await review(ticketScope);
     await review(branchScope);
 
     await expect(findingsFile("8-ticketReview.json")).resolves.toEqual([
-      { source: "ticketReview", ticket: 8, summary: "src/a.ts:3 duplicated parsing" },
+      {
+        source: "ticketReview",
+        axis: "standards",
+        ticket: 8,
+        summary: "src/a.ts:3 duplicated parsing",
+      },
     ]);
     await expect(findingsFile("branch-branchReview.json")).resolves.toEqual([
-      { source: "branchReview", summary: "src/a.ts:3 duplicated parsing" },
+      { source: "branchReview", axis: "standards", summary: "src/a.ts:3 duplicated parsing" },
     ]);
   });
 
+  it("keeps the re-review's findings file apart from the review it re-reads", async () => {
+    const { review } = reviewing(
+      taggedFindings('{"standards":["src/a.ts:3 still dead"],"spec":[]}'),
+    );
+
+    await review(branchScope);
+    await review(rereviewScope);
+
+    await expect(findingsFile("branch-branchReview.json")).resolves.toHaveLength(1);
+    await expect(findingsFile("branch-rereview-branchReview.json")).resolves.toHaveLength(1);
+  });
+
   it("runs the ticket review one-shot on its own model, over the ticket's own diff", async () => {
-    const { review, runs } = reviewing(taggedFindings("[]"));
+    const { review, runs } = reviewing(clean);
 
     await review(ticketScope);
 
@@ -141,7 +192,7 @@ describe("createReviewer", () => {
   });
 
   it("runs the branch review on its own model, over the whole branch", async () => {
-    const { review, runs } = reviewing(taggedFindings("[]"));
+    const { review, runs } = reviewing(clean);
 
     await review(branchScope);
 
@@ -156,13 +207,27 @@ describe("createReviewer", () => {
   });
 
   it("names each run for its scope, so each gets its own findings file", async () => {
-    const { review, runs } = reviewing(taggedFindings("[]"));
+    const { review, runs } = reviewing(clean);
 
     await review(ticketScope);
     await review(branchScope);
+    await review(rereviewScope);
 
-    expect(runs[0]?.name).toBe("ticketReview-8");
-    expect(runs[1]?.name).toBe("branchReview-branch");
+    expect(runs.map((run) => run.name)).toEqual([
+      "ticketReview-8",
+      "branchReview-branch",
+      "branchReview-branch-rereview",
+    ]);
+  });
+
+  it("runs the re-review as the branch review again, on the same model and diff", async () => {
+    const { review, runs } = reviewing(clean);
+
+    await review(branchScope);
+    await review(rereviewScope);
+
+    expect(commandOf(runs[1])).toContain(`--model '${config.models.branchReview}'`);
+    expect(runs[1]?.promptArgs).toEqual(runs[0]?.promptArgs);
   });
 });
 
@@ -187,5 +252,16 @@ describe("the review prompt", () => {
     const prompt = await readResource("review.md");
     expect(prompt).toContain("## Standards");
     expect(prompt).toContain("`<relay-findings>`");
+  });
+
+  it("tells the review to keep each finding on the axis it came from", async () => {
+    const prompt = await readResource("review.md");
+    expect(prompt).toContain("never move one to the other");
+  });
+
+  it("sends a problem both axes name to the binding one, so nothing is softened by a coin flip", async () => {
+    expect(await readResource("review.md")).toContain(
+      "**Where both sections name the same problem, report it once, under `spec`.**",
+    );
   });
 });

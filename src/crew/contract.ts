@@ -24,15 +24,78 @@ export type ImplementResult =
  */
 export type ReviewKind = "ticketReview" | "branchReview";
 
-/** Whatever produced a finding the fixer has to act on. */
-export type FindingSource = ReviewKind | "greenGate";
+/**
+ * Which of the review's two questions a finding answers: whether the change
+ * follows this repo's own documented standards, or whether it built what the
+ * item asked for.
+ *
+ * The two do not weigh the same. A branch that does not do what was asked is
+ * worse to land than one that landed with a standards call overridden, so a
+ * spec finding is **binding** and a standards finding is not
+ * ([ADR-0021](../../docs/adr/0021-spec-findings-are-binding.md)).
+ */
+export type Axis = "standards" | "spec";
 
-/** One thing a reviewer or the gate wants changed. */
-export interface Finding {
-  source: FindingSource;
-  /** The ticket the finding is about; absent for whole-branch findings. */
-  ticket?: number;
-  summary: string;
+/**
+ * One thing a review or the gate wants changed.
+ *
+ * A review finding carries the **axis** it came from. The gate's carries none:
+ * a gate verdict is neither of the review's questions, and it needs no binding
+ * rule of its own — a gate the fixer left alone stays red, and the gate loop
+ * blocks the pass by itself.
+ */
+export type Finding =
+  | {
+      source: ReviewKind;
+      axis: Axis;
+      /** The ticket the finding is about; absent for whole-branch findings. */
+      ticket?: number;
+      summary: string;
+    }
+  | { source: "greenGate"; summary: string };
+
+/**
+ * Whether the pass may not land without this finding addressed.
+ *
+ * The one place `binding` is defined, so the fixer's prompt, the harness's
+ * block and the handover's report cannot drift apart on what it means.
+ */
+export function isBinding(finding: Finding): boolean {
+  return finding.source !== "greenGate" && finding.axis === "spec";
+}
+
+/** How a finding is labelled wherever one is listed, for the fixer or a human. */
+export function findingLabel(finding: Finding): string {
+  return finding.source === "greenGate" ? "gate" : finding.axis;
+}
+
+/**
+ * What the fixer did with one finding: changed code for it, or declined it and
+ * said why.
+ *
+ * Per finding, never per leg. The fixer decides whether code changes; what an
+ * unaddressed finding costs the pass is the harness's, so a decline is a report
+ * rather than a veto.
+ */
+export type Verdict = { kind: "fixed" } | { kind: "skipped"; reason: string };
+
+/**
+ * A finding the pass left unaddressed, and why nobody acted on it.
+ *
+ * Two things reach this: a finding the fixer declined, and a finding the
+ * **re-review** raised, which by design reaches no fixer at all.
+ */
+export interface UnaddressedFinding {
+  finding: Finding;
+  reason: string;
+}
+
+/** What one fixer leg did with the findings it was handed. */
+export interface FixReport {
+  /** The findings it changed code for. */
+  fixed: readonly Finding[];
+  /** The findings it declined, each with the reason it gave. */
+  skipped: readonly UnaddressedFinding[];
 }
 
 /** The verdict of one green-gate run. */
@@ -63,7 +126,17 @@ export interface ResolvedGate {
  * holds every earlier ticket of the pass.
  */
 export type ReviewScope =
-  { kind: "ticket"; ticket: TicketRef; base: string } | { kind: "branch"; workItem: number };
+  | { kind: "ticket"; ticket: TicketRef; base: string }
+  | {
+      kind: "branch";
+      workItem: number;
+      /**
+       * Whether this is the branch review's second run, over the fixer's own
+       * commit. Exactly one, never a loop, and report-only: its findings reach
+       * no fixer ([ADR-0022](../../docs/adr/0022-a-fix-is-verified-once.md)).
+       */
+      rereview: boolean;
+    };
 
 /**
  * What one fixer leg is fixing: a ticket's own review, the whole-branch review,
@@ -117,7 +190,12 @@ export interface Crew {
   plan(issue: GitHubIssue): Promise<PlanResult>;
   implement(ticket: TicketRef): Promise<ImplementResult>;
   review(scope: ReviewScope): Promise<Finding[]>;
-  fix(findings: readonly Finding[], target: FixTarget): Promise<void>;
+  /**
+   * Act on the findings handed to it, one verdict per finding. It reports what
+   * it declined rather than judging what that costs — the harness blocks the
+   * pass over a binding finding nobody addressed.
+   */
+  fix(findings: readonly Finding[], target: FixTarget): Promise<FixReport>;
   /**
    * Run the gate once, on the resolved gate the harness hands it. `attempt` is
    * which run of the harness's gate loop this is, so the pass's repeated gate
@@ -149,6 +227,16 @@ export interface Crew {
    * The handover is told it rather than working it out from the landing and the
    * outcome, because closing an issue is the pass's one irreversible tracker
    * act and the leg that does it has to be reading the lander's own verdict.
+   *
+   * `unaddressed` is every finding nobody acted on, in the order the legs ran.
+   * A green pass can only carry non-binding ones, and the human is owed the
+   * fact that a role overrode a call about their repo — a skip a pass swallowed
+   * is the failure this reports its way out of.
    */
-  handover(outcome: Outcome, committed: readonly TicketRef[], land: LandResult): Promise<void>;
+  handover(
+    outcome: Outcome,
+    committed: readonly TicketRef[],
+    land: LandResult,
+    unaddressed: readonly UnaddressedFinding[],
+  ): Promise<void>;
 }

@@ -62,7 +62,7 @@ The branch is green.
 3. Label {{WORK_ITEM}}:
    - under `pull-request` landing, add `agent-in-review` and remove `agent-in-progress` — the work is waiting on a human's review;
    - under `merge` landing, remove `agent-in-progress` and add **no** label — nothing is awaiting a review that is not coming.
-4. Comment the resolution on {{WORK_ITEM}}: the pull request URL when there is one, or {{BASE_BRANCH}} when the work landed there; one line on what the pass built; the tickets it committed and which of them you closed; and {{REASON}}, the gate that verified what landed.
+4. Comment the resolution on {{WORK_ITEM}}: the pull request URL when there is one, or {{BASE_BRANCH}} when the work landed there; one line on what the pass built; the tickets it committed and which of them you closed; {{REASON}}, the gate that verified what landed; and how many findings went unaddressed, as section 3 says.
 
 ### mid-block
 
@@ -85,7 +85,7 @@ Close **nothing**, under either landing: the work reached nobody but you.
    When the pass committed **nothing** there is nothing to push at all: skip this step and say so in your report.
 
 2. Swap the labels on {{WORK_ITEM}}: add `agent-blocked` and remove `agent-in-progress`.
-3. Comment on {{WORK_ITEM}}: the branch and the draft pull request URL when there is one, one line on what the pass built, the cause above, and what a human has to decide.
+3. Comment on {{WORK_ITEM}}: the branch and the draft pull request URL when there is one, one line on what the pass built, the cause above, every finding left unaddressed as section 3 says, and what a human has to decide.
 
 ### early-bail
 
@@ -95,13 +95,35 @@ The planner refused an under-specified item before any code was written.
 2. Swap the labels on {{WORK_ITEM}}: add `agent-blocked` and remove `agent-in-progress`.
 3. Comment what is missing from the item.
 
-## 3. Report to the operator
+## 3. Say what the pass left unaddressed
+
+A review raises findings and the fixer answers each one.
+These are the ones nobody acted on — a finding the fixer declined, or one the branch re-review raised after the fixer's own commit:
+
+```
+{{UNADDRESSED}}
+```
+
+`none` means every finding was addressed.
+Each other line carries the axis it came from, and they do not mean the same thing:
+
+- `spec` — the change does not do what the item asked, and nobody fixed it. This is why the pass did not succeed: relay stops rather than land it.
+- `standards` — the fixer overrode a call about this repo's own conventions. It never stops a pass. The human is owed the fact, not the argument.
+- `gate` — the fixer declined something the green gate raised. The gate ran again after it regardless, so its verdict above is what actually decided the pass.
+
+What you write depends on **{{OUTCOME}}**:
+
+- **success** — the list can only hold `standards` and `gate` lines, because a `spec` one would have blocked the pass. Give the **count** in your report and in the comment, and point the human at `{{RECORD_PATH}}` on their own machine for the detail. Never restate the findings and never argue them back.
+- **mid-block** and **early-bail** — give the **full list**, so the human can see exactly what was left and why.
+
+## 4. Report to the operator
 
 Write the report the human reads in their terminal, as plain text lines — no JSON, no markdown headings:
 
 - the outcome and, when the pass did not succeed, its cause;
 - {{WORK_ITEM}} and the state you left it in;
 - the branch, and the pull request URL when there is one;
+- what the pass left unaddressed, as the section above says for this outcome;
 - what landed and how: {{LANDED_DETAIL}} — relay's own words for it, and when {{LANDED}} is `no` say too that the work sits on {{BRANCH}} alone;
 - each ticket the branch committed, with its short SHA from `git log --oneline {{BASE_BRANCH}}..{{BRANCH}}` — read those now, never earlier, because a rebase before you rewrote them;
 - the green gate's verdict.
@@ -114,13 +136,13 @@ Put the report in it as one string, with `\n` between its lines.
 Published as a pull request:
 
 <relay-handover>
-{"prUrl": "https://github.com/acme/widgets/pull/42", "report": "outcome: success\nwork item: #7 (agent-in-review)\nbranch: agent/7\npull request: https://github.com/acme/widgets/pull/42\ntickets: 1a2b3c4 feat(cart): reject an empty cart (closes #8)\ngate: `make test` exited 0"}
+{"prUrl": "https://github.com/acme/widgets/pull/42", "report": "outcome: success\nwork item: #7 (agent-in-review)\nbranch: agent/7\npull request: https://github.com/acme/widgets/pull/42\nunaddressed: 2 standards findings — see .relay/7/\ntickets: 1a2b3c4 feat(cart): reject an empty cart (closes #8)\ngate: `make test` exited 0"}
 </relay-handover>
 
 Landed on the base branch, with no pull request:
 
 <relay-handover>
-{"report": "outcome: success\nwork item: #7 (closed, agent-in-progress removed)\nlanded: main, pushed\nbranch: agent/7\ntickets: 1a2b3c4 feat(cart): reject an empty cart (#8, closed)\ngate: `make test` exited 0"}
+{"report": "outcome: success\nwork item: #7 (closed, agent-in-progress removed)\nlanded: main, pushed\nbranch: agent/7\nunaddressed: none\ntickets: 1a2b3c4 feat(cart): reject an empty cart (#8, closed)\ngate: `make test` exited 0"}
 </relay-handover>
 
 Bailed early, with no pull request:

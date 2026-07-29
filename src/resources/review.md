@@ -25,8 +25,7 @@ Read the repo's `AGENTS.md`, and any doc it sends you to, before you judge.
 The skill ends at a two-part prose report — `## Standards` and `## Spec` — written for a human's eyes.
 The pass's next leg is a fixer, not a human, so turning that report into findings is your job and the reason this leg exists.
 
-Turn everything the report wants changed into one finding, whichever axis it came from, and keep nothing else: no praise, no summary of the change, no per-axis headings, no counts, and no low-value nits while structural problems are there to name.
-Where the two axes name the same problem, report it once.
+Turn everything the report wants changed into one finding, and keep nothing else: no praise, no summary of the change, no counts, and no low-value nits while structural problems are there to name.
 A finding the report only raised as theoretically possible, rather than reachable in this diff, is not one to pass on.
 
 Each finding is one line: where it is, what is wrong, and how to fix it if that is not obvious.
@@ -34,16 +33,27 @@ A clean change is no findings, not a softened one.
 
 The fixer that acts on your findings is a cold session that sees only what you wrote, so a finding that does not say where to look is a finding it cannot act on.
 
+### Keep each finding on the axis it came from
+
+Report each finding under the section of the report it came from — `standards` or `spec` — and never move one to the other.
+The two are not weighed the same downstream: a `spec` finding says this change does not do what {{ITEM}} asked, and relay stops the pass rather than land it, whereas a `standards` finding never stops anything.
+
+**Where both sections name the same problem, report it once, under `spec`.**
+The stricter axis wins, always.
+Splitting it across both would double it for the fixer; filing it under `standards` alone would quietly drop the part that matters.
+
 ## Output
 
-End your run by emitting exactly one `<relay-findings>` block and nothing after it: a JSON array of one-line findings.
+End your run by emitting exactly one `<relay-findings>` block and nothing after it: a JSON object with a `standards` array and a `spec` array, each of one-line findings.
+
+Both keys always, even when one is empty — an absent key is not an empty one.
 
 <relay-findings>
-["src/loader.ts:42 — the third parse branch duplicates readConfig; call that instead", "src/worker.ts:31 — {{ITEM}} asks for the retry cap to be configurable; this hardcodes 3"]
+{"standards": ["src/loader.ts:42 — the third parse branch duplicates readConfig; call that instead"], "spec": ["src/worker.ts:31 — {{ITEM}} asks for the retry cap to be configurable; this hardcodes 3"]}
 </relay-findings>
 
 A clean change:
 
 <relay-findings>
-[]
+{"standards": [], "spec": []}
 </relay-findings>

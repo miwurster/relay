@@ -9,6 +9,7 @@ import {
   NO_LANDING,
   type Outcome,
   type TicketRef,
+  type UnaddressedFinding,
 } from "../../../src/crew/contract.js";
 import { RoleError } from "../../../src/errors.js";
 import { readResource } from "../../../src/resources.js";
@@ -33,15 +34,24 @@ function handing({ stdout = "", commits = [] as { sha: string }[], withConfig = 
     },
   } as unknown as Sandbox;
 
+  const handover = createHandover({
+    sandbox,
+    config: withConfig,
+    recordDir,
+    workItem,
+    branch,
+    baseBranch,
+  });
+
   return {
-    handover: createHandover({
-      sandbox,
-      config: withConfig,
-      recordDir,
-      workItem,
-      branch,
-      baseBranch,
-    }),
+    // A pass that left nothing unaddressed is the ordinary one, so it is the
+    // default here and only the tests about that list pass one.
+    handover: (
+      outcome: Outcome,
+      committed: readonly TicketRef[],
+      land: LandResult,
+      unaddressed: readonly UnaddressedFinding[] = [],
+    ) => handover(outcome, committed, land, unaddressed),
     runs,
   };
 }
@@ -97,6 +107,8 @@ describe("createHandover", () => {
       LANDED: "no",
       LANDED_DETAIL: "nothing was landed",
       COMMITTED_TICKETS: "#8, #9",
+      UNADDRESSED: "none",
+      RECORD_PATH: `.relay/${workItem}`,
       WORK_ITEM: `#${workItem}`,
       BRANCH: branch,
       BASE_BRANCH: baseBranch,
@@ -327,6 +339,50 @@ describe("createHandover under merge landing", () => {
 });
 
 /**
+ * The handover is where a finding nobody acted on reaches the human, so what it
+ * is told about one is the whole of that reporting.
+ */
+describe("createHandover on findings nobody addressed", () => {
+  const unaddressed: UnaddressedFinding[] = [
+    {
+      finding: { source: "branchReview", axis: "standards", summary: "split the loader" },
+      reason: "one caller only",
+    },
+    {
+      finding: { source: "greenGate", summary: "one test red" },
+      reason: "that test is flaky",
+    },
+  ];
+
+  it("tells the leg each one under the label that says what it cost", async () => {
+    const { handover, runs } = handing({ stdout: published });
+
+    await handover(success, tickets, NO_LANDING, unaddressed);
+
+    expect(runs[0]?.promptArgs?.UNADDRESSED).toBe(
+      "[standards] split the loader — left: one caller only\n" +
+        "[gate] one test red — left: that test is flaky",
+    );
+  });
+
+  it("says `none` rather than nothing, so an empty list is never a missing one", async () => {
+    const { handover, runs } = handing({ stdout: published });
+
+    await handover(success, tickets, NO_LANDING, []);
+
+    expect(runs[0]?.promptArgs?.UNADDRESSED).toBe("none");
+  });
+
+  it("names the record directory on the host, which the leg cannot read itself", async () => {
+    const { handover, runs } = handing({ stdout: published });
+
+    await handover(success, tickets, NO_LANDING, unaddressed);
+
+    expect(runs[0]?.promptArgs?.RECORD_PATH).toBe(`.relay/${workItem}`);
+  });
+});
+
+/**
  * What the leg publishes lives in its prompt, so what the prompt instructs is
  * the only thing there is to assert about how the pull request gets opened.
  */
@@ -353,6 +409,20 @@ describe("the handover prompt", () => {
   it("closes the tickets relay names, never a list the leg worked out itself", () => {
     expect(prompt).toMatch(/`Closes` line for \*\*each ticket the pass committed\*\*/);
     expect(prompt).toContain("The pass committed **{{COMMITTED_TICKETS}}**");
+  });
+
+  it("counts what went unaddressed on a success and lists it on a block", () => {
+    const unaddressed = section("## 3. Say what the pass left unaddressed", "## 4.");
+    expect(unaddressed).toContain("{{UNADDRESSED}}");
+    expect(unaddressed).toMatch(/\*\*success\*\* — .*\*\*count\*\*/);
+    expect(unaddressed).toContain("{{RECORD_PATH}}");
+    expect(unaddressed).toMatch(/\*\*mid-block\*\* and \*\*early-bail\*\* — .*\*\*full list\*\*/);
+  });
+
+  it("says which axis stopped the pass and which never could", () => {
+    const unaddressed = section("## 3. Say what the pass left unaddressed", "## 4.");
+    expect(unaddressed).toContain("`spec`");
+    expect(unaddressed).toContain("It never stops a pass");
   });
 
   it("is told the landing, whether the work landed and how, rather than reading the branches", () => {
@@ -413,7 +483,7 @@ describe("the handover prompt", () => {
   });
 
   it("reads the per-ticket SHAs from the base branch's range, in the report it writes last", () => {
-    expect(section("## 3. Report to the operator", "## Output")).toContain(
+    expect(section("## 4. Report to the operator", "## Output")).toContain(
       "git log --oneline {{BASE_BRANCH}}..{{BRANCH}}",
     );
   });

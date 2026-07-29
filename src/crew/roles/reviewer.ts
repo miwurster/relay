@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Crew, Finding, ReviewKind, ReviewScope } from "../contract.js";
+import type { Axis, Crew, Finding, ReviewKind, ReviewScope } from "../contract.js";
 import { writeFindingsFile } from "../leg-record.js";
 import { type RoleDeps, runRole } from "../run-role.js";
 import { TRACKER_DOC_PATH } from "../../tracker/tracker-doc.js";
@@ -9,12 +9,22 @@ export const FINDINGS_TAG = "relay-findings";
 
 const REVIEW_PROMPT = "review.md";
 
+/** What the branch review's second run is called, so it never overwrites the first. */
+const REREVIEW_NAME = "branch-rereview";
+
 /**
- * What a review reports: one line per thing it wants changed, and nothing else.
- * The scope and the ticket are the harness's own facts, so a reviewer is never
- * asked to repeat them — relay stamps them on.
+ * What a review reports: one line per thing it wants changed, under the axis it
+ * came from, and nothing else.
+ *
+ * Both keys always, so a review that found nothing on one axis says so rather
+ * than leaving relay to read a missing key as either answer. The scope and the
+ * ticket are the harness's own facts, so a reviewer is never asked to repeat
+ * them — relay stamps them on.
  */
-const findingsSchema = z.array(z.string().min(1));
+const findingsSchema = z.object({
+  standards: z.array(z.string().min(1)),
+  spec: z.array(z.string().min(1)),
+});
 
 /** What one scope means to a review run, resolved once per run. */
 interface ReviewTarget {
@@ -45,7 +55,7 @@ export function createReviewer({
   return async function review(scope: ReviewScope): Promise<Finding[]> {
     const target = describeScope(scope, baseBranch);
 
-    const summaries = await runRole({
+    const report = await runRole({
       ...deps,
       name: `${target.kind}-${target.name}`,
       model: deps.config.models[target.kind],
@@ -63,7 +73,12 @@ export function createReviewer({
       branchRule: () => "read-only",
     });
 
-    const findings = summaries.map((summary) => toFinding(target, summary));
+    // Spec first, because it is the binding axis: it is the one the fixer should
+    // read before it spends its judgement, and the one whose ids come out first.
+    const findings = [
+      ...report.spec.map((summary) => toFinding(target, "spec", summary)),
+      ...report.standards.map((summary) => toFinding(target, "standards", summary)),
+    ];
     await writeFindingsFile({
       dir: deps.recordDir,
       name: `${target.name}-${target.kind}`,
@@ -77,6 +92,10 @@ export function createReviewer({
  * A ticket is measured against its own brief, from the commit the branch was
  * at before it was implemented; the whole branch is measured against the work
  * item, from the branch it was cut off.
+ *
+ * The re-review is the branch review again, differing only in its name — which
+ * it has to differ in, because the two runs write a findings file each and the
+ * second must not overwrite the first's.
  */
 function describeScope(scope: ReviewScope, baseBranch: string): ReviewTarget {
   return scope.kind === "ticket"
@@ -87,9 +106,14 @@ function describeScope(scope: ReviewScope, baseBranch: string): ReviewTarget {
         base: scope.base,
         ticket: scope.ticket.number,
       }
-    : { kind: "branchReview", name: "branch", item: `#${scope.workItem}`, base: baseBranch };
+    : {
+        kind: "branchReview",
+        name: scope.rereview ? REREVIEW_NAME : "branch",
+        item: `#${scope.workItem}`,
+        base: baseBranch,
+      };
 }
 
-function toFinding(target: ReviewTarget, summary: string): Finding {
-  return { source: target.kind, ticket: target.ticket, summary };
+function toFinding(target: ReviewTarget, axis: Axis, summary: string): Finding {
+  return { source: target.kind, axis, ticket: target.ticket, summary };
 }

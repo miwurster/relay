@@ -1,13 +1,16 @@
 import {
   type Crew,
   type Finding,
+  type FixReport,
   type FixTarget,
+  isBinding,
   type LandResult,
   NO_LANDING,
   type Outcome,
   type ResolvedGate,
   type ReviewScope,
   type TicketRef,
+  type UnaddressedFinding,
 } from "../crew/contract.js";
 import { ExitCode } from "../exit-codes.js";
 import type { GitHubIssue } from "../tracker/github.js";
@@ -20,11 +23,22 @@ import type { GitHubIssue } from "../tracker/github.js";
 export const MAX_GATE_FIX_ATTEMPTS = 2;
 
 /**
+ * Why a finding the re-review raised was left where it was.
+ *
+ * The re-review runs after the only fixer leg the branch scope gets, so there is
+ * nobody left to hand its findings to. That is the design, not an oversight
+ * ([ADR-0022](../../docs/adr/0022-a-fix-is-verified-once.md)) — but it is still a
+ * finding nobody acted on, so it is reported as one.
+ */
+const REREVIEW_REASON =
+  "the re-review raised it over the fixer's own commit, and a re-review's findings reach no fixer";
+
+/**
  * Run the pass's crew over one work item and return how it ended.
  *
  * The topology is fixed: plan once, then per ticket implement → the ticket
- * review → fix, then the whole-branch review → fix, then the gate → fixer
- * loop, then the lander, then handover.
+ * review → fix, then the whole-branch review → fix → its one re-review, then the
+ * gate → fixer loop, then the lander, then handover.
  * Every exit path ends at the same handover call, so no outcome can skip it.
  *
  * A multi-ticket plan is the shape that topology is for. A single-ticket plan
@@ -32,8 +46,8 @@ export const MAX_GATE_FIX_ATTEMPTS = 2;
  * two scopes would ask the same question twice — see `reviewsEachTicket`.
  */
 export async function runHarness(crew: Crew, issue: GitHubIssue): Promise<Outcome> {
-  const { outcome, committed, land } = await runLegs(crew, issue);
-  await crew.handover(outcome, committed, land);
+  const { outcome, committed, land, unaddressed } = await runLegs(crew, issue);
+  await crew.handover(outcome, committed, land, unaddressed);
   return outcome;
 }
 
@@ -48,6 +62,8 @@ interface LegsResult {
   committed: TicketRef[];
   /** What the lander did, or no landing at all when the legs never reached it. */
   land: LandResult;
+  /** Every finding nobody acted on, in the order the legs that produced it ran. */
+  unaddressed: UnaddressedFinding[];
 }
 
 async function runLegs(crew: Crew, issue: GitHubIssue): Promise<LegsResult> {
@@ -56,41 +72,47 @@ async function runLegs(crew: Crew, issue: GitHubIssue): Promise<LegsResult> {
   // on has read the repo's docs for its gate.
   const gate: ResolvedGate = await crew.resolveGate();
 
+  // What the pass has to show for itself, as each leg fills it in. Nothing has
+  // landed until the lander says so, which is why `no-landing` is the default
+  // rather than a fact every exit short of the lander has to restate.
+  const progress: Omit<LegsResult, "outcome"> = {
+    committed: [],
+    land: NO_LANDING,
+    unaddressed: [],
+  };
+
   const plan = await crew.plan(issue);
   if (plan.kind === "under-specified") {
-    return {
-      outcome: { kind: "early-bail", reason: plan.reason },
-      committed: [],
-      land: NO_LANDING,
-    };
+    return { ...progress, outcome: { kind: "early-bail", reason: plan.reason } };
   }
 
-  const { committed, blocked } = await implementTickets(
-    crew,
-    plan.tickets,
-    reviewsEachTicket(plan.tickets),
-  );
-  if (blocked) return { outcome: blocked, committed, land: NO_LANDING };
+  const tickets = await implementTickets(crew, plan.tickets, reviewsEachTicket(plan.tickets));
+  progress.committed = tickets.committed;
+  progress.unaddressed.push(...tickets.unaddressed);
+  if (tickets.blocked) return { ...progress, outcome: tickets.blocked };
 
-  await reviewAndFix(crew, { kind: "branch", workItem: issue.number });
+  const branch = await reviewBranch(crew, issue.number);
+  progress.unaddressed.push(...branch.unaddressed);
+  if (branch.blocked) return { ...progress, outcome: branch.blocked };
 
-  const { outcome, runs } = await driveGate(crew, gate);
+  const loop = await driveGate(crew, gate);
+  progress.unaddressed.push(...loop.unaddressed);
   // Only a green branch is worth landing, so a blocked pass never asks.
-  if (outcome.kind !== "success") return { outcome, committed, land: NO_LANDING };
+  if (loop.outcome.kind !== "success") return { ...progress, outcome: loop.outcome };
 
   // The loop's verdict said nothing about what the base branch has gained since
   // it was taken, so the lander's result is gated once more — the same resolved
   // gate, numbered as the run after the loop's last.
-  const land = await crew.land(() => crew.greenGate(runs + 1, gate));
+  const land = await crew.land(() => crew.greenGate(loop.runs + 1, gate));
   // A base branch that was meant to be landed on and was not is a `mid-block`
   // with everything the pass committed still only on its own branch — nothing
   // landed, nothing closed. Anything else leaves the gate loop's verdict as the
   // outcome: the gate is what verified what landed, and the lander's own story
   // travels beside it.
   return {
-    outcome: land.kind === "not-landed" ? { kind: "mid-block", reason: land.reason } : outcome,
-    committed,
+    ...progress,
     land,
+    outcome: land.kind === "not-landed" ? { kind: "mid-block", reason: land.reason } : loop.outcome,
   };
 }
 
@@ -109,34 +131,104 @@ function reviewsEachTicket(tickets: readonly TicketRef[]): boolean {
 }
 
 /**
+ * What one stage of the topology left behind: findings nobody acted on, and any
+ * block they earn. Every stage below reports this shape, which is what lets
+ * `runLegs` treat them alike.
+ */
+interface StageResult {
+  unaddressed: UnaddressedFinding[];
+  blocked?: Outcome;
+}
+
+/** What the ticket loop got through, plus whatever stopped it. */
+interface TicketsResult extends StageResult {
+  committed: TicketRef[];
+}
+
+/**
  * Implement each ticket in the planner's order, reviewing and fixing it before
  * the next one starts. A role that wants human input stops the loop as a
  * mid-block: relay hands the baton over rather than waiting for an answer, with
  * whatever the earlier tickets already committed.
+ *
+ * A binding finding the fixer declined stops the loop the same way, and at the
+ * ticket it was declined on: the tickets after it would be built on a change
+ * already known not to do what was asked, and under `merge` landing that walks
+ * all the way to the lander's door before anyone finds out.
  */
 async function implementTickets(
   crew: Crew,
   tickets: readonly TicketRef[],
   reviewEachTicket: boolean,
-): Promise<{ committed: TicketRef[]; blocked?: Outcome }> {
+): Promise<TicketsResult> {
   const committed: TicketRef[] = [];
+  const unaddressed: UnaddressedFinding[] = [];
   for (const ticket of tickets) {
     const result = await crew.implement(ticket);
     if (result.kind === "needs-input") {
-      return { committed, blocked: { kind: "mid-block", reason: result.reason } };
+      return { committed, unaddressed, blocked: { kind: "mid-block", reason: result.reason } };
     }
     committed.push(ticket);
-    if (reviewEachTicket) {
-      await reviewAndFix(crew, { kind: "ticket", ticket, base: result.base });
-    }
+    if (!reviewEachTicket) continue;
+
+    const report = await reviewAndFix(crew, { kind: "ticket", ticket, base: result.base });
+    unaddressed.push(...report.skipped);
+    const blocked = blockFor(report.skipped);
+    if (blocked) return { committed, unaddressed, blocked };
   }
-  return { committed };
+  return { committed, unaddressed };
+}
+
+/**
+ * The whole-branch review, its fix, and — only when that fix changed something —
+ * one re-review over the fixer's own commit.
+ *
+ * That re-review is the pass's only look at a fix nobody else reads. The gate
+ * that runs next is objective, so without it a spec fix could address the wrong
+ * half of what the item asked and still land green. It runs exactly once, and
+ * its findings reach no fixer: a loop here is the runaway relay refuses to be
+ * ([ADR-0022](../../docs/adr/0022-a-fix-is-verified-once.md)).
+ */
+async function reviewBranch(crew: Crew, workItem: number): Promise<StageResult> {
+  const report = await reviewAndFix(crew, { kind: "branch", workItem, rereview: false });
+  const declined = report.skipped;
+  const blocked = blockFor(declined);
+  if (blocked) return { unaddressed: [...declined], blocked };
+  // Nothing changed, so there is nothing new to read: a review that found
+  // nothing, or a fixer that declined all of it, has already been accounted for.
+  if (report.fixed.length === 0) return { unaddressed: [...declined] };
+
+  const findings = await crew.review({ kind: "branch", workItem, rereview: true });
+  const raised = findings.map((finding) => ({ finding, reason: REREVIEW_REASON }));
+  // Only the re-review's own findings can block from here: whatever the fixer
+  // declined was already judged above, and it did not.
+  return { unaddressed: [...declined, ...raised], blocked: blockFor(raised) };
+}
+
+/**
+ * The block a binding finding nobody addressed earns the pass.
+ *
+ * This is the whole of what `binding` costs, in one place: the fixer may decline
+ * to act on a finding, but not to account for it, and relay stops rather than
+ * land a branch that does not do what the item asked
+ * ([ADR-0021](../../docs/adr/0021-spec-findings-are-binding.md)).
+ */
+function blockFor(unaddressed: readonly UnaddressedFinding[]): Outcome | undefined {
+  const binding = unaddressed.filter(({ finding }) => isBinding(finding));
+  if (binding.length === 0) return undefined;
+
+  const detail = binding.map(({ finding, reason }) => `${finding.summary} — ${reason}`).join("; ");
+  return {
+    kind: "mid-block",
+    reason: `the branch does not do what the item asked, and nobody addressed it: ${detail}`,
+  };
 }
 
 /** Review one scope and hand whatever it wants changed to the fixer. */
-async function reviewAndFix(crew: Crew, scope: ReviewScope): Promise<void> {
+async function reviewAndFix(crew: Crew, scope: ReviewScope): Promise<FixReport> {
   const findings: Finding[] = await crew.review(scope);
-  if (findings.length > 0) await crew.fix(findings, fixTargetFor(scope));
+  if (findings.length === 0) return { fixed: [], skipped: [] };
+  return await crew.fix(findings, fixTargetFor(scope));
 }
 
 function fixTargetFor(scope: ReviewScope): FixTarget {
@@ -148,14 +240,25 @@ interface GateLoop {
   outcome: Outcome;
   /** How many gate runs it took, which is what a later run has to number after. */
   runs: number;
+  /** The gate findings the fixer declined, which are reported but never block. */
+  unaddressed: UnaddressedFinding[];
 }
 
-/** Run the gate, handing each red verdict to the fixer until green or capped. */
+/**
+ * Run the gate, handing each red verdict to the fixer until green or capped.
+ *
+ * A gate finding needs no binding rule of its own: a gate the fixer declined
+ * stays red, and the cap below is what blocks. Its declines are still reported,
+ * because a fixer that talked its way past a red gate that then went green on
+ * its own is worth a human knowing about.
+ */
 async function driveGate(crew: Crew, gate: ResolvedGate): Promise<GateLoop> {
   let result = await crew.greenGate(1, gate);
   let runs = 1;
+  const unaddressed: UnaddressedFinding[] = [];
   for (let attempt = 1; !result.green && attempt <= MAX_GATE_FIX_ATTEMPTS; attempt++) {
-    await crew.fix([gateFinding(result.detail)], { kind: "gate", attempt });
+    const report = await crew.fix([gateFinding(result.detail)], { kind: "gate", attempt });
+    unaddressed.push(...report.skipped);
     result = await crew.greenGate(attempt + 1, gate);
     runs++;
   }
@@ -164,6 +267,7 @@ async function driveGate(crew: Crew, gate: ResolvedGate): Promise<GateLoop> {
       ? { kind: "success", detail: result.detail }
       : { kind: "mid-block", reason: result.detail },
     runs,
+    unaddressed,
   };
 }
 

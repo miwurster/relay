@@ -1,6 +1,13 @@
 import { z } from "zod";
-import type { Landing } from "../../config.js";
-import type { Crew, LandResult, Outcome, TicketRef } from "../contract.js";
+import { type Landing, RELAY_DIR } from "../../config.js";
+import {
+  type Crew,
+  findingLabel,
+  type LandResult,
+  type Outcome,
+  type TicketRef,
+  type UnaddressedFinding,
+} from "../contract.js";
 import { RoleError } from "../../errors.js";
 import { type RoleDeps, runRole } from "../run-role.js";
 import { TRACKER_DOC_PATH } from "../../tracker/tracker-doc.js";
@@ -36,6 +43,7 @@ export function createHandover({
     outcome: Outcome,
     committed: readonly TicketRef[],
     land: LandResult,
+    unaddressed: readonly UnaddressedFinding[],
   ): Promise<void> {
     const leg = describeLeg(outcome, committed, deps.config.landing, land);
 
@@ -58,6 +66,10 @@ export function createHandover({
         // Told too: the leg cannot read the ticket numbers back out of the
         // commits, which carry no issue reference of their own.
         COMMITTED_TICKETS: leg.committed,
+        // What a review wanted and nobody did. Told, because the leg cannot see
+        // it: the records live on the host, outside this worktree.
+        UNADDRESSED: describeUnaddressed(unaddressed),
+        RECORD_PATH: `${RELAY_DIR}/${workItem}`,
         WORK_ITEM: `#${workItem}`,
         BRANCH: branch,
         BASE_BRANCH: baseBranch,
@@ -123,6 +135,21 @@ function describeLeg(
     landedDetail: land.kind === "landed" ? land.detail : "nothing was landed",
     committed: committed.map((ticket) => `#${ticket.number}`).join(", ") || "nothing",
   };
+}
+
+/**
+ * The findings nobody acted on, one per line, under the label that says whether
+ * one of them is why the pass blocked.
+ *
+ * `none` rather than an empty block: a leg handed nothing has to be able to tell
+ * "no findings were left" from "relay forgot to tell me".
+ */
+function describeUnaddressed(unaddressed: readonly UnaddressedFinding[]): string {
+  if (unaddressed.length === 0) return "none";
+
+  return unaddressed
+    .map(({ finding, reason }) => `[${findingLabel(finding)}] ${finding.summary} — left: ${reason}`)
+    .join("\n");
 }
 
 function enforcePullRequestRule(
