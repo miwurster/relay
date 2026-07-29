@@ -145,8 +145,8 @@ const ghWithPullRequestRuleset = () =>
     "✓ Logged in to github.com account octocat",
     JSON.stringify(ALL_LABELS.map((name) => ({ name }))),
     JSON.stringify([
-      { type: "deletion", ruleset_id: 41, ruleset_source: "octo-org" },
-      { type: "pull_request", ruleset_id: 42, ruleset_source: "octo-org/relay" },
+      { type: "deletion", ruleset_id: 41, ruleset_source: "miwurster" },
+      { type: "pull_request", ruleset_id: 42, ruleset_source: "miwurster/relay" },
     ]),
   ]);
 
@@ -896,7 +896,7 @@ describe("runDoctorChecks", () => {
 
     expect(check(checks, "base branch ruleset").status).toBe("failed");
     expect(check(checks, "base branch ruleset").detail).toContain("42");
-    expect(check(checks, "base branch ruleset").detail).toContain("octo-org/relay");
+    expect(check(checks, "base branch ruleset").detail).toContain("miwurster/relay");
     expect(check(checks, "docker daemon").status).toBe("ok");
   });
 

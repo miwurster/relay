@@ -24,7 +24,7 @@ function failingGh(message: string) {
   };
 }
 
-function node(number: number, state = "OPEN", repository = "kipu-quantum/relay") {
+function node(number: number, state = "OPEN", repository = "miwurster/relay") {
   return { number, state, url: `https://github.com/${repository}/issues/${number}` };
 }
 
@@ -45,9 +45,9 @@ function json(value: unknown): string {
 
 describe("repository", () => {
   it("asks `gh` what this clone's repository is", async () => {
-    const { gh, calls } = fakeGh([json({ nameWithOwner: "kipu-quantum/relay" })]);
+    const { gh, calls } = fakeGh([json({ nameWithOwner: "miwurster/relay" })]);
 
-    await expect(createGitHubClient(gh).repository()).resolves.toBe("kipu-quantum/relay");
+    await expect(createGitHubClient(gh).repository()).resolves.toBe("miwurster/relay");
 
     expect(calls[0]).toEqual(["repo", "view", "--json", "nameWithOwner"]);
   });
@@ -102,8 +102,8 @@ describe("frontier", () => {
       isOpen: true,
       labels: ["ready-for-agent", "bug"],
       blockedBy: [
-        { number: 7, repository: "kipu-quantum/relay", isOpen: false },
-        { number: 8, repository: "kipu-quantum/relay", isOpen: true },
+        { number: 7, repository: "miwurster/relay", isOpen: false },
+        { number: 8, repository: "miwurster/relay", isOpen: true },
       ],
       subIssues: [
         { number: 43, isOpen: false },
@@ -127,25 +127,21 @@ describe("frontier", () => {
 
     const [issue] = await createGitHubClient(gh).frontier();
 
-    expect(issue?.blockedBy).toEqual([
-      { number: 7, repository: "kipu-quantum/relay", isOpen: false },
-    ]);
+    expect(issue?.blockedBy).toEqual([{ number: 7, repository: "miwurster/relay", isOpen: false }]);
   });
 
   it("attributes a cross-repo blocker from its url rather than dropping it", async () => {
     const { gh } = fakeGh([
       json([
         rawIssue(42, {
-          blockedBy: { nodes: [node(9, "OPEN", "kipu-quantum/qc-catalog")], totalCount: 1 },
+          blockedBy: { nodes: [node(9, "OPEN", "acme/other")], totalCount: 1 },
         }),
       ]),
     ]);
 
     const [issue] = await createGitHubClient(gh).frontier();
 
-    expect(issue?.blockedBy).toEqual([
-      { number: 9, repository: "kipu-quantum/qc-catalog", isOpen: true },
-    ]);
+    expect(issue?.blockedBy).toEqual([{ number: 9, repository: "acme/other", isOpen: true }]);
   });
 
   it("sorts sub-issues by number, since gh's order is insertion order", async () => {
@@ -316,20 +312,20 @@ describe("pullRequestRuleset", () => {
   it("names the ruleset requiring a pull request, ignoring the rules that do not", async () => {
     const { gh } = fakeGh([
       json([
-        { type: "deletion", ruleset_id: 41, ruleset_source: "octo-org" },
-        { type: "pull_request", ruleset_id: 42, ruleset_source: "octo-org/relay" },
+        { type: "deletion", ruleset_id: 41, ruleset_source: "miwurster" },
+        { type: "pull_request", ruleset_id: 42, ruleset_source: "miwurster/relay" },
       ]),
     ]);
 
     await expect(pullRequestRuleset({ branch: "main", gh })).resolves.toEqual({
       id: 42,
-      source: "octo-org/relay",
+      source: "miwurster/relay",
     });
   });
 
   it("reports no ruleset when the branch has other rules only", async () => {
     const { gh } = fakeGh([
-      json([{ type: "deletion", ruleset_id: 41, ruleset_source: "octo-org" }]),
+      json([{ type: "deletion", ruleset_id: 41, ruleset_source: "miwurster" }]),
     ]);
 
     await expect(pullRequestRuleset({ branch: "main", gh })).resolves.toBeUndefined();

@@ -104,7 +104,7 @@ function fakeGitHub() {
   const comments: { number: number; text: string }[] = [];
   const github: GitHubClient = {
     async repository() {
-      return "kipu-quantum/relay";
+      return "miwurster/relay";
     },
     async frontier() {
       return [];

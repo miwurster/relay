@@ -49,7 +49,7 @@ function handing({ stdout = "", commits = [] as { sha: string }[], withConfig = 
 const tagged = (json: string) => `Handed over.\n<${HANDOVER_TAG}>${json}</${HANDOVER_TAG}>`;
 
 const published = tagged(
-  '{"prUrl":"https://github.com/kipu/qc/pull/12","report":"#7 is agent-in-review."}',
+  '{"prUrl":"https://github.com/miwurster/relay/pull/12","report":"#7 is agent-in-review."}',
 );
 
 const success: Outcome = {

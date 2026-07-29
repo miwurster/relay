@@ -14,12 +14,12 @@ function issue(overrides: Partial<GitHubIssue> = {}): GitHubIssue {
   };
 }
 
-function blocker(overrides: Partial<GitHubIssue["blockedBy"][number]> = {}) {
-  return { number: 3, repository: "kipu/qc-catalog", isOpen: true, ...overrides };
-}
-
 /** The repository the clone under test runs against. */
-const REPOSITORY = "kipu/qc-catalog";
+const REPOSITORY = "miwurster/relay";
+
+function blocker(overrides: Partial<GitHubIssue["blockedBy"][number]> = {}) {
+  return { number: 3, repository: REPOSITORY, isOpen: true, ...overrides };
+}
 
 /** A fake standing in for the whole GitHub seam: no `gh`, no network. */
 function fakeGitHub(issues: GitHubIssue[]): GitHubClient & { frontierScans: number } {
@@ -114,7 +114,7 @@ describe("an explicitly named item", () => {
     ["an untriaged item", { labels: [] }, /not labelled ready-for-agent/],
     ["a held item", { labels: ["ready-for-agent", "agent-in-progress"] }, /is held by a pass/],
     ["a closed item", { isOpen: false }, /is closed/],
-    ["a blocked item", { blockedBy: [blocker()] }, /blocked by kipu\/qc-catalog#3/],
+    ["a blocked item", { blockedBy: [blocker()] }, /blocked by miwurster\/relay#3/],
   ])("breaks the pass on %s, naming the gate it failed", async (_name, overrides, reason) => {
     const github = fakeGitHub([issue({ number: 7, ...overrides })]);
 
@@ -122,10 +122,10 @@ describe("an explicitly named item", () => {
   });
 
   it("honours a blocker in another repository", async () => {
-    const other = blocker({ number: 4, repository: "kipu/other" });
+    const other = blocker({ number: 4, repository: "acme/other" });
     const github = fakeGitHub([issue({ number: 7, blockedBy: [other] })]);
 
-    await expect(selectWorkItem(github, { number: 7 })).rejects.toThrow(/blocked by kipu\/other#4/);
+    await expect(selectWorkItem(github, { number: 7 })).rejects.toThrow(/blocked by acme\/other#4/);
   });
 
   it("ignores a closed blocker, so a finished dependency never holds work back", async () => {
@@ -154,8 +154,8 @@ describe("an explicitly named item", () => {
   it("refuses a URL from another repository, rather than running this repo's issue", async () => {
     const github = fakeGitHub([issue({ number: 7 })]);
 
-    await expect(selectWorkItem(github, { number: 7, repository: "kipu/other" })).rejects.toThrow(
-      /kipu\/other#7 is not in kipu\/qc-catalog/,
+    await expect(selectWorkItem(github, { number: 7, repository: "acme/other" })).rejects.toThrow(
+      /acme\/other#7 is not in miwurster\/relay/,
     );
   });
 
@@ -163,7 +163,7 @@ describe("an explicitly named item", () => {
     const target = issue({ number: 7 });
 
     await expect(
-      selectWorkItem(fakeGitHub([target]), { number: 7, repository: "Kipu/QC-Catalog" }),
+      selectWorkItem(fakeGitHub([target]), { number: 7, repository: "MiWurster/Relay" }),
     ).resolves.toEqual({ kind: "work-item", issue: target });
   });
 
@@ -200,8 +200,8 @@ describe("parseWorkItem", () => {
     "0",
     "4#2",
     "42#",
-    "https://github.com/kipu/qc-catalog/pull/42",
-    "https://example.com/kipu/qc-catalog/issues/42",
+    "https://github.com/miwurster/relay/pull/42",
+    "https://example.com/miwurster/relay/issues/42",
   ])("rejects %o before any tracker call", (argument) => {
     expect(() => parseWorkItem(argument)).toThrow(SelectionError);
   });
