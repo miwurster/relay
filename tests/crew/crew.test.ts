@@ -152,7 +152,7 @@ describe("createCrew", () => {
       baseBranch,
     });
 
-    await crew.fix([{ source: "fastCodeReview", ticket: 8, summary: "src/a.ts:3 dead" }], {
+    await crew.fix([{ source: "ticketReview", ticket: 8, summary: "src/a.ts:3 dead" }], {
       kind: "ticket",
       ticket: { number: 8, summary: "the schema" },
     });
@@ -213,16 +213,16 @@ describe("createCrew", () => {
       baseBranch,
     });
 
-    const findings = await crew.review("fastCodeReview", {
+    const findings = await crew.review("ticketReview", {
       kind: "ticket",
       ticket: { number: 8, summary: "the schema" },
       base: "abc1234",
     });
 
     expect(findings).toEqual([
-      { source: "fastCodeReview", ticket: 8, summary: "src/a.ts:3 duplicated parsing" },
+      { source: "ticketReview", ticket: 8, summary: "src/a.ts:3 duplicated parsing" },
     ]);
-    expect(runs.map((run) => run.name)).toEqual(["fastCodeReview-8"]);
+    expect(runs.map((run) => run.name)).toEqual(["ticketReview-8"]);
   });
 
   it("gives its base branch to the whole-branch reviewer and to the handover", async () => {

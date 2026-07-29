@@ -179,9 +179,9 @@ describe("the implementer prompt", () => {
     expect(prompt).toContain(`<${IMPLEMENT_TAG}>`);
   });
 
-  it("mounts the skills it works under: tdd, and kipu-commit to commit itself", () => {
-    expect(prompt).toContain("kipu-all:tdd");
-    expect(prompt).toContain("kipu-all:kipu-commit");
+  it("names the skills it works under: tdd, and relay's own commit skill to commit itself", () => {
+    expect(prompt).toContain("mattpocock-skills:tdd");
+    expect(prompt).toContain("relay-skills:commit");
   });
 
   it("shows the pass's commits where it tells the leg to build on them", () => {

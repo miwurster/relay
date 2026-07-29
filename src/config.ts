@@ -42,7 +42,7 @@ export type Landing = (typeof LANDINGS)[number];
 
 /**
  * One key per distinct model choice a pass makes, which is not one per role:
- * the reviewer's four lenses each pick their own, and the fixer picks a second
+ * the reviewer's three lenses each pick their own, and the fixer picks a second
  * one for the attempt it escalates. The defaults are relay's, and a repo may
  * override any of them.
  */
@@ -52,8 +52,7 @@ const modelsSchema = z
     gateResolver: z.string().default("claude-haiku-4-5"),
     planner: z.string().default("claude-opus-4-8"),
     implementer: z.string().default("claude-sonnet-5"),
-    fastCodeReview: z.string().default("claude-opus-4-8"),
-    fastSpecReview: z.string().default("claude-opus-4-8"),
+    ticketReview: z.string().default("claude-opus-4-8"),
     inDepthCodeReview: z.string().default("claude-fable-5"),
     inDepthSpecReview: z.string().default("claude-fable-5"),
     fixer: z.string().default("claude-sonnet-5"),

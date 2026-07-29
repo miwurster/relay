@@ -13,8 +13,8 @@ import {
 import { ExitCode } from "../exit-codes.js";
 import type { GitHubIssue } from "../tracker/github.js";
 
-/** The lenses that read one ticket's change, right after it was implemented. */
-const PER_TICKET_LENSES: ReviewLens[] = ["fastCodeReview", "fastSpecReview"];
+/** The lenses one ticket's change is read by, right after it was implemented. */
+const PER_TICKET_LENSES: ReviewLens[] = ["ticketReview"];
 
 /** The lenses that read the whole branch, once, after the last ticket. */
 const WHOLE_BRANCH_LENSES: ReviewLens[] = ["inDepthCodeReview", "inDepthSpecReview"];
@@ -29,13 +29,13 @@ export const MAX_GATE_FIX_ATTEMPTS = 2;
 /**
  * Run the pass's crew over one work item and return how it ended.
  *
- * The topology is fixed: plan once, then per ticket implement → both fast
- * lenses → fix, then both in-depth lenses over the whole branch → fix, then
+ * The topology is fixed: plan once, then per ticket implement → the ticket
+ * lens → fix, then both in-depth lenses over the whole branch → fix, then
  * the gate → fixer loop, then the lander, then handover.
  * Every exit path ends at the same handover call, so no outcome can skip it.
  *
  * A multi-ticket plan is the shape that topology is for. A single-ticket plan
- * drops the fast lenses, since its one ticket is the work item and the two
+ * drops the per-ticket lens, since its one ticket is the work item and the two
  * scopes would ask the same question twice — see `perTicketLenses`.
  */
 export async function runHarness(crew: Crew, issue: GitHubIssue): Promise<Outcome> {

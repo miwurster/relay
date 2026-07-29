@@ -34,7 +34,7 @@ Seven of them always, and the **lander** as an eighth when the repo's **landing*
 _Avoid_: pipeline, team, orchestrator
 
 **Lens**:
-One of the reviewer's four configurations — fast or in-depth, code or spec.
+One of the reviewer's three configurations — one that reads both code and spec over a **ticket**, and in-depth code and in-depth spec over the whole branch.
 A lens is not a **role**; the harness passes it to the one reviewer role.
 Each lens has its own key in the model map, because each is its own model choice.
 _Avoid_: review type, review mode

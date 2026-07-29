@@ -25,8 +25,12 @@ async function configDirWith(installed: unknown): Promise<NodeJS.ProcessEnv> {
 const bothPlugins = {
   version: 2,
   plugins: {
-    "kipu-all@kipu": [{ scope: "user", installPath: "/plugins/kipu-all/2.5.0", version: "2.5.0" }],
-    "caveman@caveman": [{ scope: "user", installPath: "/plugins/caveman/abc", version: "1.0.0" }],
+    "relay-skills@relay": [
+      { scope: "user", installPath: "/plugins/relay-skills/0.1.0", version: "0.1.0" },
+    ],
+    "mattpocock-skills@claude-plugins-official": [
+      { scope: "user", installPath: "/plugins/mattpocock-skills/abc", version: "1.0.0" },
+    ],
   },
 };
 
@@ -49,14 +53,14 @@ describe("resolveSkillPlugins", () => {
     const plugins = await resolveSkillPlugins(await configDirWith(bothPlugins));
     expect(plugins).toEqual([
       {
-        name: "kipu-all",
-        hostPath: "/plugins/kipu-all/2.5.0",
-        sandboxPath: `${SANDBOX_PLUGIN_ROOT}/kipu-all`,
+        name: "relay-skills",
+        hostPath: "/plugins/relay-skills/0.1.0",
+        sandboxPath: `${SANDBOX_PLUGIN_ROOT}/relay-skills`,
       },
       {
-        name: "caveman",
-        hostPath: "/plugins/caveman/abc",
-        sandboxPath: `${SANDBOX_PLUGIN_ROOT}/caveman`,
+        name: "mattpocock-skills",
+        hostPath: "/plugins/mattpocock-skills/abc",
+        sandboxPath: `${SANDBOX_PLUGIN_ROOT}/mattpocock-skills`,
       },
     ]);
   });
@@ -67,14 +71,19 @@ describe("resolveSkillPlugins", () => {
 
   it("names every plugin that is not installed", async () => {
     const env = await configDirWith({ version: 2, plugins: {} });
-    await expect(resolveSkillPlugins(env)).rejects.toThrow(/kipu-all@kipu, caveman@caveman/);
+    await expect(resolveSkillPlugins(env)).rejects.toThrow(
+      /relay-skills@relay, mattpocock-skills@claude-plugins-official/,
+    );
   });
 
   it("rejects an installed plugin whose entry carries no install path", async () => {
     const env = await configDirWith({
       version: 2,
-      plugins: { ...bothPlugins.plugins, "caveman@caveman": [{ scope: "user" }] },
+      plugins: {
+        ...bothPlugins.plugins,
+        "mattpocock-skills@claude-plugins-official": [{ scope: "user" }],
+      },
     });
-    await expect(resolveSkillPlugins(env)).rejects.toThrow(/caveman@caveman/);
+    await expect(resolveSkillPlugins(env)).rejects.toThrow(/mattpocock-skills/);
   });
 });

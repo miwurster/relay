@@ -16,8 +16,8 @@ const ticketTarget: FixTarget = { kind: "ticket", ticket: { number: 8, summary: 
 const branchTarget: FixTarget = { kind: "branch" };
 
 const findings: Finding[] = [
-  { source: "fastCodeReview", ticket: 8, summary: "src/a.ts:3 duplicated parsing" },
-  { source: "fastSpecReview", ticket: 8, summary: "src/a.ts:3 parses twice" },
+  { source: "ticketReview", ticket: 8, summary: "src/a.ts:3 duplicated parsing" },
+  { source: "ticketReview", ticket: 8, summary: "src/a.ts:3 parses twice" },
 ];
 
 /** A sandbox whose only real behaviour is the stdout one fixer run returns. */
@@ -64,6 +64,12 @@ describe("createFixer", () => {
 
   it("tells the fixer to collapse the lenses' overlapping findings", async () => {
     expect(await readResource("fixer.md")).toContain("more than once");
+  });
+
+  it("names the skills it works under: tdd, and relay's own commit skill", async () => {
+    const prompt = await readResource("fixer.md");
+    expect(prompt).toContain("mattpocock-skills:tdd");
+    expect(prompt).toContain("relay-skills:commit");
   });
 
   it("accepts a run that judged there was nothing to fix and committed nothing", async () => {

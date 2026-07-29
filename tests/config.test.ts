@@ -54,6 +54,7 @@ describe("loadConfig", () => {
     expect(config.models.gateResolver).toBe("claude-haiku-4-5");
     expect(config.models.planner).toBe("claude-opus-4-8");
     expect(config.models.implementer).toBe("claude-sonnet-5");
+    expect(config.models.ticketReview).toBe("claude-opus-4-8");
     expect(config.models.inDepthCodeReview).toBe("claude-fable-5");
     expect(config.models.greenGate).toBe("claude-sonnet-5");
   });
@@ -104,6 +105,14 @@ describe("loadConfig", () => {
       greenGate: "make test",
     };`);
     await expect(loadConfig(root)).rejects.toThrow(ConfigError);
+  });
+
+  it("rejects a config still setting one of the collapsed per-ticket lens models", async () => {
+    const root = await repoWith(`export default {
+      landing: "merge",
+      models: { fastCodeReview: "claude-opus-4-8" },
+    };`);
+    await expect(loadConfig(root)).rejects.toThrow(/fastCodeReview/);
   });
 
   it("rejects non-secret tracker ids that belong in issue-tracker.md", async () => {

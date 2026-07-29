@@ -129,11 +129,9 @@ describe("runHarness", () => {
       "resolveGate",
       "plan",
       "implement:1",
-      "review:fastCodeReview:1",
-      "review:fastSpecReview:1",
+      "review:ticketReview:1",
       "implement:2",
-      "review:fastCodeReview:2",
-      "review:fastSpecReview:2",
+      "review:ticketReview:2",
       "review:inDepthCodeReview:branch",
       "review:inDepthSpecReview:branch",
       "gate",
@@ -158,14 +156,10 @@ describe("runHarness", () => {
     await run(crew);
 
     expect(events).toEqual([
-      "start:fastCodeReview",
-      "end:fastCodeReview",
-      "start:fastSpecReview",
-      "end:fastSpecReview",
-      "start:fastCodeReview",
-      "end:fastCodeReview",
-      "start:fastSpecReview",
-      "end:fastSpecReview",
+      "start:ticketReview",
+      "end:ticketReview",
+      "start:ticketReview",
+      "end:ticketReview",
       "start:inDepthCodeReview",
       "end:inDepthCodeReview",
       "start:inDepthSpecReview",
@@ -173,7 +167,7 @@ describe("runHarness", () => {
     ]);
   });
 
-  it("array-merges both lenses' findings into one fixer call", async () => {
+  it("array-merges the lenses of a scope into one fixer call", async () => {
     const { crew, fixed } = recordingCrew({
       ...twoTicketPlan,
       async review(lens, scope) {
@@ -184,10 +178,7 @@ describe("runHarness", () => {
 
     await run(crew);
 
-    expect(fixed[0]).toEqual([
-      finding("fastCodeReview", "same problem", 1),
-      finding("fastSpecReview", "same problem", 1),
-    ]);
+    expect(fixed[0]).toEqual([finding("ticketReview", "same problem", 1)]);
   });
 
   it("tells each fixer leg what it is fixing", async () => {

@@ -65,9 +65,9 @@ describe("createReviewer", () => {
       taggedFindings('["src/a.ts:3 duplicated parsing","src/b.ts:9 dead branch"]'),
     );
 
-    await expect(review("fastCodeReview", ticketScope)).resolves.toEqual([
-      { source: "fastCodeReview", ticket: 8, summary: "src/a.ts:3 duplicated parsing" },
-      { source: "fastCodeReview", ticket: 8, summary: "src/b.ts:9 dead branch" },
+    await expect(review("ticketReview", ticketScope)).resolves.toEqual([
+      { source: "ticketReview", ticket: 8, summary: "src/a.ts:3 duplicated parsing" },
+      { source: "ticketReview", ticket: 8, summary: "src/b.ts:9 dead branch" },
     ]);
   });
 
@@ -82,100 +82,96 @@ describe("createReviewer", () => {
   it("reads a clean review as no findings", async () => {
     const { review } = reviewing(taggedFindings("[]"));
 
-    await expect(review("fastSpecReview", ticketScope)).resolves.toEqual([]);
+    await expect(review("ticketReview", ticketScope)).resolves.toEqual([]);
   });
 
   it("refuses a run that reported no findings block", async () => {
     const { review } = reviewing("I read it all and had some thoughts.");
 
-    await expect(review("fastCodeReview", ticketScope)).rejects.toThrow(RoleError);
+    await expect(review("ticketReview", ticketScope)).rejects.toThrow(RoleError);
   });
 
   it("refuses a finding with nothing in it", async () => {
     const { review } = reviewing(taggedFindings('[""]'));
 
-    await expect(review("fastCodeReview", ticketScope)).rejects.toThrow(RoleError);
+    await expect(review("ticketReview", ticketScope)).rejects.toThrow(RoleError);
   });
 
   it("refuses a lens that committed, since every lens is read-only", async () => {
     const { review } = reviewing(taggedFindings("[]"), [{ sha: "beef" }]);
 
-    await expect(review("fastCodeReview", ticketScope)).rejects.toThrow(RoleError);
+    await expect(review("ticketReview", ticketScope)).rejects.toThrow(RoleError);
   });
 
   it("refuses a lens that edited without committing, which the next leg would inherit", async () => {
     const { review } = reviewing(taggedFindings("[]"), [], " M src/a.ts\n?? notes.md");
 
-    await expect(review("fastCodeReview", ticketScope)).rejects.toThrow(
-      /left the worktree changed/,
-    );
+    await expect(review("ticketReview", ticketScope)).rejects.toThrow(/left the worktree changed/);
   });
 
   it("writes each lens's findings to its own file for the harness to merge", async () => {
     const { review } = reviewing(taggedFindings('["src/a.ts:3 duplicated parsing"]'));
 
-    await review("fastSpecReview", ticketScope);
+    await review("ticketReview", ticketScope);
     await review("inDepthSpecReview", branchScope);
 
-    await expect(findingsFile("8-fastSpecReview.json")).resolves.toEqual([
-      { source: "fastSpecReview", ticket: 8, summary: "src/a.ts:3 duplicated parsing" },
+    await expect(findingsFile("8-ticketReview.json")).resolves.toEqual([
+      { source: "ticketReview", ticket: 8, summary: "src/a.ts:3 duplicated parsing" },
     ]);
     await expect(findingsFile("branch-inDepthSpecReview.json")).resolves.toEqual([
       { source: "inDepthSpecReview", summary: "src/a.ts:3 duplicated parsing" },
     ]);
   });
 
-  it("runs the code lenses one-shot on their own model, at their own depth", async () => {
+  it("runs the per-ticket lens one-shot on its own model, over the ticket's own diff", async () => {
     const { review, runs } = reviewing(taggedFindings("[]"));
 
-    await review("fastCodeReview", ticketScope);
-    await review("inDepthCodeReview", branchScope);
+    await review("ticketReview", ticketScope);
 
-    expect(runs).toHaveLength(2);
+    expect(runs).toHaveLength(1);
     expect(runs[0]?.maxIterations).toBe(1);
-    expect(commandOf(runs[0])).toContain(`--model '${config.models.fastCodeReview}'`);
-    expect(commandOf(runs[1])).toContain(`--model '${config.models.inDepthCodeReview}'`);
-    expect(runs[0]?.promptArgs).toEqual({
-      SCOPE: "ticket",
-      ITEM: "#8",
-      BASE: "c0ffee",
-      DEPTH: "fast",
-    });
-    expect(runs[1]?.promptArgs).toEqual({
-      SCOPE: "branch",
-      ITEM: "#7",
-      BASE: baseBranch,
-      DEPTH: "full",
-    });
-    await expectPromptParity(runs[0], "code-review.md");
-    await expectPromptParity(runs[1], "code-review.md");
-  });
-
-  it("sends the spec lenses to the tracker doc for the intent", async () => {
-    const { review, runs } = reviewing(taggedFindings("[]"));
-
-    await review("fastSpecReview", ticketScope);
-    await review("inDepthSpecReview", branchScope);
-
-    expect(commandOf(runs[0])).toContain(`--model '${config.models.fastSpecReview}'`);
-    expect(commandOf(runs[1])).toContain(`--model '${config.models.inDepthSpecReview}'`);
+    expect(commandOf(runs[0])).toContain(`--model '${config.models.ticketReview}'`);
     expect(runs[0]?.promptArgs).toEqual({
       SCOPE: "ticket",
       ITEM: "#8",
       BASE: "c0ffee",
       TRACKER_DOC: TRACKER_DOC_PATH,
     });
+    await expectPromptParity(runs[0], "ticket-review.md");
+  });
+
+  it("runs the code lens on its own model, with no depth left to pass it", async () => {
+    const { review, runs } = reviewing(taggedFindings("[]"));
+
+    await review("inDepthCodeReview", branchScope);
+
+    expect(commandOf(runs[0])).toContain(`--model '${config.models.inDepthCodeReview}'`);
+    expect(runs[0]?.promptArgs).toEqual({ SCOPE: "branch", ITEM: "#7", BASE: baseBranch });
+    await expectPromptParity(runs[0], "code-review.md");
+  });
+
+  it("sends the spec lens to the tracker doc for the intent", async () => {
+    const { review, runs } = reviewing(taggedFindings("[]"));
+
+    await review("inDepthSpecReview", branchScope);
+
+    expect(commandOf(runs[0])).toContain(`--model '${config.models.inDepthSpecReview}'`);
+    expect(runs[0]?.promptArgs).toEqual({
+      SCOPE: "branch",
+      ITEM: "#7",
+      BASE: baseBranch,
+      TRACKER_DOC: TRACKER_DOC_PATH,
+    });
     await expectPromptParity(runs[0], "spec-review.md");
-    await expectPromptParity(runs[1], "spec-review.md");
   });
 
   it("names each run for the lens and what it read, so each lens gets its own findings file", async () => {
     const { review, runs } = reviewing(taggedFindings("[]"));
 
-    await review("fastCodeReview", ticketScope);
+    await review("ticketReview", ticketScope);
     await review("inDepthCodeReview", branchScope);
 
-    expect(runs[0]?.name).toBe("fastCodeReview-8");
+    expect(runs[0]?.name).toBe("ticketReview-8");
     expect(runs[1]?.name).toBe("inDepthCodeReview-branch");
   });
 });
@@ -186,13 +182,24 @@ describe("createReviewer", () => {
  */
 describe("the lens prompts", () => {
   it("tells every lens it is read-only", async () => {
-    for (const file of ["code-review.md", "spec-review.md"]) {
+    for (const file of ["ticket-review.md", "code-review.md", "spec-review.md"]) {
       expect(await readResource(file)).toContain("read-only");
     }
   });
 
-  it("runs each lens under the review skill its depth belongs to", async () => {
-    expect(await readResource("code-review.md")).toContain("kipu-all:kipu-code-review");
-    expect(await readResource("spec-review.md")).toContain("kipu-all:kipu-spec-review");
+  it("runs each lens that has a skill under the skill that is mounted for it", async () => {
+    expect(await readResource("ticket-review.md")).toContain("mattpocock-skills:code-review");
+    expect(await readResource("code-review.md")).toContain("relay-skills:code-quality-review");
+  });
+
+  it("has the per-ticket lens translate the skill's report into relay's findings", async () => {
+    const prompt = await readResource("ticket-review.md");
+    expect(prompt).toContain("## Standards");
+    expect(prompt).toContain("`<relay-findings>`");
+  });
+
+  it("leaves the spec lens naming no skill, since none provides that axis alone", async () => {
+    // Any skill a prompt invokes is named plugin-qualified, as the two that do.
+    expect(await readResource("spec-review.md")).not.toMatch(/`[\w-]+:[\w-]+`/);
   });
 });

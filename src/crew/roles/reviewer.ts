@@ -7,6 +7,7 @@ import { TRACKER_DOC_PATH } from "../../tracker/tracker-doc.js";
 /** The block every review lens ends its run with. */
 export const FINDINGS_TAG = "relay-findings";
 
+const TICKET_REVIEW_PROMPT = "ticket-review.md";
 const CODE_REVIEW_PROMPT = "code-review.md";
 const SPEC_REVIEW_PROMPT = "spec-review.md";
 
@@ -18,14 +19,13 @@ const SPEC_REVIEW_PROMPT = "spec-review.md";
 const findingsSchema = z.array(z.string().min(1));
 
 /**
- * The four lenses: which prompt each runs, and the arguments only that prompt
- * takes. The code lenses differ in the depth their skill runs at; the spec
- * lenses need the tracker doc, because their intent comes from the tracker.
+ * The three lenses: which prompt each runs, and the arguments only that prompt
+ * takes. Every lens that measures a change against what was asked needs the
+ * tracker doc, because that intent comes from the tracker.
  */
 const LENSES: Record<ReviewLens, { prompt: string; args: Record<string, string> }> = {
-  fastCodeReview: { prompt: CODE_REVIEW_PROMPT, args: { DEPTH: "fast" } },
-  inDepthCodeReview: { prompt: CODE_REVIEW_PROMPT, args: { DEPTH: "full" } },
-  fastSpecReview: { prompt: SPEC_REVIEW_PROMPT, args: { TRACKER_DOC: TRACKER_DOC_PATH } },
+  ticketReview: { prompt: TICKET_REVIEW_PROMPT, args: { TRACKER_DOC: TRACKER_DOC_PATH } },
+  inDepthCodeReview: { prompt: CODE_REVIEW_PROMPT, args: {} },
   inDepthSpecReview: { prompt: SPEC_REVIEW_PROMPT, args: { TRACKER_DOC: TRACKER_DOC_PATH } },
 };
 
@@ -46,7 +46,7 @@ interface ReviewTarget {
  * model, reporting the findings the fixer will act on.
  *
  * Ordering is the harness's — it runs a scope's lenses and merges what they
- * return — so a lens here knows nothing about the other three.
+ * return — so a lens here knows nothing about the other two.
  */
 export function createReviewer({
   baseBranch,

@@ -24,7 +24,11 @@ const secrets: Secrets = {
 };
 
 const plugins = [
-  { name: "kipu-all", hostPath: "/host/kipu-all", sandboxPath: "/opt/relay/plugins/kipu-all" },
+  {
+    name: "relay-skills",
+    hostPath: "/host/relay-skills",
+    sandboxPath: "/opt/relay/plugins/relay-skills",
+  },
 ];
 
 const config = relayConfigSchema.parse({ landing: "pull-request" });
@@ -33,7 +37,11 @@ describe("sandboxMounts", () => {
   it("mounts the docker socket and each plugin read-only, and nothing else", () => {
     expect(sandboxMounts({ plugins })).toEqual([
       { hostPath: DOCKER_SOCKET_PATH, sandboxPath: DOCKER_SOCKET_PATH },
-      { hostPath: "/host/kipu-all", sandboxPath: "/opt/relay/plugins/kipu-all", readonly: true },
+      {
+        hostPath: "/host/relay-skills",
+        sandboxPath: "/opt/relay/plugins/relay-skills",
+        readonly: true,
+      },
     ]);
   });
 });

@@ -18,9 +18,11 @@ export type ImplementResult =
   /** `base` is the commit the branch was at before the ticket was implemented. */
   { kind: "done"; base: string } | { kind: "needs-input"; reason: string };
 
-/** The four review lenses, named as the per-role model map names them. */
-export type ReviewLens =
-  "fastCodeReview" | "fastSpecReview" | "inDepthCodeReview" | "inDepthSpecReview";
+/**
+ * The three review lenses, named as the per-role model map names them: one
+ * two-axis lens over a ticket, and code and spec over the whole branch.
+ */
+export type ReviewLens = "ticketReview" | "inDepthCodeReview" | "inDepthSpecReview";
 
 /** Whatever produced a finding the fixer has to act on. */
 export type FindingSource = ReviewLens | "greenGate";
