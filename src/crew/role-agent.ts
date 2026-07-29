@@ -21,9 +21,22 @@ export function roleAgent(model: string): AgentProvider {
   };
 }
 
+/**
+ * The settings every role runs under: Claude's bundled skills off, so the
+ * mounted plugin is the only place a role's skills come from and a leg cannot
+ * reach for one the operator never installed.
+ *
+ * Passed as JSON rather than a file for the same reason the skills are mounted
+ * — it belongs to the session, not to the image or the home directory.
+ */
+const ROLE_SETTINGS = { disableBundledSkills: true };
+
 /** The flags every role's `claude` invocation carries. */
 function roleFlags(): string {
-  return SANDBOX_PLUGIN_DIRS.map((dir) => `--plugin-dir ${dir}`).join(" ");
+  return [
+    ...SANDBOX_PLUGIN_DIRS.map((dir) => `--plugin-dir ${dir}`),
+    `--settings '${JSON.stringify(ROLE_SETTINGS)}'`,
+  ].join(" ");
 }
 
 /**

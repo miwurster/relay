@@ -14,6 +14,10 @@ describe("roleAgent", () => {
     expect(command).toContain(`--plugin-dir ${SANDBOX_PLUGIN_ROOT}/mattpocock-skills`);
   });
 
+  it("turns off the bundled skills, so the mounted plugin is the role's only source", () => {
+    expect(printCommand().command).toContain(`--settings '{"disableBundledSkills":true}'`);
+  });
+
   it("wires no MCP server, since the tracker is reached with `gh`", () => {
     expect(printCommand().command).not.toContain("--mcp-config");
   });
