@@ -11,7 +11,7 @@ It runs against a GitHub repo whose issues live in that same repo, and speaks Gi
 
 ## Quickstart
 
-You need Node 20+, Docker, an authenticated `gh`, a repo-scoped `GH_TOKEN`, and a Claude credential (`CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`).
+You need Node 20+, Docker, an authenticated `gh`, a repo-scoped `GH_TOKEN`, a Claude credential (`CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`), and two Claude plugins installed on your host — `relay-skills@relay` and `mattpocock-skills@claude-plugins-official` — whose skills a pass mounts into its sandbox.
 Secrets live in your environment or in `.relay/.env`, which `init` gives you a template for and git never sees.
 
 ```sh

@@ -5,7 +5,7 @@
 
 ## Context and Problem Statement
 
-Every **role** runs skills — `tdd`, `kipu-commit`, the review skills.
+Every **role** runs skills — `tdd`, `relay-skills:commit`, the review skills.
 Those skills live in Claude plugins the operator has installed on their own machine.
 The **sandbox** has to get them from somewhere.
 
@@ -44,8 +44,8 @@ The host's `installed_plugins.json` is read to find each plugin's install path, 
 
 ### Confirmation
 
-`src/skills.ts` resolves every required plugin up front and fails with one error naming all the missing ones.
-`relay doctor` surfaces the same failure before a pass is attempted.
+`src/sandbox/skills.ts` resolves every required plugin up front and fails with one error naming all the missing ones.
+`relay doctor`'s `skill plugins` check runs that same resolution, so a missing plugin surfaces before a pass is attempted, and an installed one is reported with the version a pass would mount.
 
 ## Pros and Cons of the Options
 
@@ -66,4 +66,5 @@ The host's `installed_plugins.json` is read to find each plugin's install path, 
 ## More Information
 
 - Provenance: `.scratch/relay-build/research/spike-02-plugin-skills/FINDINGS.md`, 2026-07-24.
+- Related: [ADR-0019](0019-relays-own-skills-ship-as-an-installed-plugin.md), which ships relay's own skills as one of these host-installed plugins.
 - Domain language: [`CONTEXT.md`](../../CONTEXT.md)
