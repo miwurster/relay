@@ -104,10 +104,14 @@ export async function verifyPrebuiltImage({
   }
 }
 
-function hostUid(): number {
+/**
+ * Who the sandbox runs as: the host's own ids, so files a leg writes into the
+ * bind-mounted worktree belong to the operator rather than to root.
+ */
+export function hostUid(): number {
   return process.getuid?.() ?? 1000;
 }
 
-function hostGid(): number {
+export function hostGid(): number {
   return process.getgid?.() ?? 1000;
 }

@@ -101,6 +101,16 @@ describe("sandboxOptions", () => {
     ]);
   });
 
+  it("claims the repo root docker fabricated for the `.git` mount, non-recursively", () => {
+    const options = optionsFor("main");
+    expect(options.hooks?.sandbox?.onSandboxReady).toEqual([
+      {
+        command: `chown ${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000} /repo`,
+        sudo: true,
+      },
+    ]);
+  });
+
   it("runs the resolved image with the socket group, mounts and env", () => {
     optionsFor("main");
     expect(dockerSandbox).toHaveBeenCalledWith({

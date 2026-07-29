@@ -3,13 +3,14 @@ import { promisify } from "node:util";
 import { createSandbox, type CreateSandboxOptions, type Sandbox } from "@ai-hero/sandcastle";
 import { docker as dockerSandbox } from "@ai-hero/sandcastle/sandboxes/docker";
 import type { RelayConfig } from "../config.js";
+import { SandboxError } from "../errors.js";
 import {
   assertGhInSandbox,
   detectDockerSocketGid,
   DOCKER_SOCKET_PATH,
   resolveTestcontainersHost,
 } from "./docker-host.js";
-import { resolveSandboxImage } from "./sandbox-image.js";
+import { hostGid, hostUid, resolveSandboxImage } from "./sandbox-image.js";
 import type { Secrets } from "../host/secrets.js";
 import { resolveSkillPlugins, type SkillPlugin } from "./skills.js";
 
@@ -18,6 +19,29 @@ import { resolveSkillPlugins, type SkillPlugin } from "./skills.js";
  * keeps generated resources in one fails to build without them.
  */
 const SUBMODULE_INIT = "git submodule update --init --recursive";
+
+/**
+ * Hand the repo root inside the sandbox to the sandbox user.
+ *
+ * A linked worktree's `.git` is a file pointing at an absolute host path, so
+ * the host `.git` is mounted at that same path ([ADR-0010](../../docs/adr/0010-the-sandbox-shares-the-hosts-worktree-and-git-directory.md)) —
+ * and docker fabricates the directories above a mount target that the image
+ * does not have, owned by root. The repo root is one of them: nothing mounts
+ * it, relay's mount merely caused it to exist.
+ *
+ * Tools that resolve state against the main worktree rather than the local one
+ * then write into a root-owned directory as a non-root user and fail. nx puts
+ * its shared workspace-data there, which is what this fixes; the next tool to
+ * do the same thing gets it for free.
+ *
+ * Not recursive: the `.git` and worktree mounts underneath are real host files,
+ * and rewriting their ownership would reach out of the sandbox onto the
+ * operator's disk. Only the fabricated directory itself changes hands, so what
+ * a tool writes there lives and dies with the container.
+ */
+function claimRepoRoot(repoRoot: string): string {
+  return `chown ${hostUid()}:${hostGid()} ${repoRoot}`;
+}
 
 const execFileAsync = promisify(execFile);
 
@@ -148,7 +172,10 @@ export function sandboxOptions({
     cwd: repoRoot,
     branch,
     baseBranch,
-    hooks: { host: { onWorktreeReady: [{ command: SUBMODULE_INIT }] } },
+    hooks: {
+      host: { onWorktreeReady: [{ command: SUBMODULE_INIT }] },
+      sandbox: { onSandboxReady: [{ command: claimRepoRoot(repoRoot), sudo: true }] },
+    },
     sandbox: dockerSandbox({
       imageName: host.image,
       groups: [host.socketGid],
@@ -188,7 +215,7 @@ export async function openSandbox({
   await assertGhInSandbox({ image });
   const socketGid = await detectDockerSocketGid({ image });
 
-  return await createSandbox(
+  const sandbox = await createSandbox(
     sandboxOptions({
       repoRoot,
       secrets,
@@ -196,5 +223,38 @@ export async function openSandbox({
       baseBranch,
       host: { image, socketGid, testcontainersHost, plugins },
     }),
+  );
+
+  await assertRepoRootWritable({ sandbox, repoRoot });
+  return sandbox;
+}
+
+/**
+ * Prove the repo root inside the sandbox took the ownership `claimRepoRoot`
+ * asked for, before any leg runs.
+ *
+ * The hook runs `chown` under the image's own `sudo`, which relay's recipes
+ * grant and a repo's hand-written Dockerfile may not. A silent failure here
+ * costs a whole pass: the green gate crashes on a permission error with nothing
+ * to do with the branch, which is how it presents and not what it is.
+ */
+async function assertRepoRootWritable({
+  sandbox,
+  repoRoot,
+}: {
+  sandbox: Sandbox;
+  repoRoot: string;
+}): Promise<void> {
+  const { exitCode } = await sandbox.exec(`test -w ${repoRoot}`);
+  if (exitCode === 0) return;
+
+  await sandbox.close();
+  throw new SandboxError(
+    `The repo root ${repoRoot} is not writable inside the sandbox. docker fabricates ` +
+      "it to hang the host `.git` mount inside, owned by root, and relay's " +
+      "`chown` hook did not take — most likely the sandbox image has no working " +
+      "`sudo` for its own user. Tools that keep state in the main worktree (nx " +
+      "puts its shared workspace-data there) fail on it, and the green gate is " +
+      "where you would find out.",
   );
 }
