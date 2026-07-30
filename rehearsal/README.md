@@ -31,6 +31,17 @@ Take the work item number off the seed's last line every time.
 GitHub never reuses an issue number, so a fixed scenario means fixed *content*, and nothing in the rig hardcodes a number.
 
 Both credentials have to be in the shell that runs relay: `rehearse` injects them, a hand-run does not.
+Export this repo's own once per shell, before the `main.js` line:
+
+```sh
+set -a && source /path/to/relay/.relay/.env && set +a
+```
+
+`set -a` exports everything the file assigns, so the pass inherits it; `set +a` keeps that from applying to whatever you type next.
+The file is `KEY=value` with `#` comments and blank lines skipped, which is what `source` and relay's own loader both read.
+
+Only the hand-run pass needs this.
+`seed` and `digest` run from this repo and read `.relay/.env` themselves.
 
 ## Credentials
 
