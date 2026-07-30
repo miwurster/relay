@@ -173,6 +173,12 @@ export function sandboxOptions({
  * Open the pass's sandbox: resolve the image prebuilt-ref-first, prove it can
  * talk to the tracker, detect what only the host can tell us (socket group,
  * Testcontainers host), mount the installed skills, and create the worktree.
+ *
+ * A caller holding an image already resolved hands it in, so doctor's gate
+ * probe runs the very image doctor proved rather than building a second one.
+ * Optional rather than required: resolution runs concurrently with host
+ * detection here, and a required argument would serialise it on a pass's own
+ * path, which has no image in hand.
  */
 export async function openSandbox({
   repoRoot,
@@ -180,19 +186,21 @@ export async function openSandbox({
   secrets,
   branch,
   baseBranch,
+  image: resolved,
 }: {
   repoRoot: string;
   config: RelayConfig;
   secrets: Secrets;
   branch: string;
   baseBranch: string;
+  image?: string;
 }): Promise<Sandbox> {
   // Operator setup first: a plugin the host has not installed must not cost a
   // whole image build before it is reported.
   const plugins = await resolveSkillPlugins();
 
   const [image, testcontainersHost] = await Promise.all([
-    resolveSandboxImage({ repoRoot, config }),
+    resolved ?? resolveSandboxImage({ repoRoot, config }),
     resolveTestcontainersHost(),
   ]);
   // Before the first leg: a tracker-less image must not cost a whole pass.

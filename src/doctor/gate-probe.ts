@@ -11,15 +11,17 @@ import type { Secrets } from "../host/secrets.js";
  * Resolves the gate a pass would verify with, without being a pass. Injectable
  * so no doctor test opens a sandbox or spends a session.
  *
- * The base branch comes in rather than being read here: doctor resolves this
- * host's checkout once per run, and a `HEAD` no pass could run on is one
- * problem, not one per check that needed a branch.
+ * The base branch and the image come in rather than being resolved here:
+ * doctor resolves this host's checkout and proves this repo's image once per
+ * run, and a `HEAD` no pass could run on — or an image that had to be built —
+ * is one problem, not one per check that needed it.
  */
 export type GateProbe = (input: {
   repoRoot: string;
   config: RelayConfig;
   secrets: Secrets;
   baseBranch: string;
+  image: string;
 }) => Promise<ResolvedGate>;
 
 /**
@@ -42,6 +44,7 @@ export async function probeGate({
   config,
   secrets,
   baseBranch,
+  image,
   open = openSandbox,
   git = runGit,
 }: Parameters<GateProbe>[0] & {
@@ -51,7 +54,7 @@ export async function probeGate({
   const branch = probeBranch(config);
   let sandbox: Sandbox | undefined;
   try {
-    sandbox = await open({ repoRoot, config, secrets, branch, baseBranch });
+    sandbox = await open({ repoRoot, config, secrets, branch, baseBranch, image });
     return await createGateResolver({
       sandbox,
       config,

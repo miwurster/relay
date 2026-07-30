@@ -72,13 +72,30 @@ function probing(
 ) {
   const { sandbox, state } = fakeSandbox(stdout, onClose);
   const { git, calls } = fakeGit(onDelete);
-  const opens: { branch: string; baseBranch: string }[] = [];
-  const open = async ({ branch, baseBranch }: { branch: string; baseBranch: string }) => {
-    opens.push({ branch, baseBranch });
+  const opens: { branch: string; baseBranch: string; image?: string }[] = [];
+  const open = async ({
+    branch,
+    baseBranch,
+    image,
+  }: {
+    branch: string;
+    baseBranch: string;
+    image?: string;
+  }) => {
+    opens.push({ branch, baseBranch, image });
     return sandbox;
   };
   return {
-    run: () => probeGate({ repoRoot, config, secrets, baseBranch: "main", open, git }),
+    run: () =>
+      probeGate({
+        repoRoot,
+        config,
+        secrets,
+        baseBranch: "main",
+        image: "relay-sandbox:probe",
+        open,
+        git,
+      }),
     state,
     opens,
     gitCalls: calls,
@@ -125,6 +142,14 @@ describe("probeGate", () => {
     expect(gitCalls.flat()).not.toContain("symbolic-ref");
   });
 
+  it("opens its sandbox with the image it was handed, resolving none of its own", async () => {
+    const { run, opens } = probing(declaredGate);
+
+    await run();
+
+    expect(opens[0]?.image).toBe("relay-sandbox:probe");
+  });
+
   it("disposes of its sandbox and deletes its branch, so doctor can run twice", async () => {
     const { run, state, opens, gitCalls } = probing(declaredGate);
 
@@ -169,7 +194,15 @@ describe("probeGate", () => {
     };
 
     await expect(
-      probeGate({ repoRoot, config, secrets, baseBranch: "main", open, git }),
+      probeGate({
+        repoRoot,
+        config,
+        secrets,
+        baseBranch: "main",
+        image: "relay-sandbox:probe",
+        open,
+        git,
+      }),
     ).rejects.toThrow("docker daemon is not reachable");
 
     expect(deletes(calls)).toEqual([]);

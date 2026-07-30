@@ -15,6 +15,7 @@ import type { GateProbe } from "../../src/doctor/gate-probe.js";
 import { PASS_LABELS, TRIAGE_LABELS } from "../../src/tracker/labels.js";
 import { TRACKER_DOC_PATH } from "../../src/tracker/tracker-doc.js";
 import { SKILL_PLUGINS } from "../../src/sandbox/skills.js";
+import { sandboxImageName } from "../../src/sandbox/sandbox-image.js";
 
 const validConfig = `export default {
   landing: "pull-request",
@@ -217,9 +218,9 @@ const missingGh = async () => {
  * test opens a sandbox or spends a session: the probe is the whole seam.
  */
 function fakeProbe(gate: ResolvedGate) {
-  const calls: { repoRoot: string; baseBranch: string }[] = [];
-  const probe: GateProbe = async ({ repoRoot, baseBranch }) => {
-    calls.push({ repoRoot, baseBranch });
+  const calls: { repoRoot: string; baseBranch: string; image: string }[] = [];
+  const probe: GateProbe = async ({ repoRoot, baseBranch, image }) => {
+    calls.push({ repoRoot, baseBranch, image });
     return gate;
   };
   return { probe, calls };
@@ -623,6 +624,50 @@ describe("runDoctorChecks", () => {
     expect(calls[0]?.[0]).toBe("build");
   });
 
+  it("builds a recipe repo's image once, and hands that image to the gate probe", async () => {
+    const root = await repoWith(`export default { landing: "pull-request" };`);
+    await mkdir(join(root, RELAY_DIR), { recursive: true });
+    await writeFile(join(root, DEFAULT_DOCKERFILE_PATH), "FROM scratch\n", "utf8");
+    const { docker, calls } = healthyDocker();
+    const { probe, calls: probed } = fakeProbe({
+      command: "npm run verify",
+      provenance: "declared",
+      source: "AGENTS.md",
+    });
+
+    const checks = await runDoctorChecks({
+      repoRoot: root,
+      env: envWithSecrets(),
+      git: ignoringGit,
+      docker,
+      gh: healthyGh().gh,
+      probe,
+    });
+
+    expect(calls.filter((call) => call[0] === "build")).toHaveLength(1);
+    expect(probed[0]?.image).toBe(sandboxImageName(root));
+    expect(check(checks, "sandbox image").detail).toContain(sandboxImageName(root));
+  });
+
+  it("hands the gate probe the prebuilt ref it proved, rather than the config's", async () => {
+    const { probe, calls } = fakeProbe({
+      command: "npm run verify",
+      provenance: "declared",
+      source: "AGENTS.md",
+    });
+
+    await runDoctorChecks({
+      repoRoot: await repoWith(validConfig),
+      env: envWithSecrets(),
+      git: ignoringGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe,
+    });
+
+    expect(calls[0]?.image).toBe("registry.example.com/relay:1");
+  });
+
   it("names the host's gh version and the account it is logged in as", async () => {
     const checks = await runDoctorChecks({
       repoRoot: await repoWith(validConfig),
@@ -863,7 +908,9 @@ describe("runDoctorChecks", () => {
       probe,
     });
 
-    expect(calls).toEqual([{ repoRoot, baseBranch: "main" }]);
+    expect(calls).toEqual([
+      { repoRoot, baseBranch: "main", image: "registry.example.com/relay:1" },
+    ]);
   });
 
   it("reports a probe that failed without stopping the checks after it", async () => {
@@ -1010,7 +1057,9 @@ describe("runDoctorChecks", () => {
       probe,
     });
 
-    expect(calls).toEqual([{ repoRoot, baseBranch: "main" }]);
+    expect(calls).toEqual([
+      { repoRoot, baseBranch: "main", image: "registry.example.com/relay:1" },
+    ]);
     expect(gitCalls.filter((call) => call.includes("symbolic-ref"))).toHaveLength(1);
   });
 

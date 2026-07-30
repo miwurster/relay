@@ -241,7 +241,7 @@ export async function runDoctorChecks({
     await record(
       ledger,
       "gate",
-      () => probe({ repoRoot, config, secrets, baseBranch }),
+      () => probe({ repoRoot, config, secrets, baseBranch, image: image.ref }),
       gateDetail,
       (gate) => (gate.provenance === "declared" ? "ok" : "warning"),
     );
