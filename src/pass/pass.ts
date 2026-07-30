@@ -7,8 +7,8 @@ import { ExitCode } from "../exit-codes.js";
 import { passRecordDir } from "../crew/leg-record.js";
 import { createGitHubClient, type GitHubClient, type GitHubIssue } from "../tracker/github.js";
 import { exitCodeFor, runHarness } from "./harness.js";
-import { branchExists, openSandbox, passBranch, worktreeForBranch } from "../sandbox/sandbox.js";
-import { currentBranch, runGit, type GitRunner } from "../host/git.js";
+import { openSandbox, passBranch, worktreeForBranch } from "../sandbox/sandbox.js";
+import { branchExists, currentBranch, runGit, type GitRunner } from "../host/git.js";
 import { whyLandingRefusesWorktree } from "../host/dirty-worktree.js";
 import { loadSecrets, type Secrets } from "../host/secrets.js";
 import { requireTrackerDoc } from "../tracker/tracker-doc.js";
@@ -90,7 +90,7 @@ export async function runPassOnItem({
   const branch = passBranch(config, issue.number);
   const baseBranch = await currentBranch({ repoRoot, git });
   await refuseDirtyWorktree({ repoRoot, config, baseBranch, git });
-  await refuseOnBranchCollision(repoRoot, branch);
+  await refuseOnBranchCollision({ repoRoot, branch, git });
 
   let opened: Sandbox | undefined;
   try {
@@ -135,8 +135,16 @@ async function refuseDirtyWorktree({
   if (reason) throw new ConfigError(reason);
 }
 
-async function refuseOnBranchCollision(repoRoot: string, branch: string): Promise<void> {
-  if (!(await branchExists(repoRoot, branch))) return;
+async function refuseOnBranchCollision({
+  repoRoot,
+  branch,
+  git,
+}: {
+  repoRoot: string;
+  branch: string;
+  git: GitRunner;
+}): Promise<void> {
+  if (!(await branchExists({ repoRoot, branch, git }))) return;
 
   throw new SandboxError(
     `Branch ${branch} already exists. relay never reuses or deletes a branch — ` +

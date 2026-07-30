@@ -59,6 +59,28 @@ export async function originUrl({
 }
 
 /**
+ * Whether `branch` is already there. A pass never reuses, resets or deletes
+ * one: an existing branch may carry someone else's commits, and losing those is
+ * worse than refusing to run.
+ */
+export async function branchExists({
+  repoRoot,
+  branch,
+  git = runGit,
+}: {
+  repoRoot: string;
+  branch: string;
+  git?: GitRunner;
+}): Promise<boolean> {
+  try {
+    await git(["-C", repoRoot, "show-ref", "--verify", "--quiet", `refs/heads/${branch}`]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Whether the host still has `branch` checked out.
  *
  * A detached HEAD counts as no: what matters is that the branch relay is about

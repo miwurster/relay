@@ -2,7 +2,7 @@ import type { Sandbox } from "@ai-hero/sandcastle";
 import type { RelayConfig } from "../config.js";
 import type { ResolvedGate } from "../crew/contract.js";
 import { createGateResolver } from "../crew/roles/gate-resolver.js";
-import { type GitRunner, runGit } from "../host/git.js";
+import { branchExists, type GitRunner, runGit } from "../host/git.js";
 import { doctorRecordDir } from "../crew/leg-record.js";
 import { openSandbox } from "../sandbox/sandbox.js";
 import type { Secrets } from "../host/secrets.js";
@@ -108,11 +108,7 @@ async function deleteBranch({
   branch: string;
   git: GitRunner;
 }): Promise<void> {
-  try {
-    await git(["-C", repoRoot, "show-ref", "--verify", "--quiet", `refs/heads/${branch}`]);
-  } catch {
-    return;
-  }
+  if (!(await branchExists({ repoRoot, branch, git }))) return;
 
   try {
     await git(["-C", repoRoot, "branch", "-D", branch]);

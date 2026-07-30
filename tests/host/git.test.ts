@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  branchExists,
   currentBranch,
   isCheckedOut,
   isGitHubRemote,
@@ -63,6 +64,20 @@ describe("originUrl", () => {
       "-C /repo remote get-url origin": new Error("No such remote 'origin'"),
     });
     expect(await originUrl({ repoRoot: "/repo", git })).toBeUndefined();
+  });
+});
+
+describe("branchExists", () => {
+  it("is true when the ref resolves", async () => {
+    const { git } = fakeGit({ "-C /repo show-ref --verify --quiet refs/heads/agent/1": "" });
+    expect(await branchExists({ repoRoot: "/repo", branch: "agent/1", git })).toBe(true);
+  });
+
+  it("is false when there is no such ref", async () => {
+    const { git } = fakeGit({
+      "-C /repo show-ref --verify --quiet refs/heads/agent/1": new Error("no such ref"),
+    });
+    expect(await branchExists({ repoRoot: "/repo", branch: "agent/1", git })).toBe(false);
   });
 });
 

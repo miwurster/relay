@@ -100,22 +100,6 @@ export function passBranch(config: RelayConfig, workItem: number): string {
 }
 
 /**
- * Whether the pass's branch is already there. A pass never reuses, resets or
- * deletes one: an existing branch may carry someone else's commits, and losing
- * those is worse than refusing to run.
- */
-export async function branchExists(repoRoot: string, branch: string): Promise<boolean> {
-  try {
-    await execFileAsync("git", ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`], {
-      cwd: repoRoot,
-    });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
  * Where a worktree of `branch` is checked out, or `undefined` when none is.
  *
  * A hard-killed pass leaves both its worktree and git's record of it, so
