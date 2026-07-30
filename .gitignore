@@ -4,6 +4,10 @@
 # fixture repos under `fixtures/` commit a `.relay` of their own.
 /.relay
 
+# One digest per rehearsal. A record of a session is not a repo artefact, and a
+# committed one would leave the worktree dirty, which a `merge` landing refuses.
+/rehearsal/runs
+
 # Created by https://www.toptal.com/developers/gitignore/api/linux,macos,windows,jetbrains+all,visualstudiocode,node
 # Edit at https://www.toptal.com/developers/gitignore?templates=linux,macos,windows,jetbrains+all,visualstudiocode,node
 

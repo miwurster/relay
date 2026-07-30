@@ -31,10 +31,25 @@ Credentials are read out of relay's own environment or `.relay/.env`, so a rehea
 - **`GH_TOKEN`** — a classic token with `repo` scope, or a fine-grained token with Administration, Contents and Issues write on the rehearsal repo. It has to create the repo when it is absent, push genesis, create labels, and **delete issues**, which GitHub allows only a repository admin to do.
 - **A Claude credential** — `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`. The seed asks for it too, though it does not use it: a seed that succeeded only for the rehearsal to die on a missing token afterwards is the worse failure.
 
-## Running one, by hand
+## Running one
 
-One command that does all of this end to end is [#31](https://github.com/miwurster/relay/issues/31).
-Until then the three steps are separately invokable, which is also how you drive relay with an ad-hoc flag and still get a digest afterwards.
+```sh
+npm run rehearse -- happy-path
+```
+
+From any state — repo absent, half-seeded, or left behind by a crashed pass — that builds relay, seeds the scenario, runs a pass in the clone with relay's output streaming to your terminal, and on exit prints the digest and files it under `rehearsal/runs/`, named by scenario and start time.
+
+Those run files are gitignored, so a rehearsal leaves relay's own worktree clean.
+Change a prompt, rehearse again, diff the two files.
+
+The digest's heading carries the scenario, the work item, the start time and **relay's exit code**, so a landed rehearsal and a blocked one are still distinguishable in a file read a week later.
+
+The command itself exits 0 whenever a rehearsal finished, whatever relay made of the work: a blocked pass is an ordinary outcome, not a failure of the rig.
+A non-zero exit is the rig failing — a build that broke, a missing credential, a seed that was refused.
+
+## Running one step at a time
+
+The three steps stay separately invokable, which is how you drive relay with an ad-hoc flag, poke the clone mid-flight, and still get a digest afterwards.
 
 ### 1. Seed
 
