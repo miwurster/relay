@@ -29,6 +29,7 @@
     "lint:format": "prettier --check .",
     "format": "prettier --write .",
     "lint": "npm run typecheck && npm run lint:code && npm run lint:format",
+    "seed": "node --import jiti/register rehearsal/seed-cli.ts",
     "digest": "node --import jiti/register rehearsal/digest-cli.ts",
     "test": "vitest run",
     "test:sandbox": "vitest run --config vitest.sandbox.config.ts",
