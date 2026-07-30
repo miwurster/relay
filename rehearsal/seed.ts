@@ -11,7 +11,9 @@ import { runInitChecks } from "../src/init/init.js";
 import { resourcePath } from "../src/resources.js";
 import { worktreeForBranch } from "../src/sandbox/sandbox.js";
 import type { GhRunner } from "../src/tracker/github.js";
+import { READY_LABEL } from "../src/tracker/labels.js";
 import { BASE_BRANCH, CLONE_DIR, guardRehearsalOrigin, REHEARSAL_REPO } from "./rehearsal-repo.js";
+import { resolveScenario, type Scenario, type TicketId } from "./scenarios.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -48,16 +50,43 @@ const TOKEN_NEEDS =
   "or in relay's own `.relay/.env`.";
 
 /**
- * Take the rehearsal repo from any state — absent, half-seeded, or left behind
- * by a crashed pass — to a clone sitting on the genesis commit.
+ * What a token that cannot delete an issue is missing.
  *
- * Destructive by design: it force-pushes the fixture over the repo's history.
- * The whole protection is the slug guard, which runs before anything in the
- * clone is touched. No issues are created here; the scenario's work item and
- * tickets are the next step's, and `scenario` is carried through so that step is
- * a new file rather than a new signature.
+ * Its own sentence rather than a line in `TOKEN_NEEDS`, because deleting an
+ * issue is the one thing the seed does that no ordinary write permission grants:
+ * GitHub asks for admin on the repo, and `gh` reports the refusal as an HTTP
+ * status that names nothing.
  */
-export async function seedRehearsalRepo(scenario: string): Promise<void> {
+const ISSUE_DELETE_NEEDS =
+  `A scenario is seeded by deleting every issue in ${REHEARSAL_REPO} and creating the set ` +
+  "fresh, and GitHub allows only a repository admin to delete an issue: a classic token with " +
+  "`repo` scope on a repo you own, or a fine-grained token with Administration and Issues " +
+  "write on it.";
+
+/** How many issues one delete pass reads. `gh` defaults to 30. */
+const ISSUE_PAGE = 100;
+
+/** The issue numbers one seed created, which is the only way anything learns them. */
+export interface SeededScenario {
+  workItem: number;
+  /** In the scenario's own order. */
+  tickets: number[];
+}
+
+/**
+ * Take the rehearsal repo from any state — absent, half-seeded, or left behind
+ * by a crashed pass — to a clone sitting on the genesis commit, with the
+ * scenario's work item and tickets waiting on it.
+ *
+ * Destructive by design: it force-pushes the fixture over the repo's history and
+ * deletes every issue the repo had. The whole protection is the slug guard,
+ * which runs before anything in the clone is touched.
+ */
+export async function seedRehearsalRepo(scenario: string): Promise<SeededScenario> {
+  // First, because everything after it destroys something: a mistyped scenario
+  // name must cost nothing.
+  const resolved = resolveScenario(scenario);
+
   // Resolved the way a pass resolves them, out of relay's own environment and
   // `.relay/.env`, so a rehearsal needs no second copy of a secret on disk. It
   // asks for the Claude credential too, which the seed does not use: a seed that
@@ -83,6 +112,219 @@ export async function seedRehearsalRepo(scenario: string): Promise<void> {
   await ensureLabelVocabulary({ gh: ghInClone, git });
 
   step(`${scenario}: ${CLONE_DIR} is on ${BASE_BRANCH} at genesis`);
+  return await seedScenarioIssues({ gh: ghOnHost, scenario: resolved });
+}
+
+/**
+ * Bring the tracker to the scenario: delete every issue the repo had, then
+ * create the work item, its tickets, and the edges between them.
+ *
+ * Deleted and recreated rather than edited back to canonical, because GitHub
+ * never reuses an issue number: a fixed scenario means fixed *content*, and
+ * editing back would mean the seed remembering every field a pass mutates, where
+ * one forgotten hold contaminates the next run.
+ */
+async function seedScenarioIssues({
+  gh,
+  scenario,
+}: {
+  gh: GhRunner;
+  scenario: Scenario;
+}): Promise<SeededScenario> {
+  await deleteEveryIssue(gh);
+
+  // Labelled ready on creation, so the item a contributor runs relay against by
+  // hand is eligible the moment the seed prints its number.
+  const workItem = await createIssue(gh, { ...scenario.workItem, labels: [READY_LABEL] });
+  const created = new Map<TicketId, number>();
+  for (const ticket of scenario.tickets) {
+    const number = await createIssue(gh, ticket);
+    await linkSubIssue(gh, { parent: workItem, child: number });
+    created.set(ticket.id, number);
+  }
+
+  // After every ticket exists, because an edge needs both of its ends.
+  for (const ticket of scenario.tickets) {
+    for (const blocker of ticket.blockedBy ?? []) {
+      await blockIssue(gh, {
+        blocked: ticketNumber(created, ticket.id),
+        blocker: ticketNumber(created, blocker),
+      });
+    }
+  }
+
+  const tickets = [...created.values()];
+  // The seed's answer to the operator, and the reason nothing in the rig
+  // hardcodes an issue number.
+  step(`work item #${workItem}, tickets ${tickets.map((number) => `#${number}`).join(", ")}`);
+  return { workItem, tickets };
+}
+
+/**
+ * Delete every issue in the rehearsal repo, so no comment, label or hold from a
+ * previous run can reach the next one.
+ *
+ * Before anything is created, so a token without the permission fails with
+ * nothing half-seeded behind it.
+ */
+async function deleteEveryIssue(gh: GhRunner): Promise<void> {
+  let deleted = 0;
+  // A page at a time until the repo has none left, rather than one page and a
+  // cap: a capped delete would silently leave the oldest issues — with the
+  // labels and holds a previous run left on them — and report a clean seed.
+  for (let numbers = await issueNumbers(gh); numbers.length > 0; numbers = await issueNumbers(gh)) {
+    for (const number of numbers) {
+      await orRefuse(
+        () => gh(["issue", "delete", number, "--repo", REHEARSAL_REPO, "--yes"]),
+        `delete issue #${number}`,
+        ISSUE_DELETE_NEEDS,
+      );
+    }
+    deleted += numbers.length;
+  }
+  step(`deleted ${deleted} issue(s) from ${REHEARSAL_REPO}`);
+}
+
+/** One page of the repo's issues, open and closed alike, as issue numbers. */
+async function issueNumbers(gh: GhRunner): Promise<string[]> {
+  const output = await orRefuse(
+    () =>
+      gh([
+        "issue",
+        "list",
+        "--repo",
+        REHEARSAL_REPO,
+        "--state",
+        "all",
+        "--limit",
+        String(ISSUE_PAGE),
+        "--json",
+        "number",
+        "--jq",
+        ".[].number",
+      ]),
+    "list the issues in the rehearsal repo",
+    TOKEN_NEEDS,
+  );
+  return output.split("\n").filter(Boolean);
+}
+
+async function createIssue(
+  gh: GhRunner,
+  { title, body, labels = [] }: { title: string; body: string; labels?: readonly string[] },
+): Promise<number> {
+  const url = await orRefuse(
+    () =>
+      gh([
+        "issue",
+        "create",
+        "--repo",
+        REHEARSAL_REPO,
+        "--title",
+        title,
+        "--body",
+        body,
+        ...labels.flatMap((label) => ["--label", label]),
+      ]),
+    `create the issue "${title}"`,
+    TOKEN_NEEDS,
+  );
+  return issueNumberOf(url);
+}
+
+/**
+ * Link a ticket to its work item as a GitHub sub-issue, which is how relay reads
+ * a work item's tickets in any repo.
+ */
+async function linkSubIssue(
+  gh: GhRunner,
+  { parent, child }: { parent: number; child: number },
+): Promise<void> {
+  await postEdge(gh, {
+    endpoint: `issues/${parent}/sub_issues`,
+    field: "sub_issue_id",
+    target: child,
+    what: `link #${child} to #${parent} as a sub-issue`,
+  });
+}
+
+/**
+ * Record one ticket as blocked by another, as a native GitHub issue dependency.
+ *
+ * The canonical, UI-visible representation, so relay's own eligibility check and
+ * its planner read the edge the way they would in any repo — rather than a
+ * `Blocked by:` line only this scenario's text carries.
+ */
+async function blockIssue(
+  gh: GhRunner,
+  { blocked, blocker }: { blocked: number; blocker: number },
+): Promise<void> {
+  await postEdge(gh, {
+    endpoint: `issues/${blocked}/dependencies/blocked_by`,
+    field: "issue_id",
+    target: blocker,
+    what: `record #${blocked} as blocked by #${blocker}`,
+  });
+}
+
+/**
+ * Post one edge between two issues.
+ *
+ * Both of GitHub's edge endpoints take the same shape — the issue at the far end
+ * of the edge by its numeric database id, under a field of their own naming —
+ * rather than the `#number` an operator reads.
+ */
+async function postEdge(
+  gh: GhRunner,
+  {
+    endpoint,
+    field,
+    target,
+    what,
+  }: { endpoint: string; field: string; target: number; what: string },
+): Promise<void> {
+  const id = await databaseIdOf(gh, target);
+  await orRefuse(
+    () =>
+      gh([
+        "api",
+        "--method",
+        "POST",
+        `repos/${REHEARSAL_REPO}/${endpoint}`,
+        "-F",
+        `${field}=${id}`,
+      ]),
+    what,
+    TOKEN_NEEDS,
+  );
+}
+
+async function databaseIdOf(gh: GhRunner, issue: number): Promise<string> {
+  return await orRefuse(
+    () => gh(["api", `repos/${REHEARSAL_REPO}/issues/${issue}`, "--jq", ".id"]),
+    `read the database id of #${issue}`,
+    TOKEN_NEEDS,
+  );
+}
+
+/** The number at the end of the issue URL `gh issue create` answers with. */
+function issueNumberOf(url: string): number {
+  const number = Number(url.trim().split("/").pop());
+  if (!Number.isInteger(number) || number <= 0) {
+    throw new ConfigError(
+      `\`gh issue create\` answered ${url}, which does not end in an issue number.`,
+    );
+  }
+  return number;
+}
+
+/** The number a ticket of the scenario was created as. */
+function ticketNumber(created: ReadonlyMap<TicketId, number>, id: TicketId): number {
+  const number = created.get(id);
+  if (number === undefined) {
+    throw new ConfigError(`The scenario names a ticket \`${id}\` that it does not define.`);
+  }
+  return number;
 }
 
 /**
@@ -254,11 +496,15 @@ function gitRunner(token: string): GitRunner {
 }
 
 /** A call whose failure names the permission it needed. */
-async function orRefuse<T>(call: () => Promise<T>, what: string): Promise<T> {
+async function orRefuse<T>(
+  call: () => Promise<T>,
+  what: string,
+  needs: string = TOKEN_NEEDS,
+): Promise<T> {
   try {
     return await call();
   } catch (error) {
-    throw new ConfigError(`Could not ${what}: ${reasonOf(error)}\n${TOKEN_NEEDS}`);
+    throw new ConfigError(`Could not ${what}: ${reasonOf(error)}\n${needs}`);
   }
 }
 
