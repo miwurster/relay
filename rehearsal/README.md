@@ -31,6 +31,17 @@ Credentials are read out of relay's own environment or `.relay/.env`, so a rehea
 - **`GH_TOKEN`** — a classic token with `repo` scope, or a fine-grained token with Administration, Contents and Issues write on the rehearsal repo. It has to create the repo when it is absent, push genesis, create labels, and **delete issues**, which GitHub allows only a repository admin to do.
 - **A Claude credential** — `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`. The seed asks for it too, though it does not use it: a seed that succeeded only for the rehearsal to die on a missing token afterwards is the worse failure.
 
+### Where those credentials come from
+
+`.relay/.env` here means **this repo's** — relay's own, the same file relay's dogfooding reads — never the clone's.
+The clone's genesis carries a `.relay/config.ts` and deliberately no `.relay/.env`, so there is no second copy of a secret to keep in step.
+
+A real environment variable wins over the file, which is only the fallback ([ADR-0014](../docs/adr/0014-credentials-live-in-the-target-repo-gitignored.md)):
+export `GH_TOKEN` in one shell and that shell's token is used, whatever `.relay/.env` says.
+
+`npm run rehearse` resolves them against this repo's root whatever directory you invoke it from, and hands them to the pass as the child process's own environment.
+So the pass in the clone runs on the credentials relay itself would use, and nothing has to be exported by hand.
+
 ## Running one
 
 ```sh
@@ -46,6 +57,66 @@ The digest's heading carries the scenario, the work item, the start time and **r
 
 The command itself exits 0 whenever a rehearsal finished, whatever relay made of the work: a blocked pass is an ordinary outcome, not a failure of the rig.
 A non-zero exit is the rig failing — a build that broke, a missing credential, a seed that was refused.
+
+### What it does, in order
+
+1. **Resolves the scenario**, before anything else, so a mistyped name costs neither a build nor a destroyed repo.
+2. **Resolves the credentials** against this repo's root, for the reason above.
+3. **Builds relay** with `npm run build`, so the pass runs the change you are rehearsing rather than whatever was in `dist/` from last time. A build that fails ends the rehearsal there.
+4. **Seeds the scenario**, by calling the same seed `npm run seed` calls — bootstrap, reset to genesis, prune what a crashed pass left, delete every issue, create the work item and its tickets.
+5. **Runs the pass**, as `node dist/main.js <work item>` in the clone, on inherited stdio.
+6. **Digests**, by calling the same reader `npm run digest` calls against the clone's `.relay/<work item>`, then prints it and files it.
+
+### The full run
+
+```
+$ npm run rehearse -- happy-path
+
+rehearse: building relay
+… tsup's own output …
+seed: cloning miwurster/relay-rehearsal to /private/var/folders/…/T/relay-rehearsal
+seed: pruned the pass branch agent/37
+seed: the label vocabulary is on miwurster/relay-rehearsal, checked by relay's own init
+seed: happy-path: /private/var/folders/…/T/relay-rehearsal is on main at genesis
+seed: deleted 4 issue(s) from miwurster/relay-rehearsal
+seed: work item #41, tickets #42, #43, #44
+rehearse: running relay over #41 in /private/var/folders/…/T/relay-rehearsal
+… relay's own output, live: the eight legs of the pass, as they run …
+
+rehearsal: happy-path
+repo: miwurster/relay-rehearsal (main)
+work item: #41
+started: 2026-07-30T13:02:11.418Z
+relay exit code: 0
+
+relay pass digest — /private/var/folders/…/T/relay-rehearsal/.relay/41
+8 leg(s) recorded.
+
+Legs (durations approximate, from record mtimes):
+  …
+Findings by axis:
+  …
+Fixer verdicts:
+  …
+Unaddressed findings:
+  …
+Unparseable records:
+  none
+
+rehearse: digest filed in /path/to/relay/rehearsal/runs/happy-path-2026-07-30T13-02-11.txt
+```
+
+The seed's `cloning` and `pruned` lines appear only when there is something to clone or prune, and its first line is `miwurster/relay-rehearsal is absent — creating it private` on the very first run.
+Everything from `rehearsal: happy-path` down is what lands in the run file, byte for byte, which is what makes two run files diffable.
+
+### What a rehearsal leaves behind
+
+- **A run file** under `rehearsal/runs/`, gitignored, one per rehearsal.
+- **The clone** at `$TMPDIR/relay-rehearsal`, on whatever state the pass left. Nothing needs cleaning up: the next seed resets it, prunes the pass branches and removes the worktrees, which is why a crashed rehearsal does not block the next one.
+- **The rehearsal repo**, with the pass's branch, comments and closed issues on it. Left readable on purpose; the next seed deletes the issues and force-pushes genesis over the history.
+- **The sandbox image**, cached under a tag minted from the clone's basename, so the second rehearsal of an afternoon pays no image build.
+
+relay's own worktree is left clean, and nothing in relay's own source is touched by any of this.
 
 ## Running one step at a time
 
