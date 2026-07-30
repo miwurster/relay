@@ -6,5 +6,5 @@
     "declaration": false,
     "declarationMap": false
   },
-  "include": ["src", "tests", "*.config.ts", "eslint.config.ts"]
+  "include": ["src", "tests", "rehearsal", "*.config.ts", "eslint.config.ts"]
 }
