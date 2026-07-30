@@ -231,6 +231,7 @@ _Avoid_: healthcheck, diagnostics
 **Warning**:
 A **doctor** check whose setup relay can run against but had to guess at or would rather the operator knew: an `inferred` **provenance**, or a dirty host worktree under `merge` **landing**.
 It prints apart from ok and from failed and leaves the exit code alone, because neither is broken setup — the worktree a **pass** actually refuses is the one it finds dirty at its own start.
+Where a pass refuses over the same setup, what doctor warns is the pass's own refusal, so the two can never word one rule differently ([ADR-0023](docs/adr/0023-doctor-and-a-pass-share-rules-not-a-module.md)).
 _Avoid_: soft failure, notice
 
 **Gate probe**:
