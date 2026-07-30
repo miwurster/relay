@@ -8,7 +8,8 @@ import { passRecordDir } from "../crew/leg-record.js";
 import { createGitHubClient, type GitHubClient, type GitHubIssue } from "../tracker/github.js";
 import { exitCodeFor, runHarness } from "./harness.js";
 import { branchExists, openSandbox, passBranch, worktreeForBranch } from "../sandbox/sandbox.js";
-import { currentBranch, isWorktreeDirty, runGit, type GitRunner } from "../host/git.js";
+import { currentBranch, runGit, type GitRunner } from "../host/git.js";
+import { whyLandingRefusesWorktree } from "../host/dirty-worktree.js";
 import { loadSecrets, type Secrets } from "../host/secrets.js";
 import { requireTrackerDoc } from "../tracker/tracker-doc.js";
 import { parseWorkItem, selectWorkItem } from "./work-item.js";
@@ -107,12 +108,12 @@ export async function runPassOnItem({
 }
 
 /**
- * Under `merge` landing, refuse a host worktree with uncommitted work in it —
- * before the sandbox is built, so the refusal costs nothing.
+ * Refuse a worktree a pass would land on top of — before the sandbox is built,
+ * so the refusal costs nothing. relay moves the branch that worktree is on, and
+ * restoring work it did not author is not a job it will take.
  *
- * relay moves the branch that worktree is on, and it never stashes: restoring
- * work it did not author is not a job it will take. A `pull-request` repo's
- * worktree is untouched by a pass, so nothing there is worth refusing over.
+ * The rule and its one sentence live on the host layer, where doctor reads them
+ * as a warning; a pass grades the same sentence a config refusal.
  */
 async function refuseDirtyWorktree({
   repoRoot,
@@ -125,13 +126,13 @@ async function refuseDirtyWorktree({
   baseBranch: string;
   git: GitRunner;
 }): Promise<void> {
-  if (config.landing !== "merge") return;
-  if (!(await isWorktreeDirty({ repoRoot, git }))) return;
-
-  throw new ConfigError(
-    `This repo lands on ${baseBranch} itself, and your worktree has uncommitted work in it. ` +
-      "relay never stashes work it did not author — commit or stash it yourself, then run again.",
-  );
+  const reason = await whyLandingRefusesWorktree({
+    repoRoot,
+    landing: config.landing,
+    baseBranch,
+    git,
+  });
+  if (reason) throw new ConfigError(reason);
 }
 
 async function refuseOnBranchCollision(repoRoot: string, branch: string): Promise<void> {

@@ -1073,6 +1073,7 @@ describe("runDoctorChecks", () => {
 
     expect(check(checks, "worktree clean").status).toBe("warning");
     expect(check(checks, "worktree clean").detail).toContain("uncommitted work");
+    expect(check(checks, "worktree clean").detail).toContain("main");
   });
 
   it("skips both merge-only checks under pull-request landing", async () => {
@@ -1114,6 +1115,18 @@ describe("runDoctor", () => {
       repoRoot: await repoWith(validConfig),
       env: envWithSecrets(),
       git: ignoringGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+    expect(code).toBe(ExitCode.Success);
+  });
+
+  it("succeeds despite a dirty worktree, which is a warning and not a failure", async () => {
+    const code = await runDoctor({
+      repoRoot: await repoWith(mergeConfig),
+      env: envWithSecrets(),
+      git: dirtyGit,
       docker: healthyDocker().docker,
       gh: healthyGh().gh,
       probe: declaredProbe,

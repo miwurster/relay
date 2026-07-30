@@ -31,7 +31,8 @@ import { resolveSkillPlugins, type SkillPlugin } from "../sandbox/skills.js";
 import { requireTrackerDoc, TRACKER_DOC_PATH } from "../tracker/tracker-doc.js";
 import { credentialFileIgnored } from "../host/credential-file.js";
 import { isIgnored } from "../host/gitignore.js";
-import { currentBranch, isWorktreeDirty, runGit, type GitRunner } from "../host/git.js";
+import { currentBranch, runGit, type GitRunner } from "../host/git.js";
+import { whyLandingRefusesWorktree } from "../host/dirty-worktree.js";
 import { type CheckReporter, liveReporter, type ReportSink, SILENT_REPORTER } from "./report.js";
 
 /** Why the label checks cannot run: nothing on this host can ask GitHub. */
@@ -215,9 +216,9 @@ export async function runDoctorChecks({
     await record(
       ledger,
       "worktree clean",
-      () => isWorktreeDirty({ repoRoot, git }),
+      () => whyLandingRefusesWorktree({ repoRoot, landing: "merge", baseBranch, git }),
       worktreeDetail,
-      (dirty) => (dirty ? "warning" : "ok"),
+      (reason) => (reason ? "warning" : "ok"),
     );
   }
 
@@ -339,16 +340,12 @@ async function assertBranchIsLandable({
 }
 
 /**
- * Whether this host has uncommitted work. A warning only: doctor runs whenever
- * an operator likes, and the worktree that decides anything is the one a pass
- * finds at its own start.
+ * What a pass would refuse this host's worktree over, if anything. A warning
+ * only: doctor runs whenever an operator likes, and the worktree that decides
+ * anything is the one a pass finds at its own start.
  */
-function worktreeDetail(dirty: boolean): string {
-  if (!dirty) return "no uncommitted work on this host";
-  return (
-    "your worktree has uncommitted work in it, and a pass that lands on this branch refuses " +
-    "one — commit or stash it before you start a pass."
-  );
+function worktreeDetail(reason: string | undefined): string {
+  return reason ?? "no uncommitted work on this host";
 }
 
 /**
