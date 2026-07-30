@@ -244,3 +244,14 @@ How a contributor answers whether a **sandbox** can still run a repo's Testconta
 It opens a sandbox over a scripted fixture repo and runs that repo's own command in it, so what it proves is the container contract rather than any **role**'s judgement.
 Hand-run and outside relay's own **green gate**, because that gate runs inside a sandbox and a probe within it would nest.
 _Avoid_: e2e test, smoke test, test driver, harness
+
+**Rehearsal**:
+One real **pass**, over a repo seeded to a fixed **scenario**, run to judge how the flow feels.
+Unlike a **probe** it is a whole pass and spends real Claude sessions, and unlike a test it has no oracle: **roles** are non-deterministic, so what it yields is evidence for a human's judgement rather than a verdict ([ADR-0024](docs/adr/0024-the-rehearsal-runs-against-a-real-throwaway-repo.md)).
+It runs against a throwaway repo of its own, never a repo anyone works in, because seeding a scenario means destroying whatever was there.
+_Avoid_: e2e test, integration test, dry run, pass probe
+
+**Scenario**:
+One named seeded state of the **rehearsal** repo: its genesis commit, its **work item** and that item's **tickets**.
+Named rather than implied, so a second scenario is an addition rather than a rewrite, and fixed rather than generated, so two rehearsals across a change to relay differ by the change and by the models' own variance and by nothing else.
+_Avoid_: case, fixture, suite
