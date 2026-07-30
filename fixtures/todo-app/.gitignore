@@ -1,0 +1,4 @@
+node_modules/
+
+# A relay pass's git worktree.
+.sandcastle/

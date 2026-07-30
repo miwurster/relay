@@ -1,0 +1,11 @@
+# The credentials a relay pass runs on. Never commit this.
+.env
+
+# What a relay leg recorded. Runtime output, never committed.
+doctor/
+[0-9]*/
+
+# The sandbox recipe, copied in from relay's own resources at seed time rather
+# than committed, so a rehearsal cannot prove a copy that rotted away from the
+# recipe relay ships. Ignored because a `merge` landing refuses a dirty worktree.
+Dockerfile

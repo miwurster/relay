@@ -1,7 +1,7 @@
 .claude
 
 # A relay pass's role artefacts (findings files and the like). Anchored: the
-# sandbox probe's fixture commits a `.relay` of its own.
+# fixture repos under `fixtures/` commit a `.relay` of their own.
 /.relay
 
 # Created by https://www.toptal.com/developers/gitignore/api/linux,macos,windows,jetbrains+all,visualstudiocode,node
