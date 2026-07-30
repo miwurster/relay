@@ -1,10 +1,12 @@
-import type { Landing } from "../config.js";
 import { isWorktreeDirty, runGit, type GitRunner } from "./git.js";
 
 /**
- * Why a pass would refuse this host's worktree, or nothing when there is
- * nothing to refuse over — the repo lands through a pull request, or the
- * worktree is clean.
+ * Why a pass landing on `baseBranch` itself would refuse this host's worktree,
+ * or nothing when the worktree is clean.
+ *
+ * Only `merge` landing lands on the base branch, so only `merge` landing asks —
+ * the caller decides that, because it already knows the landing and would
+ * otherwise be told an answer it could not use.
  *
  * `merge` landing moves the operator's own branch, and relay never stashes work
  * it did not author ([ADR-0017](../../docs/adr/0017-the-lander-rebases-and-the-host-only-fast-forwards.md)).
@@ -14,18 +16,15 @@ import { isWorktreeDirty, runGit, type GitRunner } from "./git.js";
  * Severity stays with the caller, so the answer is a reason and not a check or
  * an error.
  */
-export async function whyLandingRefusesWorktree({
+export async function whyDirtyWorktreeRefusesLanding({
   repoRoot,
-  landing,
   baseBranch,
   git = runGit,
 }: {
   repoRoot: string;
-  landing: Landing;
   baseBranch: string;
   git?: GitRunner;
 }): Promise<string | undefined> {
-  if (landing !== "merge") return undefined;
   if (!(await isWorktreeDirty({ repoRoot, git }))) return undefined;
 
   return (

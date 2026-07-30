@@ -39,7 +39,8 @@ The question this ADR settles is whether doctor's checks and a pass's refusals b
 
 Chosen option: **Option B**.
 
-- `src/host/dirty-worktree.ts` holds `whyLandingRefusesWorktree`, which answers with the one sentence or with nothing. It gates on **landing** and reads the worktree itself, so there is one sentence and one rule.
+- `src/host/dirty-worktree.ts` holds `whyDirtyWorktreeRefusesLanding`, which reads the worktree and answers with the one sentence or with nothing, so there is one sentence and one rule.
+  Whether the **landing** lands on the base branch at all stays with the caller: both callers already know their landing, and only the ones that land on it ask.
 - Severity stays with the caller. Doctor grades the answer a **warning**; the pass throws a `ConfigError` carrying it. Neither the rule nor `src/host/` knows doctor's report vocabulary.
 - Ordering stays doctor's, hand-wired as it is today.
 - `gh` reachability is left alone. Nothing observable can diverge, and sharing the tails would make each caller's message worse.

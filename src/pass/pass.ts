@@ -9,7 +9,7 @@ import { createGitHubClient, type GitHubClient, type GitHubIssue } from "../trac
 import { exitCodeFor, runHarness } from "./harness.js";
 import { openSandbox, passBranch, worktreeForBranch } from "../sandbox/sandbox.js";
 import { branchExists, currentBranch, runGit, type GitRunner } from "../host/git.js";
-import { whyLandingRefusesWorktree } from "../host/dirty-worktree.js";
+import { whyDirtyWorktreeRefusesLanding } from "../host/dirty-worktree.js";
 import { loadSecrets, type Secrets } from "../host/secrets.js";
 import { requireTrackerDoc } from "../tracker/tracker-doc.js";
 import { parseWorkItem, selectWorkItem } from "./work-item.js";
@@ -89,7 +89,14 @@ export async function runPassOnItem({
 }: PassRun): Promise<ExitCode> {
   const branch = passBranch(config, issue.number);
   const baseBranch = await currentBranch({ repoRoot, git });
-  await refuseDirtyWorktree({ repoRoot, config, baseBranch, git });
+  // Before the sandbox is built, so a refusal costs nothing. Only `merge`
+  // landing moves the host's branch, so only `merge` landing cares; the rule
+  // and its one sentence live on the host layer, where doctor reads the same
+  // sentence as a warning.
+  if (config.landing === "merge") {
+    const reason = await whyDirtyWorktreeRefusesLanding({ repoRoot, baseBranch, git });
+    if (reason) throw new ConfigError(reason);
+  }
   await refuseOnBranchCollision({ repoRoot, branch, git });
 
   let opened: Sandbox | undefined;
@@ -105,34 +112,6 @@ export async function runPassOnItem({
   } finally {
     await opened?.close();
   }
-}
-
-/**
- * Refuse a worktree a pass would land on top of — before the sandbox is built,
- * so the refusal costs nothing. relay moves the branch that worktree is on, and
- * restoring work it did not author is not a job it will take.
- *
- * The rule and its one sentence live on the host layer, where doctor reads them
- * as a warning; a pass grades the same sentence a config refusal.
- */
-async function refuseDirtyWorktree({
-  repoRoot,
-  config,
-  baseBranch,
-  git,
-}: {
-  repoRoot: string;
-  config: RelayConfig;
-  baseBranch: string;
-  git: GitRunner;
-}): Promise<void> {
-  const reason = await whyLandingRefusesWorktree({
-    repoRoot,
-    landing: config.landing,
-    baseBranch,
-    git,
-  });
-  if (reason) throw new ConfigError(reason);
 }
 
 async function refuseOnBranchCollision({

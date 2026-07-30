@@ -32,7 +32,7 @@ import { requireTrackerDoc, TRACKER_DOC_PATH } from "../tracker/tracker-doc.js";
 import { credentialFileIgnored } from "../host/credential-file.js";
 import { isIgnored } from "../host/gitignore.js";
 import { currentBranch, runGit, type GitRunner } from "../host/git.js";
-import { whyLandingRefusesWorktree } from "../host/dirty-worktree.js";
+import { whyDirtyWorktreeRefusesLanding } from "../host/dirty-worktree.js";
 import { type CheckReporter, liveReporter, type ReportSink, SILENT_REPORTER } from "./report.js";
 
 /** Why the label checks cannot run: nothing on this host can ask GitHub. */
@@ -193,16 +193,18 @@ export async function runDoctorChecks({
   }
 
   const baseBranch = await recordLanding({ ledger, config, repoRoot, git });
-  const landedOn = landsOnBaseBranch({ config, baseBranch });
 
   // Both of these ask about landing on the base branch itself, which only
   // `merge` landing does — under `pull-request` they are skipped rather than
   // answered as passing.
-  if ("why" in landedOn) {
-    skip(ledger, "base branch ruleset", landedOn.why);
-    skip(ledger, "worktree clean", landedOn.why);
+  const otherLanding = whyLandingIsNotOnTheBaseBranch(config);
+  if (otherLanding !== undefined) {
+    skip(ledger, "base branch ruleset", otherLanding);
+    skip(ledger, "worktree clean", otherLanding);
+  } else if (baseBranch === undefined) {
+    skip(ledger, "base branch ruleset", NO_BASE_BRANCH);
+    skip(ledger, "worktree clean", NO_BASE_BRANCH);
   } else {
-    const baseBranch = landedOn.branch;
     if (authenticated === undefined) {
       skip(ledger, "base branch ruleset", NO_CREDENTIAL_FOR_RULESETS);
     } else {
@@ -217,7 +219,7 @@ export async function runDoctorChecks({
     await record(
       ledger,
       "worktree clean",
-      () => whyLandingRefusesWorktree({ repoRoot, landing: "merge", baseBranch, git }),
+      () => whyDirtyWorktreeRefusesLanding({ repoRoot, baseBranch, git }),
       worktreeDetail,
       (reason) => (reason ? "warning" : "ok"),
     );
@@ -246,7 +248,7 @@ export async function runDoctorChecks({
       (gate) => (gate.provenance === "declared" ? "ok" : "warning"),
     );
   } else {
-    skip(ledger, "gate", whyNoProbe({ image, secrets }));
+    skip(ledger, "gate", whyNoProbe({ image, secrets, baseBranch }));
   }
 
   if (image) {
@@ -263,13 +265,8 @@ export async function runDoctorChecks({
   return ledger.checks;
 }
 
-/**
- * Either the base branch a pass would land on, or the one reason the
- * `merge`-only checks after it have nothing to ask about. A repo that lands
- * through a pull request is not a repo that nearly failed them: relay pushes
- * only its own pass branch there, and never touches this host's worktree.
- */
-type LandedOn = { branch: string } | { why: string };
+/** Why the `merge`-only checks have no branch to ask about. */
+const NO_BASE_BRANCH = "no base branch resolved to ask about";
 
 /**
  * The base branch a pass would be cut from, resolved once for every check that
@@ -303,20 +300,15 @@ async function recordLanding({
 }
 
 /**
- * Whether a pass lands on the base branch itself, derived from the landing and
- * the one resolved branch rather than by asking git a second time.
+ * Why this repo's landing never lands on the base branch itself, or nothing when
+ * it does. A repo that lands through a pull request is not a repo that nearly
+ * failed the checks below: relay pushes only its own pass branch there, and
+ * never touches this host's worktree.
  */
-function landsOnBaseBranch({
-  config,
-  baseBranch,
-}: {
-  config: RelayConfig | undefined;
-  baseBranch: string | undefined;
-}): LandedOn {
-  if (!config) return { why: NO_LANDING_TO_READ };
-  if (config.landing !== "merge") return { why: "this repo lands through a pull request" };
-  if (baseBranch === undefined) return { why: "no base branch resolved to ask about" };
-  return { branch: baseBranch };
+function whyLandingIsNotOnTheBaseBranch(config: RelayConfig | undefined): string | undefined {
+  if (!config) return NO_LANDING_TO_READ;
+  if (config.landing !== "merge") return "this repo lands through a pull request";
+  return undefined;
 }
 
 /** What a pass would do with the branch this host is standing on. */
@@ -528,20 +520,27 @@ async function resolvableImage({
 
 /**
  * Which prerequisite the gate probe is missing, in the order an operator would
- * fix them. The absent base branch is named rather than resolved again, so a
- * `HEAD` no pass could run on is one failed check and one skip, not two
- * failures reading the same sentence.
+ * fix them. Each one is tested rather than derived by elimination, and the
+ * absent base branch is named rather than resolved again — so a `HEAD` no pass
+ * could run on is one failed check and one skip, not two failures reading the
+ * same sentence.
+ *
+ * A config that did not parse needs no arm of its own: an image resolves only
+ * from a config, so its own failure is already the one an operator reads.
  */
 function whyNoProbe({
   image,
   secrets,
+  baseBranch,
 }: {
   image: ResolvedImage | undefined;
   secrets: Secrets | undefined;
+  baseBranch: string | undefined;
 }): string {
   if (!image) return "no sandbox image to open a sandbox from";
   if (!secrets) return "no credential to run the resolver's leg on";
-  return "no base branch for the probe's sandbox to be cut from";
+  if (baseBranch === undefined) return "no base branch for the probe's sandbox to be cut from";
+  return `no valid ${CONFIG_FILE_PATH} to run the probe's leg from`;
 }
 
 /**
