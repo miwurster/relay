@@ -32,7 +32,29 @@ describe("runDoctorChecks — what a pass would run in and verify with: the imag
     });
 
     expect(check(checks, "sandbox image").detail).toContain("registry.example.com/relay:1");
+    expect(check(checks, "sandbox image").detail).toContain("prebuilt, present on this host");
     expect(check(checks, "docker daemon").detail).toContain("29.6.2");
+  });
+
+  it("reports a prebuilt ref proven in its registry rather than on this host", async () => {
+    const docker = async (args: readonly string[]) => {
+      if (args[0] === "image") throw new Error("Error: No such image");
+      if (args[0] === "manifest") return '{"schemaVersion":2}';
+      if (args.includes("stat")) return "0";
+      return "29.6.2";
+    };
+
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(validConfig),
+      env: envWithSecrets(),
+      git: ignoringGit,
+      docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+
+    expect(check(checks, "sandbox image").status).toBe("ok");
+    expect(check(checks, "sandbox image").detail).toContain("prebuilt, pullable");
   });
 
   it("reports an unbuildable image and skips the daemon check that needs it", async () => {
@@ -133,14 +155,14 @@ describe("runDoctorChecks — what a pass would run in and verify with: the imag
     expect(check(checks, "sandbox image").detail).toContain(sandboxImageName(root));
   });
 
-  it("hands the gate probe the prebuilt ref it proved, rather than the config's", async () => {
+  it("hands the gate probe the prebuilt ref it proved, and reports that same ref", async () => {
     const { probe, calls } = fakeProbe({
       command: "npm run verify",
       provenance: "declared",
       source: "AGENTS.md",
     });
 
-    await runDoctorChecks({
+    const checks = await runDoctorChecks({
       repoRoot: await repoWith(validConfig),
       env: envWithSecrets(),
       git: ignoringGit,
@@ -150,6 +172,7 @@ describe("runDoctorChecks — what a pass would run in and verify with: the imag
     });
 
     expect(calls[0]?.image).toBe("registry.example.com/relay:1");
+    expect(check(checks, "sandbox image").detail).toContain(calls[0]?.image);
   });
 
   it("names the command a pass will verify with, and the doc it was declared in", async () => {

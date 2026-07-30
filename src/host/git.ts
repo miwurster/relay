@@ -59,9 +59,10 @@ export async function originUrl({
 }
 
 /**
- * Whether `branch` is already there. A pass never reuses, resets or deletes
- * one: an existing branch may carry someone else's commits, and losing those is
- * worse than refusing to run.
+ * Whether `branch` is already there.
+ *
+ * What that means is the caller's: a pass refuses one it did not create, and the
+ * gate probe deletes the one it did.
  */
 export async function branchExists({
   repoRoot,

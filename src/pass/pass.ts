@@ -114,6 +114,11 @@ export async function runPassOnItem({
   }
 }
 
+/**
+ * Refuse a branch a pass did not cut itself. relay never reuses, resets or
+ * deletes one: an existing branch may carry someone else's commits, and losing
+ * those is worse than refusing to run.
+ */
 async function refuseOnBranchCollision({
   repoRoot,
   branch,
