@@ -136,9 +136,14 @@ async function seedScenarioIssues({
   // Labelled ready on creation, so the item a contributor runs relay against by
   // hand is eligible the moment the seed prints its number.
   const workItem = await createIssue(gh, { ...scenario.workItem, labels: [READY_LABEL] });
+
+  // The tickets are labelled too, the way `to-tickets` files them: they are
+  // agent-grabbable by construction, so a scenario that left them bare would be
+  // seeding a tracker state no repo running relay actually has. The work item is
+  // created first and the frontier is oldest-first, so it still wins an auto-pick.
   const created = new Map<TicketId, number>();
   for (const ticket of scenario.tickets) {
-    const number = await createIssue(gh, ticket);
+    const number = await createIssue(gh, { ...ticket, labels: [READY_LABEL] });
     await linkSubIssue(gh, { parent: workItem, child: number });
     created.set(ticket.id, number);
   }
