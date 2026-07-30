@@ -72,13 +72,13 @@ function probing(
 ) {
   const { sandbox, state } = fakeSandbox(stdout, onClose);
   const { git, calls } = fakeGit(onDelete);
-  const opens: { branch: string }[] = [];
-  const open = async ({ branch }: { branch: string }) => {
-    opens.push({ branch });
+  const opens: { branch: string; baseBranch: string }[] = [];
+  const open = async ({ branch, baseBranch }: { branch: string; baseBranch: string }) => {
+    opens.push({ branch, baseBranch });
     return sandbox;
   };
   return {
-    run: () => probeGate({ repoRoot, config, secrets, open, git }),
+    run: () => probeGate({ repoRoot, config, secrets, baseBranch: "main", open, git }),
     state,
     opens,
     gitCalls: calls,
@@ -114,6 +114,15 @@ describe("probeGate", () => {
     const branch = openedBranch(opens);
     expect(branch.startsWith(config.branchPrefix)).toBe(true);
     expect(branch.slice(config.branchPrefix.length)).not.toMatch(/^\d+$/);
+  });
+
+  it("cuts its branch from the base branch it was handed, asking git for no other", async () => {
+    const { run, opens, gitCalls } = probing(declaredGate);
+
+    await run();
+
+    expect(opens[0]?.baseBranch).toBe("main");
+    expect(gitCalls.flat()).not.toContain("symbolic-ref");
   });
 
   it("disposes of its sandbox and deletes its branch, so doctor can run twice", async () => {
@@ -159,9 +168,9 @@ describe("probeGate", () => {
       throw new Error("docker daemon is not reachable");
     };
 
-    await expect(probeGate({ repoRoot, config, secrets, open, git })).rejects.toThrow(
-      "docker daemon is not reachable",
-    );
+    await expect(
+      probeGate({ repoRoot, config, secrets, baseBranch: "main", open, git }),
+    ).rejects.toThrow("docker daemon is not reachable");
 
     expect(deletes(calls)).toEqual([]);
   });

@@ -192,7 +192,8 @@ export async function runDoctorChecks({
     skip(ledger, "triage labels", NO_CREDENTIAL);
   }
 
-  const landedOn = await recordLanding({ ledger, config, repoRoot, git });
+  const baseBranch = await recordLanding({ ledger, config, repoRoot, git });
+  const landedOn = landsOnBaseBranch({ config, baseBranch });
 
   // Both of these ask about landing on the base branch itself, which only
   // `merge` landing does — under `pull-request` they are skipped rather than
@@ -236,19 +237,16 @@ export async function runDoctorChecks({
 
   // An image resolves only from a config that parsed, so a missing image is
   // what an operator sees either way — with the config failure a line above it.
-  if (config && image && secrets) {
+  if (config && image && secrets && baseBranch !== undefined) {
     await record(
       ledger,
       "gate",
-      () => probe({ repoRoot, config, secrets }),
+      () => probe({ repoRoot, config, secrets, baseBranch }),
       gateDetail,
       (gate) => (gate.provenance === "declared" ? "ok" : "warning"),
     );
   } else {
-    const why = image
-      ? "no credential to run the resolver's leg on"
-      : "no sandbox image to open a sandbox from";
-    skip(ledger, "gate", why);
+    skip(ledger, "gate", whyNoProbe({ image, secrets }));
   }
 
   if (image) {
@@ -274,8 +272,8 @@ export async function runDoctorChecks({
 type LandedOn = { branch: string } | { why: string };
 
 /**
- * What a pass would land and where, and the base branch every check after it
- * asks about — or why there is none to ask about.
+ * The base branch a pass would be cut from, resolved once for every check that
+ * needs one and reported as what a pass would land and where.
  *
  * The landing comes from the config and the branch from this host's checkout
  * ([ADR-0016](../../docs/adr/0016-the-base-branch-is-the-hosts-checkout.md)), so
@@ -291,20 +289,34 @@ async function recordLanding({
   config: RelayConfig | undefined;
   repoRoot: string;
   git: GitRunner;
-}): Promise<LandedOn> {
+}): Promise<string | undefined> {
   if (!config) {
     skip(ledger, "landing", NO_LANDING_TO_READ);
-    return { why: NO_LANDING_TO_READ };
+    return undefined;
   }
-  const branch = await record(
+  return await record(
     ledger,
     "landing",
     () => currentBranch({ repoRoot, git }),
     (resolved: string) => landingDetail(config.landing, resolved),
   );
+}
+
+/**
+ * Whether a pass lands on the base branch itself, derived from the landing and
+ * the one resolved branch rather than by asking git a second time.
+ */
+function landsOnBaseBranch({
+  config,
+  baseBranch,
+}: {
+  config: RelayConfig | undefined;
+  baseBranch: string | undefined;
+}): LandedOn {
+  if (!config) return { why: NO_LANDING_TO_READ };
   if (config.landing !== "merge") return { why: "this repo lands through a pull request" };
-  if (branch === undefined) return { why: "no base branch resolved to ask about" };
-  return { branch };
+  if (baseBranch === undefined) return { why: "no base branch resolved to ask about" };
+  return { branch: baseBranch };
 }
 
 /** What a pass would do with the branch this host is standing on. */
@@ -512,6 +524,24 @@ async function resolvableImage({
   }
   const built = await resolveSandboxImage({ repoRoot, config, docker });
   return { ref: built, how: `built from ${config.dockerfile}` };
+}
+
+/**
+ * Which prerequisite the gate probe is missing, in the order an operator would
+ * fix them. The absent base branch is named rather than resolved again, so a
+ * `HEAD` no pass could run on is one failed check and one skip, not two
+ * failures reading the same sentence.
+ */
+function whyNoProbe({
+  image,
+  secrets,
+}: {
+  image: ResolvedImage | undefined;
+  secrets: Secrets | undefined;
+}): string {
+  if (!image) return "no sandbox image to open a sandbox from";
+  if (!secrets) return "no credential to run the resolver's leg on";
+  return "no base branch for the probe's sandbox to be cut from";
 }
 
 /**

@@ -2,7 +2,7 @@ import type { Sandbox } from "@ai-hero/sandcastle";
 import type { RelayConfig } from "../config.js";
 import type { ResolvedGate } from "../crew/contract.js";
 import { createGateResolver } from "../crew/roles/gate-resolver.js";
-import { currentBranch, type GitRunner, runGit } from "../host/git.js";
+import { type GitRunner, runGit } from "../host/git.js";
 import { doctorRecordDir } from "../crew/leg-record.js";
 import { openSandbox } from "../sandbox/sandbox.js";
 import type { Secrets } from "../host/secrets.js";
@@ -10,11 +10,16 @@ import type { Secrets } from "../host/secrets.js";
 /**
  * Resolves the gate a pass would verify with, without being a pass. Injectable
  * so no doctor test opens a sandbox or spends a session.
+ *
+ * The base branch comes in rather than being read here: doctor resolves this
+ * host's checkout once per run, and a `HEAD` no pass could run on is one
+ * problem, not one per check that needed a branch.
  */
 export type GateProbe = (input: {
   repoRoot: string;
   config: RelayConfig;
   secrets: Secrets;
+  baseBranch: string;
 }) => Promise<ResolvedGate>;
 
 /**
@@ -36,6 +41,7 @@ export async function probeGate({
   repoRoot,
   config,
   secrets,
+  baseBranch,
   open = openSandbox,
   git = runGit,
 }: Parameters<GateProbe>[0] & {
@@ -43,9 +49,6 @@ export async function probeGate({
   git?: GitRunner;
 }): Promise<ResolvedGate> {
   const branch = probeBranch(config);
-  // The same branch a pass would be cut from, so a probe reads the repo a pass
-  // would read — and a checkout no pass could run on is refused here first.
-  const baseBranch = await currentBranch({ repoRoot, git });
   let sandbox: Sandbox | undefined;
   try {
     sandbox = await open({ repoRoot, config, secrets, branch, baseBranch });

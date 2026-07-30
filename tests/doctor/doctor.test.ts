@@ -217,9 +217,9 @@ const missingGh = async () => {
  * test opens a sandbox or spends a session: the probe is the whole seam.
  */
 function fakeProbe(gate: ResolvedGate) {
-  const calls: { repoRoot: string }[] = [];
-  const probe: GateProbe = async ({ repoRoot }) => {
-    calls.push({ repoRoot });
+  const calls: { repoRoot: string; baseBranch: string }[] = [];
+  const probe: GateProbe = async ({ repoRoot, baseBranch }) => {
+    calls.push({ repoRoot, baseBranch });
     return gate;
   };
   return { probe, calls };
@@ -863,7 +863,7 @@ describe("runDoctorChecks", () => {
       probe,
     });
 
-    expect(calls).toEqual([{ repoRoot }]);
+    expect(calls).toEqual([{ repoRoot, baseBranch: "main" }]);
   });
 
   it("reports a probe that failed without stopping the checks after it", async () => {
@@ -986,6 +986,62 @@ describe("runDoctorChecks", () => {
 
     expect(check(checks, "landing").status).toBe("failed");
     expect(check(checks, "landing").detail).toContain("no commits yet");
+  });
+
+  it("resolves the base branch once and hands it to the gate probe", async () => {
+    const gitCalls: string[][] = [];
+    const git = async (args: readonly string[]) => {
+      gitCalls.push([...args]);
+      return await ignoringGit(args);
+    };
+    const { probe, calls } = fakeProbe({
+      command: "npm run verify",
+      provenance: "declared",
+      source: "AGENTS.md",
+    });
+
+    const repoRoot = await repoWith(mergeConfig);
+    await runDoctorChecks({
+      repoRoot,
+      env: envWithSecrets(),
+      git,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe,
+    });
+
+    expect(calls).toEqual([{ repoRoot, baseBranch: "main" }]);
+    expect(gitCalls.filter((call) => call.includes("symbolic-ref"))).toHaveLength(1);
+  });
+
+  it("skips the gate check on a detached HEAD, which the landing check already failed", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(mergeConfig),
+      env: envWithSecrets(),
+      git: detachedGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+
+    expect(checks.filter((c) => c.status === "failed").map((c) => c.name)).toEqual(["landing"]);
+    expect(check(checks, "gate").status).toBe("skipped");
+    expect(check(checks, "gate").detail).toContain("no base branch");
+  });
+
+  it("reads the same way on an unborn HEAD, which names a branch with no commits", async () => {
+    const checks = await runDoctorChecks({
+      repoRoot: await repoWith(mergeConfig),
+      env: envWithSecrets(),
+      git: unbornGit,
+      docker: healthyDocker().docker,
+      gh: healthyGh().gh,
+      probe: declaredProbe,
+    });
+
+    expect(checks.filter((c) => c.status === "failed").map((c) => c.name)).toEqual(["landing"]);
+    expect(check(checks, "gate").status).toBe("skipped");
+    expect(check(checks, "gate").detail).toContain("no base branch");
   });
 
   it("skips the merge-only checks when the landing check found no branch", async () => {
