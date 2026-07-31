@@ -119,9 +119,10 @@ Close **nothing**, under either landing: the work reached nobody but you.
 2. Swap the labels on {{WORK_ITEM}}: add `agent-blocked` and remove `agent-in-progress`.
    Then remove `ready-for-agent` from {{WORK_ITEM}} too: this pass took the offer up, and re-offering the work is a human's act.
 3. Label the tickets, and no ticket beyond these two lists:
-   - **{{BLOCKED_TICKET}}** is the ticket the pass blocked on: leave `agent-in-progress` on it and add `agent-blocked`, so a human can see which ticket needs their decision.
-     `nothing` means no one ticket is at fault — the gate stayed red, or nothing could be landed — and then there is no ticket to label here.
-   - Each of {{FINISHED_TICKETS}}: remove `agent-in-progress` and add **no** label. Their work is real, but nothing landed and nothing closed, so there is no state to claim beyond lifting the hold.
+   - Each of **{{BLOCKED_TICKETS}}** is a ticket the pass blocked on: leave `agent-in-progress` on it and add `agent-blocked`, so a human can see which tickets need their decision.
+     `nothing` means no committed ticket is at fault — the gate stayed red, or nothing could be landed — and then there is no ticket to label here.
+   - Each of {{FINISHED_TICKETS}}: remove `agent-in-progress` and add **no** label.
+     Their work is real, but nothing landed and nothing closed, so there is no state to claim beyond lifting the hold.
 4. Tick each of {{FINISHED_TICKETS}}, as above, and no other ticket — the ticket the pass blocked on keeps its boxes exactly as they are, because a review found its work unbuilt.
 5. Comment on {{WORK_ITEM}}: the branch and the draft pull request URL when there is one, one line on what the pass built, the cause above, every finding left unaddressed as section 3 says, and what a human has to decide.
 

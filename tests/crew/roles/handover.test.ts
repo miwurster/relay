@@ -110,7 +110,7 @@ describe("createHandover", () => {
       LANDED_DETAIL: "nothing was landed",
       COMMITTED_TICKETS: "#8, #9",
       FINISHED_TICKETS: "#8, #9",
-      BLOCKED_TICKET: "nothing",
+      BLOCKED_TICKETS: "nothing",
       UNADDRESSED: "none",
       RECORD_PATH: `.relay/${workItem}`,
       WORK_ITEM: `#${workItem}`,
@@ -149,7 +149,7 @@ describe("createHandover", () => {
     });
   });
 
-  it("names the ticket that blocked, as the committed one no review left finished", async () => {
+  it("names the tickets that blocked, as the committed ones no review left finished", async () => {
     const { handover, runs } = handing({
       stdout: tagged('{"report":"#7 blocked on #9; agent/7 pushed."}'),
       withConfig: mergeConfig,
@@ -163,10 +163,10 @@ describe("createHandover", () => {
       [{ number: 8, summary: "reject an empty cart" }],
     );
 
-    expect(runs[0]?.promptArgs).toMatchObject({ BLOCKED_TICKET: "#9" });
+    expect(runs[0]?.promptArgs).toMatchObject({ BLOCKED_TICKETS: "#9" });
   });
 
-  it("names no blocking ticket when every committed ticket finished", async () => {
+  it("names no blocking ticket when no committed ticket is at fault", async () => {
     const { handover, runs } = handing({
       stdout: tagged('{"report":"#7 blocked on the gate; agent/7 pushed."}'),
       withConfig: mergeConfig,
@@ -174,7 +174,7 @@ describe("createHandover", () => {
 
     await handover(midBlock, tickets, NO_LANDING);
 
-    expect(runs[0]?.promptArgs).toMatchObject({ BLOCKED_TICKET: "nothing" });
+    expect(runs[0]?.promptArgs).toMatchObject({ BLOCKED_TICKETS: "nothing" });
   });
 
   it("tells a leg that finished nothing so, rather than leaving the list empty", async () => {
@@ -567,7 +567,7 @@ describe("the handover prompt", () => {
 
   it("leaves the held label on the ticket that blocked and marks it blocked", () => {
     const block = section("### mid-block", "### early-bail");
-    expect(block).toMatch(/\{\{BLOCKED_TICKET\}\}/);
+    expect(block).toMatch(/\{\{BLOCKED_TICKETS\}\}/);
     expect(block).toMatch(/leave `agent-in-progress` on it and add `agent-blocked`/);
     expect(block).toMatch(/remove `agent-in-progress` and add \*\*no\*\* label/);
   });

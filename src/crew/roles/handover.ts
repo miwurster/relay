@@ -70,10 +70,10 @@ export function createHandover({
         // Derived by relay from what the reviews left unaddressed, which the leg
         // cannot see either — and the only list it may record as done.
         FINISHED_TICKETS: leg.finished,
-        // Derived too, from the same two lists: the ticket a block left behind
-        // is the committed one no review let through, and it is the one a human
+        // Derived too, from the same two lists: what a block left behind is the
+        // committed tickets no review let through, which are the ones a human
         // has to decide about.
-        BLOCKED_TICKET: leg.blocked,
+        BLOCKED_TICKETS: leg.blocked,
         // What a review wanted and nobody did. Told, because the leg cannot see
         // it: the records live on the host, outside this worktree.
         UNADDRESSED: describeUnaddressed(unaddressed),
@@ -123,7 +123,7 @@ interface HandoverLeg {
   committed: string;
   /** The tickets the leg may record as done, as the prompt names them. */
   finished: string;
-  /** The ticket the pass blocked on, or that no single ticket did. */
+  /** The tickets a block left unfinished, as the prompt names them. */
   blocked: string;
 }
 
@@ -154,8 +154,12 @@ function describeLeg(
 
 /**
  * The tickets a block left unfinished: committed, minus the ones the reviews let
- * through. Empty on a `success`, and empty too on a block nothing built earned —
- * a red gate, or a lander that could not land — where no one ticket is at fault.
+ * through.
+ *
+ * Empty on a `success`, and empty on every block no committed ticket is at fault
+ * for — a red gate, a lander that could not land, or an implementer that asked
+ * for a human before it committed anything, which never reaches the committed
+ * list at all.
  */
 function blockedTickets(
   committed: readonly TicketRef[],
