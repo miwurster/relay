@@ -493,6 +493,29 @@ describe("the handover prompt", () => {
     expect(prompt).toMatch(/add `agent-blocked` and remove `agent-in-progress`/);
   });
 
+  it("reads the repo's default branch itself, carrying it in no argument", () => {
+    expect(prompt).toContain("gh repo view --json defaultBranchRef");
+    expect(prompt).not.toContain("{{DEFAULT_BRANCH}}");
+  });
+
+  it("warns when the base branch is not the default one, in the body and the report", () => {
+    const closing = section("GitHub fires those `Closes` lines", "Now do the one outcome");
+    expect(closing).toContain("{{BASE_BRANCH}}");
+    expect(closing).toMatch(/They differ — .*will \*\*not\*\* fire/s);
+    expect(closing).toMatch(/pull request body and in your report/);
+    expect(closing).toMatch(/closed by hand/);
+  });
+
+  it("says nothing about the default branch when it is the base branch", () => {
+    const closing = section("GitHub fires those `Closes` lines", "Now do the one outcome");
+    expect(closing).toMatch(/They match — say nothing about it/);
+  });
+
+  it("leaves the default branch out of a merge pass, where closing is the leg's own act", () => {
+    const closing = section("GitHub fires those `Closes` lines", "Now do the one outcome");
+    expect(closing).toMatch(/Under `merge` landing .*never arises/);
+  });
+
   it("carries the gate's command and provenance into the pull request body and the tracker comment", () => {
     const success = section("### success", "### mid-block");
     expect(success).toContain("Its body names the command that verified it");

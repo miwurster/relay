@@ -43,6 +43,19 @@ Never work the list out yourself: the commits carry no issue number, and `git lo
 That list is also why no closing keyword ever lands on a parent by accident: when {{WORK_ITEM}} has sub-issues the tickets are those sub-issues, and closing the parent on merge would close it out from under its remaining children.
 {{WORK_ITEM}} appears in the list only when it has no sub-issues and is therefore the single ticket the pass committed.
 
+GitHub fires those `Closes` lines only when the pull request merges into this repo's **default branch**, and the branch this one is based on is whatever the operator stood on.
+So read the default branch yourself and compare it with **{{BASE_BRANCH}}**:
+
+```sh
+gh repo view --json defaultBranchRef
+```
+
+- They match — say nothing about it, in the body or the report.
+- They differ — the `Closes` lines will **not** fire. Say so in the pull request body and in your report, and that the tickets will have to be closed by hand after the merge.
+
+This never changes the outcome and is never a reason to refuse: it is a fact the human is owed, nothing more.
+Under `merge` landing the question never arises — no pull request is opened, and closing what landed is yours.
+
 Now do the one outcome below that matches **{{OUTCOME}}**, and nothing from the other two.
 
 ### success
@@ -123,7 +136,7 @@ Write the report the human reads in their terminal, as plain text lines — no J
 
 - the outcome and, when the pass did not succeed, its cause;
 - {{WORK_ITEM}} and the state you left it in;
-- the branch, and the pull request URL when there is one;
+- the branch, and the pull request URL when there is one, plus — only when that pull request is based on something other than the default branch — that its `Closes` lines will not fire and the tickets need closing by hand;
 - what the pass left unaddressed, as the section above says for this outcome;
 - what landed and how: {{LANDED_DETAIL}} — relay's own words for it, and when {{LANDED}} is `no` say too that the work sits on {{BRANCH}} alone;
 - each ticket the branch committed, with its short SHA from `git log --oneline {{BASE_BRANCH}}..{{BRANCH}}` — read those now, never earlier, because a rebase before you rewrote them;
