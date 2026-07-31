@@ -17,7 +17,7 @@ describe("runHarness reviewing the branch's quality", () => {
       async review(scope) {
         recorded.calls.push(`review:${reviewName(scope)}`);
         if (scope.kind === "quality") return [wanted];
-        if (scope.kind === "branch" && !scope.rereview) return onBranch;
+        if (scope.kind === "branch" && !scope.verifying) return onBranch;
         return [];
       },
     });
@@ -104,7 +104,7 @@ describe("runHarness reviewing the branch's quality", () => {
     const { crew, calls } = recordingCrew({
       async review(scope) {
         calls.push(`review:${reviewName(scope)}`);
-        return scope.kind === "branch" && !scope.rereview
+        return scope.kind === "branch" && !scope.verifying
           ? [finding("branch-review", "spec", "the retry cap is still hardcoded")]
           : [];
       },

@@ -35,7 +35,7 @@ export const MAX_GATE_FIX_ATTEMPTS = 2;
  * finding nobody acted on, so it is reported as one.
  */
 const REREVIEW_REASON =
-  "the re-review raised it over the fixer's own commit, and a re-review's findings reach no fixer";
+  "the re-review found the fixer's commit does not address it, and a re-review's findings reach no fixer";
 
 /**
  * Run the pass's crew over one work item and return how it ended.
@@ -285,16 +285,28 @@ async function implementTickets(
 
 /**
  * The whole-branch review, its fix, and — only when that fix changed something —
- * one re-review over the fixer's own commit.
+ * one re-review of what that fix claimed.
  *
  * That re-review is the pass's only look at a fix nobody else reads. The gate
  * that runs next is objective, so without it a spec fix could address the wrong
  * half of what the item asked and still land green. It runs exactly once, and
  * its findings reach no fixer: a loop here is the runaway relay refuses to be
  * ([ADR-0022](../../docs/adr/0022-a-fix-is-verified-once.md)).
+ *
+ * It is handed the findings the fixer said it fixed, and asks only whether the
+ * branch now satisfies them. A second full read of the branch would find its
+ * first new findings in the fixer's own commit — code no earlier review saw —
+ * and those reach nobody, so a binding one would block every pass whose fix
+ * touched anything
+ * ([ADR-0032](../../docs/adr/0032-the-re-review-verifies-the-fix-it-was-handed.md)).
  */
 async function reviewBranch(crew: Crew, workItem: number, axes: BranchAxes): Promise<StageResult> {
-  const report = await reviewAndFix(crew, { kind: "branch", workItem, axes, rereview: false });
+  const report = await reviewAndFix(crew, {
+    kind: "branch",
+    workItem,
+    axes,
+    verifying: undefined,
+  });
   const declined = report.skipped;
   const blocked = blockFor(declined);
   if (blocked) return { unaddressed: [...declined], blocked };
@@ -302,10 +314,9 @@ async function reviewBranch(crew: Crew, workItem: number, axes: BranchAxes): Pro
   // nothing, or a fixer that declined all of it, has already been accounted for.
   if (report.fixed.length === 0) return { unaddressed: [...declined] };
 
-  // The same axes as the first run: the re-review is that review again, and a
-  // second run asked less would leave the axis it dropped unread on the one
-  // commit nobody else looks at.
-  const findings = await crew.review({ kind: "branch", workItem, axes, rereview: true });
+  // The same axes as the first run: what it verifies is that review's own
+  // findings, so an axis dropped here would be a claim nobody checked.
+  const findings = await crew.review({ kind: "branch", workItem, axes, verifying: report.fixed });
   const raised = findings.map((finding) => ({ finding, reason: REREVIEW_REASON }));
   // Only the re-review's own findings can block from here: whatever the fixer
   // declined was already judged above, and it did not.

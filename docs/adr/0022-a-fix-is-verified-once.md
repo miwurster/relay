@@ -1,6 +1,6 @@
 # 0022. A fix is verified once, and never looped
 
-- **Status:** accepted
+- **Status:** accepted, the question the re-review asks amended by [ADR-0032](0032-the-re-review-verifies-the-fix-it-was-handed.md)
 - **Date:** 2026-07-29
 
 ## Context and Problem Statement
@@ -34,7 +34,9 @@ Chosen option: **Option B**.
 
 - After the branch review's fixer leg, if that leg fixed anything, the branch review runs **once more** over the new HEAD.
 - It is the same **role**, the same prompt, the same model and the same diff range. The only thing that differs is its name, and it has to differ: each review writes a findings file, and the second must not overwrite the first's.
+  Amended by [ADR-0032](0032-the-re-review-verifies-the-fix-it-was-handed.md): the re-review reads a prompt of its own and verifies the findings the fixer said it fixed, because a second full read of the branch finds its first new findings in the fixer's own commit and blocks the pass on them.
 - `ReviewScope`'s branch arm carries `rereview: boolean` for that, so the harness states which run it is asking for at both call sites.
+  Now `verifying: readonly Finding[] | undefined`, per ADR-0032 — presence says which run it is, and the contents are what that run asks about.
 - The re-review is **report-only**. There is no fixer leg after it, so its findings reach nobody:
   - a **spec** finding blocks the pass, by the same rule as everywhere else;
   - a **standards** finding is reported to the **handover** and the pass lands.
@@ -55,7 +57,7 @@ Option C was refused rather than deferred. The blocking rule stays the single ru
 ### Confirmation
 
 `tests/pass/harness-rereview.test.ts` asserts the re-review runs after a fix that changed something, does not run when the branch review found nothing, does not run when the fixer declined everything, blocks on a spec finding it raises, and lands while reporting a standards finding it raises.
-`tests/crew/roles/reviewer.test.ts` asserts the re-review's findings file is `branch-review-rereview.json` and its prompt arguments are identical to the first run's.
+`tests/crew/roles/reviewer.test.ts` asserts the re-review's findings file is `branch-review-rereview.json` and its prompt arguments are identical to the first run's — the second half amended by [ADR-0032](0032-the-re-review-verifies-the-fix-it-was-handed.md), which holds it to its own prompt instead.
 Exactly one fixer leg runs per branch review: the test on a blocking re-review counts them.
 
 ## Pros and Cons of the Options

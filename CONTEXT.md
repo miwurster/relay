@@ -96,7 +96,9 @@ Its **findings** carry the `quality` **axis**, reach one **fixer** leg, and are 
 _Avoid_: code review, deep review, maintainability review, quality role
 
 **Re-review**:
-The branch review's second run, over the **fixer**'s own commit, when the first run's fix changed something.
+The run that verifies the branch review's fix, when that fix changed something.
+It is handed the **findings** the **fixer** said it fixed and asks one question of each: does the branch now do what that finding asked?
+Not the branch review again — a second read of the branch would find its first new findings in the fixer's own commit, and nobody is left to fix those ([ADR-0032](docs/adr/0032-the-re-review-verifies-the-fix-it-was-handed.md)).
 Exactly one, never a loop, and report-only: there is no fixer after it, so its findings block if they are **binding** and are reported and landed if they are not ([ADR-0022](docs/adr/0022-a-fix-is-verified-once.md)).
 It exists because the **green gate** that runs next is objective, so without it a fix could address the wrong half of what was asked and still land green.
 _Avoid_: recheck, second pass, verification

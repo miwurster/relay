@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { Sandbox, SandboxRunOptions, SandboxRunResult } from "@ai-hero/sandcastle";
 import { beforeEach, describe, expect, it } from "vitest";
 import { relayConfigSchema } from "../../../src/config.js";
-import type { ReviewScope } from "../../../src/crew/contract.js";
+import type { Finding, ReviewScope } from "../../../src/crew/contract.js";
 import { RoleError } from "../../../src/errors.js";
 import { createReviewer, FINDINGS_TAG } from "../../../src/crew/roles/reviewer.js";
 import { readResource } from "../../../src/resources.js";
@@ -19,13 +19,28 @@ const ticketScope: ReviewScope = {
   ticket: { number: 8, summary: "the schema" },
   base: "c0ffee",
 };
-const branchScope: ReviewScope = { kind: "branch", workItem: 7, axes: "spec", rereview: false };
-const rereviewScope: ReviewScope = { kind: "branch", workItem: 7, axes: "spec", rereview: true };
+const branchScope: ReviewScope = {
+  kind: "branch",
+  workItem: 7,
+  axes: "spec",
+  verifying: undefined,
+};
+const fixed: Finding = {
+  source: "branch-review",
+  axis: "spec",
+  summary: "src/a.ts:3 the cap is read from the wrong key",
+};
+const rereviewScope: ReviewScope = {
+  kind: "branch",
+  workItem: 7,
+  axes: "spec",
+  verifying: [fixed],
+};
 const bothAxesBranchScope: ReviewScope = {
   kind: "branch",
   workItem: 7,
   axes: "both",
-  rereview: false,
+  verifying: undefined,
 };
 const qualityScope: ReviewScope = { kind: "quality", workItem: 7 };
 
@@ -219,12 +234,9 @@ describe("createReviewer", () => {
     const { review, runs } = reviewing(cleanBranch);
 
     await review(branchScope);
-    await review(rereviewScope);
 
-    for (const run of runs) {
-      expect(run.promptArgs?.["AXES"]).toContain("The `spec` axis only");
-      expect(run.promptArgs?.["AXES"]).not.toContain("Both axes");
-    }
+    expect(runs[0]?.promptArgs?.["AXES"]).toContain("The `spec` axis only");
+    expect(runs[0]?.promptArgs?.["AXES"]).not.toContain("Both axes");
   });
 
   it("asks the whole branch for a spec key and no other, so an empty one means found nothing", async () => {
@@ -282,14 +294,35 @@ describe("createReviewer", () => {
     expect(runs.map((run) => run.name)).toEqual(["branch-review", "branch-review-rereview"]);
   });
 
-  it("runs the re-review as the branch review again, on the same model and diff", async () => {
+  it("runs the re-review on the branch review's model, over the same diff", async () => {
     const { review, runs } = reviewing(cleanBranch);
 
-    await review(branchScope);
     await review(rereviewScope);
 
-    expect(commandOf(runs[1])).toContain(`--model '${config.models["branch-review"]}'`);
-    expect(runs[1]?.promptArgs).toEqual(runs[0]?.promptArgs);
+    expect(commandOf(runs[0])).toContain(`--model '${config.models["branch-review"]}'`);
+    expect(runs[0]?.promptArgs).toMatchObject({ ITEM: "#7", BASE: baseBranch });
+  });
+
+  /**
+   * The whole of ADR-0032: the re-review reads its own prompt, and what it is
+   * asked about is the fixer's claims rather than the branch.
+   */
+  it("hands the re-review the findings the fixer said it fixed, and its own prompt", async () => {
+    const { review, runs } = reviewing(cleanBranch);
+
+    await review(rereviewScope);
+
+    expect(runs[0]?.promptArgs?.["FIXES"]).toContain(fixed.summary);
+    expect(runs[0]?.promptArgs?.["FIXES"]).toContain('"axis": "spec"');
+    await expectPromptParity(runs[0], "rereview.md");
+  });
+
+  it("answers the re-review in the same axis shape as the review it verifies", async () => {
+    const { review } = reviewing(taggedFindings('{"spec":["src/a.ts:3 still reads legacyCap"]}'));
+
+    await expect(review(rereviewScope)).resolves.toEqual([
+      { source: "branch-review", axis: "spec", summary: "src/a.ts:3 still reads legacyCap" },
+    ]);
   });
 });
 

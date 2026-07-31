@@ -21,7 +21,7 @@ function decliningCrew(findingsFor: (scope: ReviewScope) => Finding[]) {
 }
 
 const specOnBranch = (scope: ReviewScope): Finding[] =>
-  scope.kind === "branch" && !scope.rereview
+  scope.kind === "branch" && !scope.verifying
     ? [finding("branch-review", "spec", "#1 asks for the cap to be read from config")]
     : [];
 

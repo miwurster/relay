@@ -171,11 +171,17 @@ export type ReviewScope =
        */
       axes: BranchAxes;
       /**
-       * Whether this is the branch review's second run, over the fixer's own
-       * commit. Exactly one, never a loop, and report-only: its findings reach
+       * The findings the branch review's fixer said it fixed, on the second run
+       * that verifies them; absent on the first run, which has no fix to read.
+       *
+       * Carrying them is what makes that run a verification rather than the
+       * branch review again: it asks only whether these were addressed, so a
+       * problem in the fixer's own new code is not a finding it can raise
+       * ([ADR-0032](../../docs/adr/0032-the-re-review-verifies-the-fix-it-was-handed.md)).
+       * Exactly one such run, never a loop, and report-only: its findings reach
        * no fixer ([ADR-0022](../../docs/adr/0022-a-fix-is-verified-once.md)).
        */
-      rereview: boolean;
+      verifying: readonly Finding[] | undefined;
     }
   | { kind: "quality"; workItem: number };
 

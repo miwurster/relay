@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Axis, Crew, Finding, ReviewKind, ReviewScope } from "../contract.js";
-import { reviewKindOf } from "../contract.js";
+import { findingLabel, reviewKindOf } from "../contract.js";
 import { writeFindingsFile } from "../leg-record.js";
 import { readResource } from "../../resources.js";
 import { type RoleDeps, runRole } from "../run-role.js";
@@ -10,6 +10,7 @@ import { TRACKER_DOC_PATH } from "../../tracker/tracker-doc.js";
 export const FINDINGS_TAG = "relay-findings";
 
 const REVIEW_PROMPT = "review.md";
+const REREVIEW_PROMPT = "rereview.md";
 const QUALITY_PROMPT = "quality-review.md";
 
 /** What the branch review's second run adds to its name, so it never overwrites the first. */
@@ -182,9 +183,13 @@ function findingsFile(kind: ReviewKind, target: ReviewTarget, name: string): str
  * A ticket is always read on both axes; the branch reads whichever set the
  * harness asked for, which is the axis set's own name.
  *
- * The re-review is the branch review again, differing only in its name — which
- * it has to differ in, because the two runs write a findings file each and the
- * second must not overwrite the first's.
+ * The re-review is its own prompt rather than the branch review again: it is
+ * handed the findings the fixer said it fixed and asks only whether the branch
+ * now satisfies them
+ * ([ADR-0032](../../docs/adr/0032-the-re-review-verifies-the-fix-it-was-handed.md)).
+ * It answers in the same shape all the same, so its findings are the same axes
+ * downstream — and it keeps a name of its own, because the two runs write a
+ * findings file each and the second must not overwrite the first's.
  */
 async function describeScope(scope: ReviewScope, baseBranch: string): Promise<ReviewTarget> {
   switch (scope.kind) {
@@ -194,12 +199,15 @@ async function describeScope(scope: ReviewScope, baseBranch: string): Promise<Re
         ...reviewRun("ticket", `#${scope.ticket.number}`, scope.base, AXIS_SETS.both),
         ticket: scope.ticket.number,
       };
-    case "branch":
+    case "branch": {
+      const axes = AXIS_SETS[scope.axes];
+      if (scope.verifying) return verifyRun(scope.workItem, baseBranch, scope.verifying, axes);
+
       return {
-        rereview: scope.rereview,
         prompt: REVIEW_PROMPT,
-        ...reviewRun("branch", `#${scope.workItem}`, baseBranch, AXIS_SETS[scope.axes]),
+        ...reviewRun("branch", `#${scope.workItem}`, baseBranch, axes),
       };
+    }
     case "quality":
       return {
         prompt: QUALITY_PROMPT,
@@ -211,6 +219,39 @@ async function describeScope(scope: ReviewScope, baseBranch: string): Promise<Re
         },
       };
   }
+}
+
+/**
+ * The re-review's run: the fixer's own claims, and the same answer shape the
+ * review it follows would have used.
+ *
+ * The findings are handed over stripped to their axis and their line, because
+ * that is the whole of what the fixer was told — a run that verifies a fix has
+ * to read exactly the sentence the fixer read, and `source` says nothing it
+ * does not already know.
+ */
+function verifyRun(
+  workItem: number,
+  baseBranch: string,
+  verifying: readonly Finding[],
+  axes: (typeof AXIS_SETS)[keyof typeof AXIS_SETS],
+): ReviewTarget {
+  const claimed = verifying.map((finding) => ({
+    axis: findingLabel(finding),
+    summary: finding.summary,
+  }));
+  return {
+    rereview: true,
+    prompt: REREVIEW_PROMPT,
+    schema: axes.schema,
+    promptArgs: {
+      ITEM: `#${workItem}`,
+      BASE: baseBranch,
+      TRACKER_DOC: TRACKER_DOC_PATH,
+      FIXES: JSON.stringify(claimed, undefined, 2),
+      ANSWER: axes.answer,
+    },
+  };
 }
 
 /** The arguments and the schema one `review.md` run takes from its axis set. */

@@ -264,7 +264,12 @@ describe("createCrew", () => {
       baseBranch: "spike/foo",
     });
 
-    await crew.review({ kind: "branch", workItem: issue.number, axes: "spec", rereview: false });
+    await crew.review({
+      kind: "branch",
+      workItem: issue.number,
+      axes: "spec",
+      verifying: undefined,
+    });
     await crew.handover(
       { kind: "success", detail: "`make test` exited 0" },
       [{ number: 8, summary: "the one ticket" }],

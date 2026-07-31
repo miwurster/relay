@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { Finding } from "../../src/crew/contract.js";
 import { finding, recordingCrew, reviewName, run, skippedAll } from "./harness-crew.js";
 
 /**
@@ -9,11 +10,38 @@ import { finding, recordingCrew, reviewName, run, skippedAll } from "./harness-c
 describe("runHarness re-reviewing a fix", () => {
   const wanted = finding("branch-review", "spec", "the cap is read from the wrong key");
 
+  /**
+   * What the re-review is asked about is the fixer's claims, not the branch
+   * ([ADR-0032](../../docs/adr/0032-the-re-review-verifies-the-fix-it-was-handed.md)).
+   * A run handed anything else would be free to raise findings about the fixer's
+   * own new code, which reach nobody and so can only stop the pass.
+   */
+  it("hands the re-review exactly the findings the fixer said it fixed", async () => {
+    const declined = finding("branch-review", "standards", "split the loader");
+    const verifying: (readonly Finding[] | undefined)[] = [];
+    const { crew } = recordingCrew({
+      async review(scope) {
+        if (scope.kind === "branch") verifying.push(scope.verifying);
+        return scope.kind === "branch" && !scope.verifying ? [wanted, declined] : [];
+      },
+      async fix(findings) {
+        return {
+          fixed: findings.filter((one) => one === wanted),
+          skipped: [{ finding: declined, reason: "one caller only" }],
+        };
+      },
+    });
+
+    await run(crew);
+
+    expect(verifying).toEqual([undefined, [wanted]]);
+  });
+
   it("re-reads the branch once after a fix that changed something", async () => {
     const { crew, calls } = recordingCrew({
       async review(scope) {
         calls.push(`review:${reviewName(scope)}`);
-        return scope.kind === "branch" && !scope.rereview ? [wanted] : [];
+        return scope.kind === "branch" && !scope.verifying ? [wanted] : [];
       },
     });
 
@@ -47,7 +75,7 @@ describe("runHarness re-reviewing a fix", () => {
       async review(scope) {
         calls.push(`review:${reviewName(scope)}`);
         if (scope.kind !== "branch") return [];
-        return scope.rereview ? [raised] : [wanted];
+        return scope.verifying ? [raised] : [wanted];
       },
     });
 
@@ -68,7 +96,7 @@ describe("runHarness re-reviewing a fix", () => {
       async review(scope) {
         calls.push(`review:${reviewName(scope)}`);
         if (scope.kind !== "branch") return [];
-        return scope.rereview ? [raised] : [wanted];
+        return scope.verifying ? [raised] : [wanted];
       },
     });
 
@@ -79,7 +107,7 @@ describe("runHarness re-reviewing a fix", () => {
       {
         finding: raised,
         reason:
-          "the re-review raised it over the fixer's own commit, " +
+          "the re-review found the fixer's commit does not address it, " +
           "and a re-review's findings reach no fixer",
       },
     ]);
@@ -89,7 +117,7 @@ describe("runHarness re-reviewing a fix", () => {
     const { crew, calls } = recordingCrew({
       async review(scope) {
         calls.push(`review:${reviewName(scope)}`);
-        return scope.kind === "branch" && !scope.rereview
+        return scope.kind === "branch" && !scope.verifying
           ? [finding("branch-review", "standards", "split the loader")]
           : [];
       },

@@ -79,7 +79,7 @@ describe("runHarness", () => {
       ...twoTicketPlan,
       async review(scope) {
         // The re-review's findings reach no fixer, so it reports nothing here.
-        if (scope.kind === "branch" && scope.rereview) return [];
+        if (scope.kind === "branch" && scope.verifying) return [];
         const ticketNumber = scope.kind === "ticket" ? scope.ticket.number : undefined;
         return [finding("ticket-review", "standards", "same problem", ticketNumber)];
       },
@@ -122,7 +122,7 @@ describe("runHarness", () => {
     const { crew } = recordingCrew({
       async review(scope) {
         if (scope.kind === "branch") axes.push(scope.axes);
-        return scope.kind === "branch" && !scope.rereview
+        return scope.kind === "branch" && !scope.verifying
           ? [finding("branch-review", "spec", "the cap is not configurable")]
           : [];
       },
@@ -139,7 +139,7 @@ describe("runHarness", () => {
       ...twoTicketPlan,
       async review(scope) {
         if (scope.kind === "branch") axes.push(scope.axes);
-        return scope.kind === "branch" && !scope.rereview
+        return scope.kind === "branch" && !scope.verifying
           ? [finding("branch-review", "spec", "the cap is not configurable")]
           : [];
       },
@@ -315,7 +315,7 @@ describe("runHarness", () => {
   it("hands the handover every finding nobody addressed", async () => {
     const { crew, unaddressed } = recordingCrew({
       async review(scope) {
-        if (scope.kind !== "branch" || scope.rereview) return [];
+        if (scope.kind !== "branch" || scope.verifying) return [];
         return [finding("branch-review", "standards", "the two loaders should be one")];
       },
       async fix(findings) {
@@ -345,7 +345,7 @@ describe("runHarness", () => {
   it("hands the handover a not-gated verdict when the pass blocked before the gate", async () => {
     const { crew, gate } = recordingCrew({
       async review(scope) {
-        if (scope.kind !== "branch" || scope.rereview) return [];
+        if (scope.kind !== "branch" || scope.verifying) return [];
         return [finding("branch-review", "spec", "the retry cap is still hardcoded")];
       },
       async fix(findings) {
@@ -364,7 +364,7 @@ describe("runHarness", () => {
   it("hands the handover nothing when every finding was fixed", async () => {
     const { crew, unaddressed } = recordingCrew({
       async review(scope) {
-        if (scope.kind !== "branch" || scope.rereview) return [];
+        if (scope.kind !== "branch" || scope.verifying) return [];
         return [finding("branch-review", "spec", "the retry cap is still hardcoded")];
       },
     });

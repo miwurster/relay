@@ -157,7 +157,7 @@ export function reviewName(scope: ReviewScope): string {
     case "ticket":
       return String(scope.ticket.number);
     case "branch":
-      return scope.rereview ? "branch-rereview" : "branch";
+      return scope.verifying ? "branch-rereview" : "branch";
     case "quality":
       return "quality";
   }
