@@ -577,14 +577,21 @@ describe("the handover prompt", () => {
   });
 
   it("ticks every unchecked box in a finished ticket, or none of them", () => {
-    expect(prompt).toMatch(
-      /rewriting \*\*every\*\* unchecked box in it as checked — all of them or none/,
-    );
-    expect(prompt).toContain("gh issue edit <number> --body-file");
+    expect(prompt).toMatch(/\*\*every\*\* unchecked box in it/);
+    expect(prompt).toMatch(/All of them or none/);
   });
 
-  it("ticks under whatever heading a box sits, naming none itself", () => {
-    expect(prompt).toMatch(/whatever heading sits above them/);
+  it("reads and rewrites the body the tracker doc's way, naming no command of its own", () => {
+    expect(prompt).toMatch(/Read the body and write it back the way `\{\{TRACKER_DOC\}\}` says to/);
+    expect(prompt).not.toMatch(/gh issue/);
+  });
+
+  it("asks the tracker doc for the body it is about to rewrite", () => {
+    expect(prompt).toMatch(/read the body of, rewrite the body of/);
+  });
+
+  it("ticks under whatever heading a box sits, and in whatever list, naming neither itself", () => {
+    expect(prompt).toMatch(/whatever heading sits above them and whatever list/);
     // A body heading, never the bail reason in the example report below it:
     // the repo's body conventions are the repo's, and relay states none.
     expect(prompt).not.toMatch(/#+ *acceptance criteria/i);

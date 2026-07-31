@@ -13,7 +13,7 @@ Whether you close anything at all is this repo's landing to decide, and the next
 ## 1. Read the tracker doc first
 
 Read `{{TRACKER_DOC}}` in this worktree before you touch the tracker.
-It is your only source for tracker access, its ids, and how to comment on, label, read the sub-issues of and close an item.
+It is your only source for tracker access, its ids, and how to comment on, label, read the sub-issues of, read the body of, rewrite the body of and close an item.
 Assume none of it.
 
 ## 2. Know what this repo's landing owes
@@ -48,15 +48,9 @@ The pass finished **{{FINISHED_TICKETS}}** — relay derived that from what the 
 Never work it out yourself: nothing on this branch tells you which committed ticket a review found unbuilt.
 
 That list is also what you **tick**, where the outcome below says to.
-Ticking a ticket means reading its body and rewriting **every** unchecked box in it as checked — all of them or none, whatever heading sits above them, and nothing else in the body touched:
-
-```sh
-gh issue view <number> --json body --jq .body > /tmp/<number>.md
-# rewrite every `- [ ]` in that file as `- [x]`, and change nothing else
-gh issue edit <number> --body-file /tmp/<number>.md
-```
-
-GitHub exposes no per-checkbox API, which is why this rewrites the whole body.
+Ticking a ticket means reading its body and writing it back with **every** unchecked box in it — every `[ ]` — rewritten as a checked one — `[x]`.
+All of them or none, whatever heading sits above them and whatever list the boxes are written as, and nothing else in the body changed.
+Read the body and write it back the way `{{TRACKER_DOC}}` says to; there is no per-checkbox operation to reach for, which is why a tick rewrites the whole body.
 A ticket with no unchecked box is already ticked: leave it exactly as it is and write nothing back.
 
 Never weigh one box against the branch and tick it alone.
