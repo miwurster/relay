@@ -635,8 +635,33 @@ describe("the handover prompt", () => {
     );
   });
 
-  it("leaves the ready label on an item the planner refused", () => {
+  it("strips the ready label from every ticket a pass wrote", () => {
+    expect(section("### success", "### mid-block")).toMatch(
+      /remove `ready-for-agent` from each of them/,
+    );
+    expect(section("### mid-block", "### early-bail")).toMatch(
+      /remove `ready-for-agent` from every ticket either list names/,
+    );
+  });
+
+  it("names no ticket to strip for a list that reads `nothing`", () => {
+    expect(section("### mid-block", "### early-bail")).toMatch(
+      /A list that reads `nothing` names no ticket/,
+    );
+  });
+
+  it("strips the ready label once from an item that is its own single ticket", () => {
+    expect(section("### success", "### mid-block")).toMatch(
+      /When \{\{WORK_ITEM\}\} is itself the only ticket, this step asks of it exactly what the step above did: do it once/,
+    );
+    expect(section("### mid-block", "### early-bail")).toMatch(
+      /When \{\{WORK_ITEM\}\} is itself the only ticket, its `ready-for-agent` removal is the one the step above already asked for: do it once/,
+    );
+  });
+
+  it("leaves the ready label on an item the planner refused, and on no ticket at all", () => {
     expect(section("### early-bail")).toMatch(/Leave `ready-for-agent` on \{\{WORK_ITEM\}\}/);
+    expect(section("### early-bail")).toMatch(/Write \*\*no ticket\*\* either — no label/);
   });
 
   it("reads the repo's default branch itself, carrying it in no argument", () => {

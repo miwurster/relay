@@ -91,8 +91,11 @@ The branch is green.
    - under `merge` landing, remove `agent-in-progress` and add **no** label — nothing is awaiting a review that is not coming.
 4. Label each of {{FINISHED_TICKETS}}, and no other ticket — its implementer applied the hold when it started, and you are the one who lifts it:
    - remove `agent-in-progress` from each of them;
+   - remove `ready-for-agent` from each of them too, whatever this repo's landing is — this pass took their offer up as well, and re-offering the work is a human's act;
    - under `pull-request` landing, add `agent-in-review` to each — its work is waiting on a human's review;
    - under `merge` landing, add **no** label to any of them — closing them was step 2's, and nothing is awaiting a review that is not coming.
+
+   When {{WORK_ITEM}} is itself the only ticket, this step asks of it exactly what the step above did: do it once.
 5. Tick each of {{FINISHED_TICKETS}}, as above, and no other ticket — under **both** landings, because the branch is green either way and the claim is about the branch, not about who merges it.
 6. Comment the resolution on {{WORK_ITEM}}: the pull request URL when there is one, or {{BASE_BRANCH}} when the work landed there; one line on what the pass built; the tickets it committed and which of them you closed; {{REASON}}, the gate that verified what landed; and how many findings went unaddressed, as section 3 says.
 
@@ -118,11 +121,14 @@ Close **nothing**, under either landing: the work reached nobody but you.
 
 2. Swap the labels on {{WORK_ITEM}}: add `agent-blocked` and remove `agent-in-progress`.
    Then remove `ready-for-agent` from {{WORK_ITEM}} too: this pass took the offer up, and re-offering the work is a human's act.
-3. Label the tickets, and no ticket beyond these two lists:
+3. Label the tickets, and no ticket beyond these two lists — and remove `ready-for-agent` from every ticket either list names, whatever else this step leaves on it: this pass took their offer up as well, and re-offering the work is a human's act.
+   A list that reads `nothing` names no ticket, and then there is nothing to remove for it.
    - Each of **{{BLOCKED_TICKETS}}** is a ticket the pass blocked on: leave `agent-in-progress` on it and add `agent-blocked`, so a human can see which tickets need their decision.
      `nothing` means no committed ticket is at fault — the gate stayed red, or nothing could be landed — and then there is no ticket to label here.
    - Each of {{FINISHED_TICKETS}}: remove `agent-in-progress` and add **no** label.
      Their work is real, but nothing landed and nothing closed, so there is no state to claim beyond lifting the hold.
+
+   When {{WORK_ITEM}} is itself the only ticket, its `ready-for-agent` removal is the one the step above already asked for: do it once.
 4. Tick each of {{FINISHED_TICKETS}}, as above, and no other ticket — the ticket the pass blocked on keeps its boxes exactly as they are, because a review found its work unbuilt.
 5. Comment on {{WORK_ITEM}}: the branch and the draft pull request URL when there is one, one line on what the pass built, the cause above, every finding left unaddressed as section 3 says, and what a human has to decide.
 
