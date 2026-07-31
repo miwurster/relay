@@ -21,11 +21,12 @@ These apply to every change in this repo.
 
 ### Issue tracker
 
-Issues live as GitHub issues for this repo.
-Use the `gh` CLI.
-See `docs/agents/issue-tracker.md`.
+Issues live as GitHub issues for this repo (`miwurster/relay`). Use the `gh` CLI. See `docs/agents/issue-tracker.md`.
 
-### Domain language
+### Triage labels
 
-`CONTEXT.md` is this repo's glossary.
-Name a domain concept with the term the glossary uses.
+The five canonical triage roles, each label string equal to its name (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context — one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
