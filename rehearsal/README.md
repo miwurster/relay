@@ -8,6 +8,7 @@ Change something, rehearse, diff the digest against the last one.
 ```sh
 npm run rehearse -- happy-path merge
 npm run rehearse -- bug-report pull-request
+npm run rehearse -- single-spec merge
 ```
 
 Builds relay, seeds the scenario, runs the pass in the clone with relay's output streaming live, then prints the digest and files it as `rehearsal/runs/<scenario>-<landing>-<start time>.txt`.
