@@ -29,9 +29,12 @@ const planSchema = z.discriminatedUnion("kind", [
  * and resolves it into the ordered tickets the rest of the pass implements —
  * its open sub-issues, or the item itself when it has none.
  *
- * The repo's own conventions — tracker access and its relation model — come from
+ * Tracker access — the tool, and how each operation is run — comes from
  * `docs/agents/issue-tracker.md`, which the prompt sends the planner to read
- * first, so relay hardcodes nothing about how this repo expresses them.
+ * first, so relay hardcodes nothing about how this repo reaches its tracker.
+ * The graph itself is relay's: sub-issues and issue dependencies as GitHub
+ * records them, never a convention a doc describes
+ * ([ADR-0028](../../../docs/adr/0028-the-tracker-doc-owns-invocation-relay-owns-the-graph.md)).
  */
 export function createPlanner(deps: RoleDeps): Crew["plan"] {
   return async function plan(issue: GitHubIssue): Promise<PlanResult> {

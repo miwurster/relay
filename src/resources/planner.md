@@ -7,13 +7,14 @@ You write no code, and you touch the tracker only as step 2 allows.
 ## 1. Read the tracker doc first
 
 Read `{{TRACKER_DOC}}` in this worktree before you touch the tracker.
-It is your only source for:
-
-- **Tracker access** — which tracker this repo uses, and the tool it is reached with.
-- **Relation model** — how "blocks / is blocked by" and how the parent-child relation are expressed here.
-
+It is your only source for **tracker access** — which tracker this repo uses, the tool it is reached with, and how each operation is run.
 Assume none of it.
-If the doc does not tell you something you need, that is an under-specified plan: bail (step 4).
+If the doc does not tell you how to reach the tracker, that is an under-specified plan: bail (step 4).
+
+The doc tells you how to run an operation, never what the graph is.
+The tickets under a work item are its own GitHub sub-issues, and its blockers are its own GitHub issue dependencies.
+A task list in a body, or a `Blocked by:` line, is neither — do not follow one, whatever the doc calls it.
+relay read those same GitHub dependencies itself to admit {{WORK_ITEM}} before you ran, so a plan ordered by anything else is ordered against a graph the pass cannot see.
 
 ## 2. Label {{WORK_ITEM}} `agent-in-progress`
 
@@ -23,7 +24,7 @@ This label is the only tracker write you make.
 
 ## 3. Verify and order the sub-issues a human already wrote
 
-The plan is {{WORK_ITEM}}'s sub-issues, under the relation model the doc describes.
+The plan is {{WORK_ITEM}}'s sub-issues, as section 1 defines them.
 
 - **Sub-issues exist** — the plan is those sub-issues, ordered so that every ticket comes after the tickets it is blocked by.
   Leave out the closed ones: they are already done.
@@ -43,7 +44,7 @@ Plurality comes only from tickets a human already wrote.
 
 ## 4. Bail rather than fabricate
 
-Bail to a human when a ticket in the plan does not convey enough to implement it: no acceptance criteria and no described change, a dependency cycle you cannot order, or a tracker doc that leaves you guessing.
+Bail to a human when a ticket in the plan does not convey enough to implement it: no acceptance criteria and no described change, a dependency cycle you cannot order, or a tracker doc that leaves you guessing how to reach the tracker at all.
 Do not fill the gap yourself.
 Name the ticket and what is missing.
 

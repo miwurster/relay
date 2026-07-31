@@ -1,6 +1,6 @@
 # 0018. Legs read the tracker themselves
 
-- **Status:** accepted
+- **Status:** accepted, amended by [ADR-0028](0028-the-tracker-doc-owns-invocation-relay-owns-the-graph.md)
 - **Date:** 2026-07-28
 
 ## Context and Problem Statement
@@ -64,6 +64,7 @@ Each role's prompt placeholders equal the arguments its role passes, asserted pe
 ## More Information
 
 - Provenance: issue #12.
+- Amended by [ADR-0028](0028-the-tracker-doc-owns-invocation-relay-owns-the-graph.md): a **forge** command is not tracker content, and the doc a leg reads owns invocation rather than the graph.
 - Related: [ADR-0007](0007-one-forge-one-tracker-no-abstraction.md) — one forge, one tracker, no adapter.
 - Related: [ADR-0008](0008-the-native-github-graph-is-the-tracker-model.md) — the graph a leg reads.
 - Related: [ADR-0009](0009-the-repos-docs-declare-the-green-gate.md) — the same argument for the gate.

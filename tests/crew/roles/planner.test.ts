@@ -132,6 +132,12 @@ describe("the planner prompt", () => {
     expect(prompt).toMatch(/sub-issues[\s\S]*ordered so that every ticket comes after/);
   });
 
+  it("keeps the graph relay's own, whatever the tracker doc calls a relation", () => {
+    expect(prompt).toContain("never what the graph is");
+    expect(prompt).toContain("A task list in a body");
+    expect(prompt).not.toContain("Relation model");
+  });
+
   it("plans a childless item as its own single ticket", () => {
     expect(prompt).toMatch(/No sub-issues[\s\S]*as a single ticket/);
   });

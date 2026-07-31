@@ -14,7 +14,9 @@ Nothing outside that diff is yours to judge, however much you would like to.
 Use the `mattpocock-skills:code-review` skill, with **{{BASE}}** as the fixed point it reviews since.
 
 Give the skill **{{ITEM}}** as the issue its spec axis measures the change against, rather than letting it hunt for one: read `{{TRACKER_DOC}}` in this worktree for how to reach the tracker, and fetch the intent from there.
-On the **branch** scope the intent is that work item as a whole — its description plus the tickets under it, per the relation model the tracker doc describes.
+On the **branch** scope the intent is that work item as a whole — its description plus the tickets under it.
+The doc tells you how to run an operation, never what the graph is: the tickets under a work item are its own GitHub sub-issues.
+A task list in a body, or a `Blocked by:` line, is neither — do not follow one, whatever the doc calls it.
 The tracker is the single source of truth for what was asked, so never let a copy of the intent found in the worktree stand in for it.
 
 The repo's own standards win over the skill's baseline where the two disagree.

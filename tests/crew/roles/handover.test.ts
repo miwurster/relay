@@ -525,6 +525,12 @@ describe("the handover prompt", () => {
     expect(prompt).toMatch(/Never work it out yourself/);
   });
 
+  it("takes the tickets from the item's own sub-issues, not from a convention", () => {
+    expect(prompt).toMatch(
+      /when \{\{WORK_ITEM\}\} has sub-issues the tickets are those sub-issues/,
+    );
+  });
+
   it("closes the work item only when no sub-issue of it is still open", () => {
     const success = section("### success", "### mid-block");
     expect(success).toMatch(/re-read \{\{WORK_ITEM\}\}'s sub-issues/);

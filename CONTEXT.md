@@ -195,8 +195,15 @@ _Avoid_: locked, assigned, in progress
 
 **Tracker doc**:
 The repo's committed `docs/agents/issue-tracker.md`, which carries the repo's own tracker conventions and is what the tracker-facing **roles** are told to read first.
+Never relay's to write: it belongs to the repo a **pass** runs against.
+It owns how a tracker operation is invoked, never what the graph is — the tickets under a **work item** are its GitHub sub-issues and its blockers are its GitHub issue dependencies, whatever a doc calls them ([ADR-0028](docs/adr/0028-the-tracker-doc-owns-invocation-relay-owns-the-graph.md)).
 relay hardcodes GitHub itself and nothing beyond it: which repo the issues live in comes from the git remote, since a repo owns its own issues.
 _Avoid_: tracker config, issue config
+
+**Forge**:
+Where the code lives, as against the tracker, where the work is described — the remote, the branches, the pull requests.
+GitHub is both for relay, and the two are still distinct: a **pass** publishes to the forge itself, and reads the tracker the way the **tracker doc** says to ([ADR-0028](docs/adr/0028-the-tracker-doc-owns-invocation-relay-owns-the-graph.md)).
+_Avoid_: remote, host, SCM
 
 **Sandbox**:
 The one container and git worktree a **pass** runs in, on its own **pass branch**.

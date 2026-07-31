@@ -366,6 +366,13 @@ describe("the review prompt", () => {
   it("leaves the shape of the answer to the scope that is asking", async () => {
     expect(await readResource("review.md")).toContain("{{ANSWER}}");
   });
+
+  it("keeps the graph relay's own, whatever the tracker doc calls a relation", async () => {
+    const prompt = await readResource("review.md");
+    expect(prompt).toContain("never what the graph is");
+    expect(prompt).toContain("A task list in a body");
+    expect(prompt).not.toContain("per the relation model the tracker doc describes");
+  });
 });
 
 /**
