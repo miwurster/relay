@@ -124,12 +124,13 @@ Close **nothing**, under either landing: the work reached nobody but you.
 3. Label the tickets, and no ticket beyond these two lists — and remove `ready-for-agent` from every ticket either list names, whatever else this step leaves on it: this pass took their offer up as well, and re-offering the work is a human's act.
    A list that reads `nothing` names no ticket, and then there is nothing to remove for it.
    - Each of **{{BLOCKED_TICKETS}}** is a ticket the pass blocked on: leave `agent-in-progress` on it and add `agent-blocked`, so a human can see which tickets need their decision.
-     `nothing` means no committed ticket is at fault — the gate stayed red, or nothing could be landed — and then there is no ticket to label here.
+     Its implementer asked for a human, or a review found its work unbuilt, or the review that blocked was about the whole branch and named no single ticket — relay worked out which, and each of them needs the same decision from a human.
+     `nothing` means no ticket is at fault — the gate stayed red, or nothing could be landed — and then there is no ticket to label here.
    - Each of {{FINISHED_TICKETS}}: remove `agent-in-progress` and add **no** label.
      Their work is real, but nothing landed and nothing closed, so there is no state to claim beyond lifting the hold.
 
    When {{WORK_ITEM}} is itself the only ticket, its `ready-for-agent` removal is the one the step above already asked for: do it once.
-4. Tick each of {{FINISHED_TICKETS}}, as above, and no other ticket — the ticket the pass blocked on keeps its boxes exactly as they are, because a review found its work unbuilt.
+4. Tick each of {{FINISHED_TICKETS}}, as above, and no other ticket — every ticket the pass blocked on keeps its boxes exactly as they are, because nothing earned a done for it.
 5. Comment on {{WORK_ITEM}}: the branch and the draft pull request URL when there is one, one line on what the pass built, the cause above, every finding left unaddressed as section 3 says, and what a human has to decide.
 
 ### early-bail

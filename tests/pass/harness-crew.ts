@@ -84,6 +84,7 @@ export function recordingCrew(overrides: Partial<Crew> = {}) {
   let handedOver: Outcome | undefined;
   let handedOverTickets: readonly TicketRef[] = [];
   let handedOverFinished: readonly TicketRef[] = [];
+  let handedOverBlocked: readonly TicketRef[] = [];
   let handedOverLand: LandResult = NO_LANDING;
   let handedOverUnaddressed: readonly UnaddressedFinding[] = [];
 
@@ -119,11 +120,12 @@ export function recordingCrew(overrides: Partial<Crew> = {}) {
       calls.push("land");
       return NO_LANDING;
     },
-    async handover(outcome, committed, finished, land, unaddressed): Promise<void> {
+    async handover(outcome, committed, finished, blocked, land, unaddressed): Promise<void> {
       calls.push(`handover:${outcome.kind}`);
       handedOver = outcome;
       handedOverTickets = committed;
       handedOverFinished = finished;
+      handedOverBlocked = blocked;
       handedOverLand = land;
       handedOverUnaddressed = unaddressed;
     },
@@ -138,6 +140,7 @@ export function recordingCrew(overrides: Partial<Crew> = {}) {
     handover: () => handedOver,
     committed: () => handedOverTickets,
     finished: () => handedOverFinished,
+    blocked: () => handedOverBlocked,
     land: () => handedOverLand,
     unaddressed: () => handedOverUnaddressed,
   };

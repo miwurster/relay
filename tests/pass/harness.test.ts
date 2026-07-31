@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { GateResult, ResolvedGate } from "../../src/crew/contract.js";
+import type {
+  GateResult,
+  ImplementResult,
+  PlanResult,
+  ResolvedGate,
+  TicketRef,
+} from "../../src/crew/contract.js";
 import { ExitCode } from "../../src/exit-codes.js";
 import { exitCodeFor, MAX_GATE_FIX_ATTEMPTS, runHarness } from "../../src/pass/harness.js";
 import { createStubCrew } from "../crew/stub-crew.js";
@@ -14,6 +20,18 @@ import {
   ticket,
   twoTicketPlan,
 } from "./harness-crew.js";
+
+/** A two-ticket plan whose second implementer asks for a human before it commits. */
+const bailsOnTicketTwo = {
+  async plan(): Promise<PlanResult> {
+    return { kind: "plan", tickets: [ticket(1), ticket(2)] };
+  },
+  async implement(ref: TicketRef): Promise<ImplementResult> {
+    return ref.number === 2
+      ? { kind: "needs-input", reason: "which queue does this drain?" }
+      : { kind: "done", base: "c0ffee" };
+  },
+};
 
 describe("runHarness", () => {
   it("runs the full topology in order: plan, per-ticket loop, branch review, quality review, gate, land, handover", async () => {
@@ -206,21 +224,23 @@ describe("runHarness", () => {
   });
 
   it("hands the handover the tickets committed before a block, and no more", async () => {
-    const { crew, committed } = recordingCrew({
-      async plan() {
-        return { kind: "plan", tickets: [ticket(1), ticket(2)] };
-      },
-      async implement(ref) {
-        return ref.number === 2
-          ? { kind: "needs-input", reason: "which queue does this drain?" }
-          : { kind: "done", base: "c0ffee" };
-      },
-    });
+    const { crew, committed } = recordingCrew(bailsOnTicketTwo);
 
     const outcome = await run(crew);
 
     expect(outcome).toEqual({ kind: "mid-block", reason: "which queue does this drain?" });
     expect(committed()).toEqual([ticket(1)]);
+  });
+
+  it("blocks on the ticket an implementer asked for a human over, which it never committed", async () => {
+    const { crew, finished, blocked } = recordingCrew(bailsOnTicketTwo);
+
+    await run(crew);
+
+    // Its implementer applied the hold before it asked, so the handover has to be
+    // told which ticket is carrying it — the committed list never names it.
+    expect(finished()).toEqual([ticket(1)]);
+    expect(blocked()).toEqual([ticket(2)]);
   });
 
   it("hands the handover every ticket of a pass that finished", async () => {

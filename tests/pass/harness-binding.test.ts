@@ -20,6 +20,11 @@ function decliningCrew(findingsFor: (scope: ReviewScope) => Finding[]) {
   return recorder;
 }
 
+const specOnBranch = (scope: ReviewScope): Finding[] =>
+  scope.kind === "branch" && !scope.rereview
+    ? [finding("branchReview", "spec", "#1 asks for the cap to be read from config")]
+    : [];
+
 const specOnTicketOne = (scope: ReviewScope): Finding[] =>
   scope.kind === "ticket" && scope.ticket.number === 1
     ? [finding("ticketReview", "spec", "#1 asks for a configurable cap; this hardcodes 3", 1)]
@@ -89,12 +94,13 @@ describe("runHarness on a binding finding nobody addressed", () => {
   });
 
   it("leaves the ticket it blocked on out of the finished tickets, but not the committed ones", async () => {
-    const { crew, committed, finished } = decliningCrew(specOnTicketOne);
+    const { crew, committed, finished, blocked } = decliningCrew(specOnTicketOne);
 
     await run(crew);
 
     expect(committed()).toEqual([ticket(1)]);
     expect(finished()).toEqual([]);
+    expect(blocked()).toEqual([ticket(1)]);
   });
 
   it("finishes a ticket carrying only an unaddressed standards finding", async () => {
@@ -133,11 +139,7 @@ describe("runHarness on a binding finding nobody addressed", () => {
   });
 
   it("stops on a declined spec finding at branch scope too", async () => {
-    const { crew, calls } = decliningCrew((scope) =>
-      scope.kind === "branch" && !scope.rereview
-        ? [finding("branchReview", "spec", "#1 asks for the cap to be read from config")]
-        : [],
-    );
+    const { crew, calls } = decliningCrew(specOnBranch);
 
     const outcome = await run(crew);
 
@@ -145,5 +147,17 @@ describe("runHarness on a binding finding nobody addressed", () => {
     expect(calls).not.toContain("gate");
     // Nothing was fixed, so there is nothing new for a re-review to read.
     expect(calls).not.toContain("review:branch-rereview");
+  });
+
+  it("finishes no ticket when the finding that blocked was about the whole branch", async () => {
+    const { crew, committed, finished, blocked } = decliningCrew(specOnBranch);
+
+    await run(crew);
+
+    // The review named no ticket, so no committed ticket earned a done and the
+    // whole branch is what a human has to decide about.
+    expect(committed()).toEqual([ticket(1), ticket(2)]);
+    expect(finished()).toEqual([]);
+    expect(blocked()).toEqual([ticket(1), ticket(2)]);
   });
 });

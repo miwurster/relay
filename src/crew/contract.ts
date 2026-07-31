@@ -261,6 +261,11 @@ export interface Crew {
    * ones a blocked pass may still claim. It is the list the handover records as
    * done, while `committed` stays what a `Closes` line is owed per ticket for.
    *
+   * `blocked` is the tickets a human has to decide about — the harness's
+   * derivation too, and not `committed` minus `finished`: a ticket an implementer
+   * asked for a human over never reached `committed`, and a branch-scope finding
+   * leaves the whole branch at fault without naming a ticket.
+   *
    * `land` is what the lander did, or `no-landing` when there was none to do.
    * The handover is told it rather than working it out from the landing and the
    * outcome, because closing an issue is the pass's one irreversible tracker
@@ -275,6 +280,7 @@ export interface Crew {
     outcome: Outcome,
     committed: readonly TicketRef[],
     finished: readonly TicketRef[],
+    blocked: readonly TicketRef[],
     land: LandResult,
     unaddressed: readonly UnaddressedFinding[],
   ): Promise<void>;

@@ -264,6 +264,7 @@ describe("createCrew", () => {
       { kind: "success", detail: "`make test` exited 0" },
       [{ number: 8, summary: "the one ticket" }],
       [{ number: 8, summary: "the one ticket" }],
+      [],
       NO_LANDING,
       [],
     );
@@ -298,6 +299,7 @@ describe("createCrew", () => {
       { kind: "success", detail: "`make test` exited 0" },
       [{ number: 8, summary: "the one ticket" }],
       [{ number: 8, summary: "the one ticket" }],
+      [],
       NO_LANDING,
       [],
     );

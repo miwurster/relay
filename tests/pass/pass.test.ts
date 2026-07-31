@@ -259,6 +259,25 @@ describe("runPassOnItem", () => {
     );
   });
 
+  it("names each sub-issue by number, so the human copies the cleanup rather than fills it in", async () => {
+    const { github, comments } = fakeGitHub();
+    const withTickets: GitHubIssue = {
+      ...issue,
+      subIssues: [
+        { number: 8, isOpen: true },
+        { number: 9, isOpen: true },
+      ],
+    };
+
+    await expect(
+      runOnePass({ github, issue: withTickets, createCrew: crashingCrew }),
+    ).rejects.toThrow("the sandbox died");
+
+    expect(comments[0]?.text).toContain("gh issue edit 8 --remove-label agent-in-progress");
+    expect(comments[0]?.text).toContain("gh issue edit 9 --remove-label agent-in-progress");
+    expect(comments[0]?.text).not.toContain("<sub-issue>");
+  });
+
   it("comments too when the sandbox never opened", async () => {
     const { github, comments } = fakeGitHub();
 

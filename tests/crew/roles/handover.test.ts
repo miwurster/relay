@@ -46,14 +46,16 @@ function handing({ stdout = "", commits = [] as { sha: string }[], withConfig = 
   return {
     // A pass that left nothing unaddressed is the ordinary one, so it is the
     // default here and only the tests about that list pass one — and such a pass
-    // finished everything it committed, which is the default for the same reason.
+    // finished everything it committed and blocked on nothing, which are the
+    // defaults for the same reason.
     handover: (
       outcome: Outcome,
       committed: readonly TicketRef[],
       land: LandResult,
       unaddressed: readonly UnaddressedFinding[] = [],
       finished: readonly TicketRef[] = committed,
-    ) => handover(outcome, committed, finished, land, unaddressed),
+      blocked: readonly TicketRef[] = [],
+    ) => handover(outcome, committed, finished, blocked, land, unaddressed),
     runs,
   };
 }
@@ -149,24 +151,31 @@ describe("createHandover", () => {
     });
   });
 
-  it("names the tickets that blocked, as the committed ones no review left finished", async () => {
+  it("names the tickets that blocked, as relay derived them rather than by subtraction", async () => {
     const { handover, runs } = handing({
       stdout: tagged('{"report":"#7 blocked on #9; agent/7 pushed."}'),
       withConfig: mergeConfig,
     });
 
+    // A ticket its implementer asked for a human over is blocked without ever
+    // having been committed, which is why the leg is told the list.
     await handover(
       midBlock,
-      tickets,
+      [{ number: 8, summary: "reject an empty cart" }],
       NO_LANDING,
       [],
       [{ number: 8, summary: "reject an empty cart" }],
+      [{ number: 9, summary: "price the cart" }],
     );
 
-    expect(runs[0]?.promptArgs).toMatchObject({ BLOCKED_TICKETS: "#9" });
+    expect(runs[0]?.promptArgs).toMatchObject({
+      COMMITTED_TICKETS: "#8",
+      FINISHED_TICKETS: "#8",
+      BLOCKED_TICKETS: "#9",
+    });
   });
 
-  it("names no blocking ticket when no committed ticket is at fault", async () => {
+  it("names no blocking ticket when no ticket is at fault", async () => {
     const { handover, runs } = handing({
       stdout: tagged('{"report":"#7 blocked on the gate; agent/7 pushed."}'),
       withConfig: mergeConfig,

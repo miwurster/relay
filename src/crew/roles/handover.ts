@@ -43,10 +43,11 @@ export function createHandover({
     outcome: Outcome,
     committed: readonly TicketRef[],
     finished: readonly TicketRef[],
+    blocked: readonly TicketRef[],
     land: LandResult,
     unaddressed: readonly UnaddressedFinding[],
   ): Promise<void> {
-    const leg = describeLeg(outcome, committed, finished, deps.config.landing, land);
+    const leg = describeLeg(outcome, committed, finished, blocked, deps.config.landing, land);
 
     const { prUrl, report } = await runRole({
       ...deps,
@@ -70,9 +71,9 @@ export function createHandover({
         // Derived by relay from what the reviews left unaddressed, which the leg
         // cannot see either — and the only list it may record as done.
         FINISHED_TICKETS: leg.finished,
-        // Derived too, from the same two lists: what a block left behind is the
-        // committed tickets no review let through, which are the ones a human
-        // has to decide about.
+        // Derived by relay too, and not the committed tickets minus the finished
+        // ones: a ticket an implementer asked for a human over never reached the
+        // committed list, and a finding about the branch names no ticket at all.
         BLOCKED_TICKETS: leg.blocked,
         // What a review wanted and nobody did. Told, because the leg cannot see
         // it: the records live on the host, outside this worktree.
@@ -131,6 +132,7 @@ function describeLeg(
   outcome: Outcome,
   committed: readonly TicketRef[],
   finished: readonly TicketRef[],
+  blocked: readonly TicketRef[],
   landing: Landing,
   land: LandResult,
 ): HandoverLeg {
@@ -148,25 +150,8 @@ function describeLeg(
     landedDetail: land.kind === "landed" ? land.detail : "nothing was landed",
     committed: listTickets(committed),
     finished: listTickets(finished),
-    blocked: listTickets(blockedTickets(committed, finished)),
+    blocked: listTickets(blocked),
   };
-}
-
-/**
- * The tickets a block left unfinished: committed, minus the ones the reviews let
- * through.
- *
- * Empty on a `success`, and empty on every block no committed ticket is at fault
- * for — a red gate, a lander that could not land, or an implementer that asked
- * for a human before it committed anything, which never reaches the committed
- * list at all.
- */
-function blockedTickets(
-  committed: readonly TicketRef[],
-  finished: readonly TicketRef[],
-): TicketRef[] {
-  const done = new Set(finished.map((ticket) => ticket.number));
-  return committed.filter((ticket) => !done.has(ticket.number));
 }
 
 /** How a list of tickets reads in the prompt, empty included. */

@@ -47,42 +47,61 @@ const REREVIEW_REASON =
  * two scopes would ask the same question twice — see `reviewsEachTicket`.
  */
 export async function runHarness(crew: Crew, issue: GitHubIssue): Promise<Outcome> {
-  const { outcome, committed, land, unaddressed } = await runLegs(crew, issue);
-  await crew.handover(
-    outcome,
-    committed,
-    finishedTickets(committed, unaddressed),
-    land,
-    unaddressed,
-  );
+  const { outcome, committed, blockedOn, land, unaddressed } = await runLegs(crew, issue);
+  const { finished, blocked } = ticketState(committed, unaddressed, blockedOn);
+  await crew.handover(outcome, committed, finished, blocked, land, unaddressed);
   return outcome;
 }
 
+/** Which tickets the pass earned a done for, and which one a human has to decide about. */
+interface TicketState {
+  finished: TicketRef[];
+  blocked: TicketRef[];
+}
+
 /**
- * The tickets the pass earned a done for: committed, minus any carrying a
- * binding finding nobody addressed.
+ * Split what the pass touched into the tickets it earned a done for and the
+ * tickets it left for a human.
  *
- * A ticket counts as committed the moment its implementer returns, before its
- * review runs, so a blocked pass's committed tickets include the one it blocked
- * on. This is the harness's own fact rather than a leg's judgement, so no prompt
- * has to work out which of the committed tickets it may claim done about.
+ * Finished is committed, minus any ticket carrying a binding finding nobody
+ * addressed. A ticket counts as committed the moment its implementer returns,
+ * before its review runs, so a blocked pass's committed tickets include the one
+ * it blocked on. Both lists are the harness's own fact rather than a leg's
+ * judgement, so no prompt has to work out which of the committed tickets it may
+ * claim done about.
  *
  * Binding, not any finding: a pass lands with its `standards` and `quality`
  * findings overridden, so excluding those tickets would leave landed work
- * unclosed. It is the same predicate `blockFor` blocks on, so the list and the
+ * unclosed. It is the same predicate `blockFor` blocks on, so the lists and the
  * block cannot disagree about which ticket went unbuilt.
  *
- * A binding finding at branch scope names no ticket and so excludes none: it
- * blocks the pass, and a blocked pass records nothing as done anyway.
+ * A binding finding at branch scope names no ticket, and so finishes none: the
+ * review said the branch does not do what the item asked without saying which
+ * ticket is at fault, and ticking every committed ticket would claim a done the
+ * pass did not earn. The whole branch is what a human then has to decide about.
+ *
+ * `blockedOn` is the ticket an implementer asked for a human over, which never
+ * reached the committed list at all — it is blocked without ever having been
+ * finishable.
  */
-function finishedTickets(
+function ticketState(
   committed: readonly TicketRef[],
   unaddressed: readonly UnaddressedFinding[],
-): TicketRef[] {
-  const unbuilt = new Set(
-    unaddressed.filter(({ finding }) => isBinding(finding)).map(({ finding }) => ticketOf(finding)),
-  );
-  return committed.filter((ticket) => !unbuilt.has(ticket.number));
+  blockedOn?: TicketRef,
+): TicketState {
+  const binding = unaddressed.filter(({ finding }) => isBinding(finding));
+  const unbuilt = new Set(binding.map(({ finding }) => ticketOf(finding)));
+  const branchWide = binding.some(({ finding }) => ticketOf(finding) === undefined);
+
+  const finished = branchWide ? [] : committed.filter((ticket) => !unbuilt.has(ticket.number));
+  const done = new Set(finished.map((ticket) => ticket.number));
+  return {
+    finished,
+    blocked: [
+      ...committed.filter((ticket) => !done.has(ticket.number)),
+      ...(blockedOn ? [blockedOn] : []),
+    ],
+  };
 }
 
 /** Which ticket a finding is about, if it is about one rather than the branch. */
@@ -99,6 +118,11 @@ export function exitCodeFor(outcome: Outcome): ExitCode {
 interface LegsResult {
   outcome: Outcome;
   committed: TicketRef[];
+  /**
+   * The ticket an implementer asked for a human over, which is why it never
+   * reached `committed`. Absent on every other path.
+   */
+  blockedOn?: TicketRef;
   /** What the lander did, or no landing at all when the legs never reached it. */
   land: LandResult;
   /** Every finding nobody acted on, in the order the legs that produced it ran. */
@@ -127,6 +151,7 @@ async function runLegs(crew: Crew, issue: GitHubIssue): Promise<LegsResult> {
 
   const tickets = await implementTickets(crew, plan.tickets, reviewsEachTicket(plan.tickets));
   progress.committed = tickets.committed;
+  progress.blockedOn = tickets.blockedOn;
   progress.unaddressed.push(...tickets.unaddressed);
   if (tickets.blocked) return { ...progress, outcome: tickets.blocked };
 
@@ -194,6 +219,8 @@ interface StageResult {
 /** What the ticket loop got through, plus whatever stopped it. */
 interface TicketsResult extends StageResult {
   committed: TicketRef[];
+  /** The ticket an implementer asked for a human over, when one did. */
+  blockedOn?: TicketRef;
 }
 
 /**
@@ -217,7 +244,14 @@ async function implementTickets(
   for (const ticket of tickets) {
     const result = await crew.implement(ticket);
     if (result.kind === "needs-input") {
-      return { committed, unaddressed, blocked: { kind: "mid-block", reason: result.reason } };
+      // Named rather than only counted as absent: it carries the hold its
+      // implementer applied, and the handover is the leg that has to say so.
+      return {
+        committed,
+        unaddressed,
+        blockedOn: ticket,
+        blocked: { kind: "mid-block", reason: result.reason },
+      };
     }
     committed.push(ticket);
     if (!reviewEachTicket) continue;

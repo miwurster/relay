@@ -176,10 +176,28 @@ async function reportCrash(
         "```sh\n" +
         `git branch -D ${branch}\n` +
         `gh issue edit ${issue.number} --remove-label agent-in-progress\n` +
-        "gh issue edit <sub-issue> --remove-label agent-in-progress\n" +
+        `${subIssueCleanup(issue)}\n` +
         "```",
     );
   } catch (commentError) {
     console.error(`relay: could not comment the crash on #${issue.number}:`, commentError);
   }
+}
+
+/**
+ * The label removals a crash left on the item's sub-issues, one per line.
+ *
+ * Every sub-issue is named rather than only the ones a pass got to: the item was
+ * read before the pass ran, so which tickets an implementer reached is not
+ * something this knows — and removing a label an issue does not carry is not an
+ * error. An item with no sub-issues gets the placeholder, because a crash that
+ * happened before the planner ran may still have left one.
+ */
+function subIssueCleanup(issue: GitHubIssue): string {
+  const numbers = issue.subIssues.map(({ number }) => number);
+  if (numbers.length === 0) return "gh issue edit <sub-issue> --remove-label agent-in-progress";
+
+  return numbers
+    .map((number) => `gh issue edit ${number} --remove-label agent-in-progress`)
+    .join("\n");
 }
