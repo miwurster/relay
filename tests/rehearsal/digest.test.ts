@@ -23,6 +23,12 @@ const standardsFinding: Finding = {
   summary: "toDueDate is named vaguely",
 };
 
+const qualityFinding: Finding = {
+  source: "quality-review",
+  axis: "quality",
+  summary: "the mutators spread the copy get() hands out",
+};
+
 const rereviewFinding: Finding = {
   source: "branch-review",
   axis: "spec",
@@ -92,6 +98,12 @@ async function passRecords(): Promise<void> {
     4,
   );
   await record("branch-review-rereview.json", [rereviewFinding], 5);
+  await record("quality-review.json", [qualityFinding], 6);
+  await record(
+    "fixer-quality.verdicts.json",
+    [{ id: "quality-1", finding: qualityFinding, verdict: { kind: "fixed" } }],
+    7,
+  );
 }
 
 describe("digestRecords", () => {
@@ -135,6 +147,17 @@ describe("digestRecords", () => {
     expect(digest.slice(standards)).toContain(standardsFinding.summary);
   });
 
+  it("groups a quality finding under its own axis, rather than calling the record unparseable", async () => {
+    await passRecords();
+
+    const digest = await digestRecords(dir);
+
+    const quality = digest.indexOf("quality (1)");
+    expect(quality).toBeGreaterThan(digest.indexOf("standards (1)"));
+    expect(digest.slice(quality)).toContain(qualityFinding.summary);
+    expect(digest.slice(digest.indexOf("Unparseable records"))).toContain("none");
+  });
+
   it("carries the fixer's verdict for each finding it was handed", async () => {
     await passRecords();
 
@@ -142,6 +165,7 @@ describe("digestRecords", () => {
 
     expect(digest).toMatch(/spec-1 +fixed/);
     expect(digest).toMatch(/standards-1 +skipped/);
+    expect(digest).toMatch(/quality-1 +fixed/);
   });
 
   it("carries the reason the fixer gave where it declined", async () => {

@@ -18,11 +18,20 @@ const VERDICTS_SUFFIX = ".verdicts.json";
 /**
  * The axes findings are grouped under, spec first because it is the binding one.
  *
- * Both of the review's axes and nothing else: a red gate's finding carries no
+ * Every axis a review reports and nothing else: a red gate's finding carries no
  * axis and is never written to a findings file, so it reaches the digest only
  * through the fixer's verdicts.
+ *
+ * Spelled as a map over `Axis` and read back in key order, rather than as a list
+ * of axes: an axis added to the contract is then a typecheck failure here, not a
+ * group that silently stops being printed. `quality` reached the contract as a
+ * list and went unprinted until a rehearsal noticed.
  */
-const AXES: readonly Axis[] = ["spec", "standards"];
+const AXES = Object.keys({
+  spec: null,
+  standards: null,
+  quality: null,
+} satisfies Record<Axis, null>) as Axis[];
 
 /** One leg of the pass, as its status record and that record's mtime describe it. */
 interface Leg {
@@ -249,7 +258,7 @@ function isRoleStatus(value: unknown): value is RoleStatus {
 function isFinding(value: unknown): value is Finding {
   if (!isRecord(value) || typeof value.summary !== "string") return false;
   if (typeof value.source !== "string") return false;
-  return value.source === "green-gate" ? true : value.axis === "spec" || value.axis === "standards";
+  return value.source === "green-gate" ? true : AXES.some((axis) => value.axis === axis);
 }
 
 function isFindingVerdict(value: unknown): value is FindingVerdict {
