@@ -73,6 +73,7 @@ The branch is green.
    Under `pull-request` landing close **nothing**, whatever the branch carries.
    When {{LANDED}} is `no` close nothing either: a base branch that was not pushed is not a landing.
 3. Label {{WORK_ITEM}}:
+   - remove `ready-for-agent` from {{WORK_ITEM}}, whatever this repo's landing is — this pass took the offer up, and re-offering the work is a human's act;
    - under `pull-request` landing, add `agent-in-review` and remove `agent-in-progress` — the work is waiting on a human's review;
    - under `merge` landing, remove `agent-in-progress` and add **no** label — nothing is awaiting a review that is not coming.
 4. Comment the resolution on {{WORK_ITEM}}: the pull request URL when there is one, or {{BASE_BRANCH}} when the work landed there; one line on what the pass built; the tickets it committed and which of them you closed; {{REASON}}, the gate that verified what landed; and how many findings went unaddressed, as section 3 says.
@@ -98,6 +99,7 @@ Close **nothing**, under either landing: the work reached nobody but you.
    When the pass committed **nothing** there is nothing to push at all: skip this step and say so in your report.
 
 2. Swap the labels on {{WORK_ITEM}}: add `agent-blocked` and remove `agent-in-progress`.
+   Then remove `ready-for-agent` from {{WORK_ITEM}} too: this pass took the offer up, and re-offering the work is a human's act.
 3. Comment on {{WORK_ITEM}}: the branch and the draft pull request URL when there is one, one line on what the pass built, the cause above, every finding left unaddressed as section 3 says, and what a human has to decide.
 
 ### early-bail
@@ -106,6 +108,7 @@ The planner refused an under-specified item before any code was written.
 
 1. Open **no** pull request, push **nothing** and close **nothing** — no code was written, and an empty branch is noise.
 2. Swap the labels on {{WORK_ITEM}}: add `agent-blocked` and remove `agent-in-progress`.
+   Leave `ready-for-agent` on {{WORK_ITEM}}: this pass consumed nothing, and the item is exactly as eligible as the human left it.
 3. Comment what is missing from the item.
 
 ## 3. Say what the pass left unaddressed

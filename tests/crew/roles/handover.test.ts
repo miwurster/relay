@@ -493,6 +493,19 @@ describe("the handover prompt", () => {
     expect(prompt).toMatch(/add `agent-blocked` and remove `agent-in-progress`/);
   });
 
+  it("strips the ready label from the work item on a pass that consumed it", () => {
+    expect(section("### success", "### mid-block")).toMatch(
+      /remove `ready-for-agent` from \{\{WORK_ITEM\}\}/,
+    );
+    expect(section("### mid-block", "### early-bail")).toMatch(
+      /remove `ready-for-agent` from \{\{WORK_ITEM\}\}/,
+    );
+  });
+
+  it("leaves the ready label on an item the planner refused", () => {
+    expect(section("### early-bail")).toMatch(/Leave `ready-for-agent` on \{\{WORK_ITEM\}\}/);
+  });
+
   it("reads the repo's default branch itself, carrying it in no argument", () => {
     expect(prompt).toContain("gh repo view --json defaultBranchRef");
     expect(prompt).not.toContain("{{DEFAULT_BRANCH}}");
