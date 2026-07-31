@@ -7,8 +7,8 @@ import { ConfigError } from "../src/errors.js";
 import { loadSecrets, type Secrets } from "../src/host/secrets.js";
 import { digestRecords } from "./digest.js";
 import { BASE_BRANCH, CLONE_DIR, REHEARSAL_REPO } from "./rehearsal-repo.js";
-import { resolveScenario } from "./scenarios.js";
-import { resolveLanding, seedRehearsalRepo } from "./seed.js";
+import type { Scenario } from "./scenarios.js";
+import { seedRehearsalRepo } from "./seed.js";
 
 /** relay's own checkout: what is built, and where the credentials are read from. */
 const RELAY_ROOT = join(import.meta.dirname, "..");
@@ -39,35 +39,33 @@ export interface Rehearsal {
  * because every step it composes is idempotent on its own. The three steps stay
  * separately invokable, so a contributor can seed, drive relay by hand with an
  * ad-hoc flag, poke the clone mid-flight, and digest afterwards.
+ *
+ * Both arguments arrive resolved, from the command line that took them, so a
+ * mistyped name is refused before a build is spent on it.
  */
 export async function rehearse({
   scenario,
   landing,
 }: {
-  scenario: string;
-  landing: string;
+  scenario: Scenario;
+  landing: Landing;
 }): Promise<Rehearsal> {
-  // Before the build, because a build is the most expensive thing a mistyped
-  // scenario name or landing could cost.
-  resolveScenario(scenario);
-  const resolvedLanding = resolveLanding(landing);
-
   // Resolved here as well as in the seed, because the pass runs in the clone —
   // which carries a `.relay/config.ts` but deliberately no credential file — so
   // the secrets have to be handed to it out of relay's own environment.
   const secrets = await loadSecrets({ repoRoot: RELAY_ROOT });
 
   await buildRelay();
-  const { workItem } = await seedRehearsalRepo({ scenario, landing: resolvedLanding });
+  const { workItem } = await seedRehearsalRepo({ scenario, landing });
   const startedAt = new Date();
   const exitCode = await runPassInClone({ workItem, secrets });
 
   const digest = [
-    heading({ scenario, landing: resolvedLanding, workItem, startedAt, exitCode }),
+    heading({ scenario: scenario.name, landing, workItem, startedAt, exitCode }),
     await digestRecords(passRecordDir(CLONE_DIR, workItem)),
   ].join("\n");
 
-  const runFile = await fileDigest({ scenario, landing: resolvedLanding, startedAt, digest });
+  const runFile = await fileDigest({ scenario: scenario.name, landing, startedAt, digest });
   console.log(`\n${digest}`);
   step(`digest filed in ${runFile}`);
   return { exitCode, runFile };

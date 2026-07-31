@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveLanding } from "../../rehearsal/seed.js";
+import { resolveLanding } from "../../rehearsal/landing.js";
 import { LANDINGS } from "../../src/config.js";
 
 /**

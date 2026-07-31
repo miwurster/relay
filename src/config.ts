@@ -41,15 +41,6 @@ export const LANDINGS = ["pull-request", "merge"] as const;
 export type Landing = (typeof LANDINGS)[number];
 
 /**
- * What a pass branch is named after unless a repo overrides `branchPrefix`.
- *
- * Exported because the rehearsal rig prunes the branches a pass left by this
- * prefix, over a clone whose config it wrote itself and therefore did not
- * override — reading the constant keeps the two from drifting apart.
- */
-export const DEFAULT_BRANCH_PREFIX = "agent/";
-
-/**
  * One key per distinct model choice a pass makes, which is not one per role:
  * the reviewer's two scopes each pick their own, and the fixer picks a second
  * one for the attempt it escalates. The defaults are relay's, and a repo may
@@ -97,7 +88,7 @@ export const relayConfigSchema = z.strictObject({
   image: z.string().min(1).optional(),
   /** Repo-relative path to the sandbox Dockerfile, used when `image` is unset. */
   dockerfile: z.string().min(1).default(DEFAULT_DOCKERFILE_PATH),
-  branchPrefix: z.string().min(1).default(DEFAULT_BRANCH_PREFIX),
+  branchPrefix: z.string().min(1).default("agent/"),
   roleTimeoutMs: z
     .number()
     .int()

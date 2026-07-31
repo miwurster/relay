@@ -21,6 +21,8 @@ interface ScenarioTicket extends IssueText {
 
 /** One named seeded state of the rehearsal repo's tracker. */
 export interface Scenario {
+  /** What the rig is asked for on the command line, and what a digest is filed under. */
+  name: string;
   workItem: IssueText;
   tickets: readonly ScenarioTicket[];
 }
@@ -45,6 +47,7 @@ export interface Scenario {
  * binding `spec` axis.
  */
 const HAPPY_PATH: Scenario = {
+  name: "happy-path",
   workItem: {
     title: "Todos can have a due date",
     body: `## Problem Statement
@@ -225,22 +228,21 @@ The glossary gains the term this introduces, in the form the terms already there
  * `under-specified`, a `no-sub-issues` or a `red-gate` scenario is a later entry
  * here rather than a redesign of the seed.
  */
-const SCENARIOS: Record<string, Scenario> = {
-  "happy-path": HAPPY_PATH,
-};
+const SCENARIOS: readonly Scenario[] = [HAPPY_PATH];
 
 /**
  * The scenario by that name, or a refusal naming the ones that exist.
  *
- * Resolved before the seed touches anything, so a mistyped name costs nothing:
- * the seed's next act is to delete every issue in the rehearsal repo.
+ * Resolved at the command line, so nothing downstream can be handed a name that
+ * names nothing: the seed's next act is to delete every issue in the rehearsal
+ * repo.
  */
 export function resolveScenario(name: string): Scenario {
-  const scenario = SCENARIOS[name];
+  const scenario = SCENARIOS.find((candidate) => candidate.name === name);
   if (!scenario) {
     throw new ConfigError(
       `There is no \`${name}\` scenario. The scenarios that exist are: ` +
-        `${Object.keys(SCENARIOS).join(", ")}.`,
+        `${SCENARIOS.map((candidate) => candidate.name).join(", ")}.`,
     );
   }
   return scenario;
