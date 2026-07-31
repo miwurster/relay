@@ -43,6 +43,10 @@ Never work the list out yourself: the commits carry no issue number, and `git lo
 That list is also why no closing keyword ever lands on a parent by accident: when {{WORK_ITEM}} has sub-issues the tickets are those sub-issues, and closing the parent on merge would close it out from under its remaining children.
 {{WORK_ITEM}} appears in the list only when it has no sub-issues and is therefore the single ticket the pass committed.
 
+A committed ticket is not yet a **finished** one: a ticket is committed the moment its implementer returns, before anything reviewed it, so a pass that blocked committed the ticket it blocked on too.
+The pass finished **{{FINISHED_TICKETS}}** — relay derived that from what the reviews left unaddressed, and it is the only list you may record as done.
+Never work it out yourself: nothing on this branch tells you which committed ticket a review found unbuilt.
+
 GitHub fires those `Closes` lines only when the pull request merges into this repo's **default branch**, and the branch this one is based on is whatever the operator stood on.
 So read the default branch yourself and compare it with **{{BASE_BRANCH}}**:
 
@@ -65,10 +69,10 @@ The branch is green.
 1. When a pull request is `required`, open it. Its body names the command that verified it and where relay got that command — {{REASON}} above.
    When it is `forbidden` the work is already on {{BASE_BRANCH}} and pushed, so there is nothing to publish: skip this step.
 2. Close what landed — under `merge` landing, and **only** when {{LANDED}} is `yes`, because closing follows publication and never precedes it:
-   1. Close each of {{COMMITTED_TICKETS}}, and nothing else.
+   1. Close each of {{FINISHED_TICKETS}}, and nothing else — the finished tickets, never the committed ones.
    2. Then re-read {{WORK_ITEM}}'s sub-issues, after those closes rather than before: close {{WORK_ITEM}} too when none of them is still open, and leave it open when one is.
       A sub-issue the pass never built keeps its parent open.
-      An item with no sub-issues is itself the single ticket the pass committed, so the same rule closed it in step 1.
+      An item with no sub-issues is itself the single ticket the pass finished, so the same rule closed it in step 1.
 
    Under `pull-request` landing close **nothing**, whatever the branch carries.
    When {{LANDED}} is `no` close nothing either: a base branch that was not pushed is not a landing.

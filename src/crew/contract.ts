@@ -256,6 +256,11 @@ export interface Crew {
    * carries, in the order they were implemented — what the pull request closes,
    * and what decides whether there is a pull request at all.
    *
+   * `finished` is the committed tickets the pass actually earned a done for: the
+   * harness's own derivation, so no leg has to work out which of the committed
+   * ones a blocked pass may still claim. It is the list the handover records as
+   * done, while `committed` stays what a `Closes` line is owed per ticket for.
+   *
    * `land` is what the lander did, or `no-landing` when there was none to do.
    * The handover is told it rather than working it out from the landing and the
    * outcome, because closing an issue is the pass's one irreversible tracker
@@ -269,6 +274,7 @@ export interface Crew {
   handover(
     outcome: Outcome,
     committed: readonly TicketRef[],
+    finished: readonly TicketRef[],
     land: LandResult,
     unaddressed: readonly UnaddressedFinding[],
   ): Promise<void>;

@@ -48,8 +48,46 @@ const REREVIEW_REASON =
  */
 export async function runHarness(crew: Crew, issue: GitHubIssue): Promise<Outcome> {
   const { outcome, committed, land, unaddressed } = await runLegs(crew, issue);
-  await crew.handover(outcome, committed, land, unaddressed);
+  await crew.handover(
+    outcome,
+    committed,
+    finishedTickets(committed, unaddressed),
+    land,
+    unaddressed,
+  );
   return outcome;
+}
+
+/**
+ * The tickets the pass earned a done for: committed, minus any carrying a
+ * binding finding nobody addressed.
+ *
+ * A ticket counts as committed the moment its implementer returns, before its
+ * review runs, so a blocked pass's committed tickets include the one it blocked
+ * on. This is the harness's own fact rather than a leg's judgement, so no prompt
+ * has to work out which of the committed tickets it may claim done about.
+ *
+ * Binding, not any finding: a pass lands with its `standards` and `quality`
+ * findings overridden, so excluding those tickets would leave landed work
+ * unclosed. It is the same predicate `blockFor` blocks on, so the list and the
+ * block cannot disagree about which ticket went unbuilt.
+ *
+ * A binding finding at branch scope names no ticket and so excludes none: it
+ * blocks the pass, and a blocked pass records nothing as done anyway.
+ */
+function finishedTickets(
+  committed: readonly TicketRef[],
+  unaddressed: readonly UnaddressedFinding[],
+): TicketRef[] {
+  const unbuilt = new Set(
+    unaddressed.filter(({ finding }) => isBinding(finding)).map(({ finding }) => ticketOf(finding)),
+  );
+  return committed.filter((ticket) => !unbuilt.has(ticket.number));
+}
+
+/** Which ticket a finding is about, if it is about one rather than the branch. */
+function ticketOf(finding: Finding): number | undefined {
+  return finding.source === "greenGate" ? undefined : finding.ticket;
 }
 
 /** The exit code an outcome ends the process with. */

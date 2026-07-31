@@ -42,10 +42,11 @@ export function createHandover({
   return async function handover(
     outcome: Outcome,
     committed: readonly TicketRef[],
+    finished: readonly TicketRef[],
     land: LandResult,
     unaddressed: readonly UnaddressedFinding[],
   ): Promise<void> {
-    const leg = describeLeg(outcome, committed, deps.config.landing, land);
+    const leg = describeLeg(outcome, committed, finished, deps.config.landing, land);
 
     const { prUrl, report } = await runRole({
       ...deps,
@@ -66,6 +67,9 @@ export function createHandover({
         // Told too: the leg cannot read the ticket numbers back out of the
         // commits, which carry no issue reference of their own.
         COMMITTED_TICKETS: leg.committed,
+        // Derived by relay from what the reviews left unaddressed, which the leg
+        // cannot see either — and the only list it may record as done.
+        FINISHED_TICKETS: leg.finished,
         // What a review wanted and nobody did. Told, because the leg cannot see
         // it: the records live on the host, outside this worktree.
         UNADDRESSED: describeUnaddressed(unaddressed),
@@ -113,11 +117,14 @@ interface HandoverLeg {
   landedDetail: string;
   /** The tickets the pull request closes, as the prompt names them. */
   committed: string;
+  /** The tickets the leg may record as done, as the prompt names them. */
+  finished: string;
 }
 
 function describeLeg(
   outcome: Outcome,
   committed: readonly TicketRef[],
+  finished: readonly TicketRef[],
   landing: Landing,
   land: LandResult,
 ): HandoverLeg {
@@ -133,8 +140,14 @@ function describeLeg(
     // `not-landed` left the base branch where it was.
     landed: land.kind === "landed" ? "yes" : "no",
     landedDetail: land.kind === "landed" ? land.detail : "nothing was landed",
-    committed: committed.map((ticket) => `#${ticket.number}`).join(", ") || "nothing",
+    committed: listTickets(committed),
+    finished: listTickets(finished),
   };
+}
+
+/** How a list of tickets reads in the prompt, empty included. */
+function listTickets(tickets: readonly TicketRef[]): string {
+  return tickets.map((ticket) => `#${ticket.number}`).join(", ") || "nothing";
 }
 
 /**

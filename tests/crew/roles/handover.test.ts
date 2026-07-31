@@ -45,13 +45,15 @@ function handing({ stdout = "", commits = [] as { sha: string }[], withConfig = 
 
   return {
     // A pass that left nothing unaddressed is the ordinary one, so it is the
-    // default here and only the tests about that list pass one.
+    // default here and only the tests about that list pass one — and such a pass
+    // finished everything it committed, which is the default for the same reason.
     handover: (
       outcome: Outcome,
       committed: readonly TicketRef[],
       land: LandResult,
       unaddressed: readonly UnaddressedFinding[] = [],
-    ) => handover(outcome, committed, land, unaddressed),
+      finished: readonly TicketRef[] = committed,
+    ) => handover(outcome, committed, finished, land, unaddressed),
     runs,
   };
 }
@@ -107,6 +109,7 @@ describe("createHandover", () => {
       LANDED: "no",
       LANDED_DETAIL: "nothing was landed",
       COMMITTED_TICKETS: "#8, #9",
+      FINISHED_TICKETS: "#8, #9",
       UNADDRESSED: "none",
       RECORD_PATH: `.relay/${workItem}`,
       WORK_ITEM: `#${workItem}`,
@@ -123,6 +126,37 @@ describe("createHandover", () => {
     await handover(midBlock, [{ number: 8, summary: "reject an empty cart" }], NO_LANDING);
 
     expect(runs[0]?.promptArgs).toMatchObject({ COMMITTED_TICKETS: "#8" });
+  });
+
+  it("names the finished tickets apart from the committed ones, which a block leaves differing", async () => {
+    const { handover, runs } = handing({
+      stdout: tagged('{"report":"#7 blocked on #9; agent/7 pushed."}'),
+      withConfig: mergeConfig,
+    });
+
+    await handover(
+      midBlock,
+      tickets,
+      NO_LANDING,
+      [],
+      [{ number: 8, summary: "reject an empty cart" }],
+    );
+
+    expect(runs[0]?.promptArgs).toMatchObject({
+      COMMITTED_TICKETS: "#8, #9",
+      FINISHED_TICKETS: "#8",
+    });
+  });
+
+  it("tells a leg that finished nothing so, rather than leaving the list empty", async () => {
+    const { handover, runs } = handing({
+      stdout: tagged('{"report":"#7 blocked on #8; agent/7 pushed."}'),
+      withConfig: mergeConfig,
+    });
+
+    await handover(midBlock, tickets, NO_LANDING, [], []);
+
+    expect(runs[0]?.promptArgs).toMatchObject({ FINISHED_TICKETS: "nothing" });
   });
 
   it("tells a leg with an empty branch that it committed nothing", async () => {
@@ -443,8 +477,14 @@ describe("the handover prompt", () => {
 
   it("closes the tickets a merge pass landed, and nothing beyond them", () => {
     expect(section("### success", "### mid-block")).toMatch(
-      /Close each of \{\{COMMITTED_TICKETS\}\}, and nothing else/,
+      /Close each of \{\{FINISHED_TICKETS\}\}, and nothing else/,
     );
+  });
+
+  it("records as done only the tickets relay derived, never a list the leg worked out itself", () => {
+    expect(prompt).toContain("The pass finished **{{FINISHED_TICKETS}}**");
+    expect(prompt).toMatch(/the only list you may record as done/);
+    expect(prompt).toMatch(/Never work it out yourself/);
   });
 
   it("closes the work item only when no sub-issue of it is still open", () => {

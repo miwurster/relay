@@ -88,6 +88,37 @@ describe("runHarness on a binding finding nobody addressed", () => {
     ]);
   });
 
+  it("leaves the ticket it blocked on out of the finished tickets, but not the committed ones", async () => {
+    const { crew, committed, finished } = decliningCrew(specOnTicketOne);
+
+    await run(crew);
+
+    expect(committed()).toEqual([ticket(1)]);
+    expect(finished()).toEqual([]);
+  });
+
+  it("finishes a ticket carrying only an unaddressed standards finding", async () => {
+    const { crew, finished } = decliningCrew((scope) =>
+      scope.kind === "ticket" && scope.ticket.number === 1
+        ? [finding("ticketReview", "standards", "split the loader", 1)]
+        : [],
+    );
+
+    await run(crew);
+
+    expect(finished()).toEqual([ticket(1), ticket(2)]);
+  });
+
+  it("finishes a ticket carrying only an unaddressed quality finding", async () => {
+    const { crew, finished } = decliningCrew((scope) =>
+      scope.kind === "quality" ? [finding("qualityReview", "quality", "extract the cap", 1)] : [],
+    );
+
+    await run(crew);
+
+    expect(finished()).toEqual([ticket(1), ticket(2)]);
+  });
+
   it("lands a pass whose fixer declined only standards findings", async () => {
     const { crew, calls } = decliningCrew((scope) =>
       scope.kind === "ticket" && scope.ticket.number === 1

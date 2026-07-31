@@ -235,6 +235,18 @@ describe("runHarness", () => {
     expect(committed()).toEqual([ticket(1), ticket(2)]);
   });
 
+  it("finishes every committed ticket of a successful pass, since nothing was left unaddressed", async () => {
+    const { crew, committed, finished } = recordingCrew({
+      async plan() {
+        return { kind: "plan", tickets: [ticket(1), ticket(2)] };
+      },
+    });
+
+    await run(crew);
+
+    expect(finished()).toEqual(committed());
+  });
+
   it("hands an early bail over with no committed tickets", async () => {
     const { crew, committed } = recordingCrew({
       async plan() {
