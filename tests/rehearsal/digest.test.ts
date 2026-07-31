@@ -147,6 +147,16 @@ describe("digestRecords", () => {
     expect(digest.slice(standards)).toContain(standardsFinding.summary);
   });
 
+  it("names the leg that raised each finding, so two reviews of one axis stay apart", async () => {
+    await passRecords();
+
+    const digest = await digestRecords(dir);
+
+    const spec = digest.slice(digest.indexOf("spec (2)"), digest.indexOf("standards (1)"));
+    expect(spec).toContain(`(101-ticket-review) [spec] #101 ${specFinding.summary}`);
+    expect(spec).toContain(`(branch-review-rereview) [spec] ${rereviewFinding.summary}`);
+  });
+
   it("groups a quality finding under its own axis, rather than calling the record unparseable", async () => {
     await passRecords();
 

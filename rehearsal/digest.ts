@@ -42,11 +42,18 @@ interface Leg {
   mtimeMs: number;
 }
 
+/** One finding, with the leg that raised it. */
+interface RaisedFinding {
+  finding: Finding;
+  /** The record file's name without its suffix, which is the leg's own name. */
+  leg: string;
+}
+
 /** Everything the digest reports, read out of one pass's record directory. */
 interface Records {
   /** In the order the legs finished. */
   legs: Leg[];
-  findings: Finding[];
+  findings: RaisedFinding[];
   verdicts: FindingVerdict[];
   /** The files whose JSON, or whose shape, the digest did not recognise. */
   unparseable: string[];
@@ -121,7 +128,8 @@ function classify(files: readonly RecordFile[]): Records {
       if (isArrayOf(file.value, isFindingVerdict)) records.verdicts.push(...file.value);
       else records.unparseable.push(file.name);
     } else if (isArrayOf(file.value, isFinding)) {
-      records.findings.push(...file.value);
+      const leg = file.name.replace(/\.json$/, "");
+      records.findings.push(...file.value.map((finding) => ({ finding, leg })));
     } else {
       records.unparseable.push(file.name);
     }
@@ -173,17 +181,24 @@ function legsSection(legs: readonly Leg[]): string {
 }
 
 /**
- * The findings, under the axis each came from.
+ * The findings, under the axis each came from and beside the leg that raised it.
  *
  * Grouped rather than listed, because the axes do not weigh the same: a `spec`
  * finding is binding and a `standards` one is not, so a review-prompt change
  * that moved one and not the other has to be readable at a glance.
+ *
+ * The leg is named because two reviews of one scope both report the same axis —
+ * the branch review and its **re-review** — and a count that merged them reads
+ * as one review having found them all.
  */
-function findingsSection(findings: readonly Finding[]): string {
+function findingsSection(findings: readonly RaisedFinding[]): string {
   const lines = AXES.flatMap((axis) => {
-    const grouped = findings.filter((finding) => findingLabel(finding) === axis);
+    const grouped = findings.filter(({ finding }) => findingLabel(finding) === axis);
     if (grouped.length === 0) return [];
-    return [`  ${axis} (${grouped.length})`, ...grouped.map((f) => `    ${describe(f)}`)];
+    return [
+      `  ${axis} (${grouped.length})`,
+      ...grouped.map(({ finding, leg }) => `    (${leg}) ${describe(finding)}`),
+    ];
   });
   return section("Findings by axis", lines);
 }
@@ -213,8 +228,8 @@ function unaddressedSection({ findings, verdicts }: Records): string {
       : [],
   );
   const unfixed = findings
-    .filter((finding) => !handed.has(keyOf(finding)))
-    .map((finding) => ({ finding, reason: "no fixer was handed it" }));
+    .filter(({ finding }) => !handed.has(keyOf(finding)))
+    .map(({ finding }) => ({ finding, reason: "no fixer was handed it" }));
   const lines = [...declined, ...unfixed].map(
     ({ finding, reason }) => `  ${describe(finding)} — ${reason}`,
   );
