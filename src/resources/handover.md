@@ -35,13 +35,14 @@ gh pr create --base {{BASE_BRANCH}} --title '<title>' --body '<body>'
 ```
 
 Title it for a human — what the branch changes, in one line.
-The body says what the pass built, and then carries one `Closes` line for **each ticket the pass committed**.
+The body says what the pass built, and then carries one `Closes` line for **each ticket the pass committed** and one for **{{WORK_ITEM}}** itself.
 
-The pass committed **{{COMMITTED_TICKETS}}** — relay tracked that as the tickets went in, so write a `Closes` line for exactly those and never for an issue that is not among them.
+The pass committed **{{COMMITTED_TICKETS}}** — relay tracked that as the tickets went in, so write a `Closes` line for exactly those and never for a ticket that is not among them.
 Never work the list out yourself: the commits carry no issue number, and `git log` cannot tell you which ticket a commit was for.
 
-That list is also why no closing keyword ever lands on a parent by accident: when {{WORK_ITEM}} has sub-issues the tickets are those sub-issues, and closing the parent on merge would close it out from under its remaining children.
-{{WORK_ITEM}} appears in the list only when it has no sub-issues and is therefore the single ticket the pass committed.
+{{WORK_ITEM}} gets a `Closes` line of its own whatever that list holds, because nothing else closes it: when {{WORK_ITEM}} has sub-issues the tickets are those sub-issues, and GitHub closing every one of them on the merge still leaves their parent open.
+Write it once — an item with no sub-issues is itself the single ticket the pass committed, so the list above already names it.
+A merge that closes {{WORK_ITEM}} while a sub-issue this pass never built is still open is a human's call, not yours: they read the branch and edit the body before merging.
 
 A committed ticket is not yet a **finished** one: a ticket is committed the moment its implementer returns, before anything reviewed it, so a pass that blocked committed the ticket it blocked on too.
 The pass finished **{{FINISHED_TICKETS}}** — relay derived that from what the reviews left unaddressed, and it is the only list you may record as done.
@@ -64,7 +65,7 @@ gh repo view --json defaultBranchRef
 ```
 
 - They match — say nothing about it, in the body or the report.
-- They differ — the `Closes` lines will **not** fire. Say so in the pull request body and in your report, and that the tickets will have to be closed by hand after the merge.
+- They differ — the `Closes` lines will **not** fire. Say so in the pull request body and in your report, and that the tickets and {{WORK_ITEM}} will have to be closed by hand after the merge.
 
 This never changes the outcome and is never a reason to refuse: it is a fact the human is owed, nothing more.
 Under `merge` landing the question never arises — no pull request is opened, and closing what landed is yours.
@@ -171,7 +172,7 @@ Write the report the human reads in their terminal, as plain text lines — no J
 
 - the outcome and, when the pass did not succeed, its cause;
 - {{WORK_ITEM}} and the state you left it in;
-- the branch, and the pull request URL when there is one, plus — only when that pull request is based on something other than the default branch — that its `Closes` lines will not fire and the tickets need closing by hand;
+- the branch, and the pull request URL when there is one, plus — only when that pull request is based on something other than the default branch — that its `Closes` lines will not fire and the tickets and {{WORK_ITEM}} need closing by hand;
 - what the pass left unaddressed, as the section above says for this outcome;
 - what landed and how: {{LANDED_DETAIL}} — relay's own words for it, and when {{LANDED}} is `no` say too that the work sits on {{BRANCH}} alone;
 - each ticket the branch committed, with its short SHA from `git log --oneline {{BASE_BRANCH}}..{{BRANCH}}` — read those now, never earlier, because a rebase before you rewrote them;

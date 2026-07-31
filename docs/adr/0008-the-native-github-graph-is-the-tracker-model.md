@@ -1,6 +1,6 @@
 # 0008. The native GitHub graph is the tracker model, and labels carry lifecycle
 
-- **Status:** accepted
+- **Status:** accepted, parent-closing half superseded by [ADR-0029](0029-a-pull-request-closes-the-work-item-too.md)
 - **Date:** 2026-07-27
 
 ## Context and Problem Statement
@@ -56,7 +56,7 @@ Humans steer by *when* they apply `ready-for-agent`; the frontier is a prefilter
 Two obligations fall to relay, because GitHub does not cover them:
 
 - **Open-blocker filtering is relay's own.** GraphQL `blockedBy.totalCount` counts closed blockers too, so eligibility filters `blockedBy[].state == "OPEN"` itself.
-- **relay never writes a closing keyword against a parent.** GitHub's closing-keywords docs never mention hierarchies, and a probe showed it neither refuses nor warns: closing a parent left both children open and marked the parent `completed` with `0 of 2`. So the pull request carries `Closes #<child>` per **ticket** it committed, and a human closes the parent — visibly, because GitHub shows the `2 of 2` count.
+- **relay never writes a closing keyword against a parent.** GitHub's closing-keywords docs never mention hierarchies, and a probe showed it neither refuses nor warns: closing a parent left both children open and marked the parent `completed` with `0 of 2`. So the pull request carries `Closes #<child>` per **ticket** it committed, and a human closes the parent — visibly, because GitHub shows the `2 of 2` count. Superseded by [ADR-0029](0029-a-pull-request-closes-the-work-item-too.md): the pull request now carries a `Closes` line for the **work item** too, and the human who merges is the one who decides it.
 
 One hazard is worth recording because it is silent: `POST …/issues/{n}/dependencies/blocked_by` takes a numeric **database id**, and passing an issue *number* returns `201` while linking a stranger's issue in an unrelated repository.
 Reproduced during the research.
@@ -69,7 +69,7 @@ relay writes dependency edges only through `gh issue edit --add-blocked-by <numb
 - Good: no per-repo ids enter the **tracker doc** — no project id, no field id, no option id, no transition id.
 - Good: three concepts leave the codebase (`RUNNABLE_TYPES`, `issueType`, priority ordering) instead of being re-expressed.
 - Bad: relay carries GitHub's undocumented edges as its own obligations — the open-blocker filter and the parent-closing discipline are relay's to keep correct, and GitHub will not fail loudly if either regresses.
-- Bad: a **work item** stays open after its pull request merges, so someone must close the parent. Deliberate, and cheaper than the alternative of relay closing a parent whose children are open.
+- Bad: a **work item** stays open after its pull request merges, so someone must close the parent. Deliberate, and cheaper than the alternative of relay closing a parent whose children are open. Superseded by [ADR-0029](0029-a-pull-request-closes-the-work-item-too.md).
 - Bad: priority is genuinely lost. Labelling order is a coarser lever than a ranked backlog.
 - Bad: `blockedBy` nodes report `"OPEN"`/`"CLOSED"` while REST reports lowercase, and the `repository` field `gh` requests never appears in output — so a cross-repo blocker must be spotted from its `url`. Both are shape details relay now depends on.
 

@@ -483,6 +483,21 @@ describe("the handover prompt", () => {
     expect(prompt).toContain("The pass committed **{{COMMITTED_TICKETS}}**");
   });
 
+  it("closes the work item itself, whatever the committed list holds", () => {
+    expect(prompt).toMatch(/one for \*\*\{\{WORK_ITEM\}\}\*\* itself/);
+    expect(prompt).toMatch(/`Closes` line of its own whatever that list holds/);
+  });
+
+  it("closes the work item once where it is its own single ticket", () => {
+    expect(prompt).toMatch(
+      /Write it once — an item with no sub-issues is itself the single ticket the pass committed/,
+    );
+  });
+
+  it("leaves a merge that closes the item over an unbuilt sub-issue to a human", () => {
+    expect(prompt).toMatch(/a sub-issue this pass never built is still open is a human's call/);
+  });
+
   it("counts what went unaddressed on a success and lists it on a block", () => {
     const unaddressed = section("## 3. Say what the pass left unaddressed", "## 4.");
     expect(unaddressed).toContain("{{UNADDRESSED}}");
@@ -689,7 +704,7 @@ describe("the handover prompt", () => {
     expect(closing).toContain("{{BASE_BRANCH}}");
     expect(closing).toMatch(/They differ — .*will \*\*not\*\* fire/s);
     expect(closing).toMatch(/pull request body and in your report/);
-    expect(closing).toMatch(/closed by hand/);
+    expect(closing).toMatch(/the tickets and \{\{WORK_ITEM\}\} will have to be closed by hand/);
   });
 
   it("says nothing about the default branch when it is the base branch", () => {

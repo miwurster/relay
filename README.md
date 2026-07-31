@@ -52,7 +52,7 @@ export default {
 };
 ```
 
-**`pull-request`** — a green pass pushes its branch, opens a pull request that `Closes` each issue it built, and labels the item `agent-in-review`.
+**`pull-request`** — a green pass pushes its branch, opens a pull request that `Closes` each ticket it built and the work item itself, and labels the item `agent-in-review`.
 You review, you merge, GitHub closes.
 
 **`merge`** — a green pass rebases onto the branch you are standing on, re-runs the green gate on the result, fast-forwards your branch, pushes it, and closes the issues it landed.

@@ -58,7 +58,7 @@ export default {
 };
 ```
 
-**`pull-request`** — a green pass pushes its pass branch, opens a pull request carrying one `Closes` line per issue it built, and labels the item `agent-in-review`.
+**`pull-request`** — a green pass pushes its pass branch, opens a pull request carrying one `Closes` line per ticket it built and one for the work item itself, and labels the item `agent-in-review`.
 Merging and closing stay yours.
 A blocked pass opens the same pull request as a draft.
 
