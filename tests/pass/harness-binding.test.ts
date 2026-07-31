@@ -61,7 +61,7 @@ describe("runHarness on a binding finding nobody addressed", () => {
       kind: "mid-block",
       reason:
         "the branch does not do what the item asked, and nobody addressed it: " +
-        "#1 asks for a configurable cap; this hardcodes 3 — I read it as fine",
+        "[spec] #1 asks for a configurable cap; this hardcodes 3 — I read it as fine",
     });
   });
 

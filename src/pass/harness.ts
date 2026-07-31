@@ -2,6 +2,7 @@ import {
   type BranchAxes,
   type Crew,
   type Finding,
+  findingLabel,
   type FixReport,
   type FixTarget,
   isBinding,
@@ -313,7 +314,9 @@ function blockFor(unaddressed: readonly UnaddressedFinding[]): Outcome | undefin
   const binding = unaddressed.filter(({ finding }) => isBinding(finding));
   if (binding.length === 0) return undefined;
 
-  const detail = binding.map(({ finding, reason }) => `${finding.summary} — ${reason}`).join("; ");
+  const detail = binding
+    .map(({ finding, reason }) => `[${findingLabel(finding)}] ${finding.summary} — ${reason}`)
+    .join("; ");
   return {
     kind: "mid-block",
     reason: `the branch does not do what the item asked, and nobody addressed it: ${detail}`,
