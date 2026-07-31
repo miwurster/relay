@@ -7,7 +7,7 @@ Change something, rehearse, diff the digest against the last one.
 
 ```sh
 npm run rehearse -- happy-path merge
-npm run rehearse -- happy-path pull-request
+npm run rehearse -- bug-report pull-request
 ```
 
 Builds relay, seeds the scenario, runs the pass in the clone with relay's output streaming live, then prints the digest and files it as `rehearsal/runs/<scenario>-<landing>-<start time>.txt`.
@@ -37,7 +37,7 @@ The digest carries the pull request's URL on the handover's line.
 The same three pieces, separately invokable: how you drive relay with an ad-hoc flag, or poke the clone mid-flight.
 
 ```sh
-npm run seed -- happy-path pull-request   # prints e.g. "work item #41, tickets #42, #43, #44"
+npm run seed -- happy-path pull-request   # prints e.g. "happy-path: work item #41, tickets #42, #43, #44"
 npm run build
 cd "$TMPDIR/relay-rehearsal" && node /path/to/relay/dist/main.js 41
 cd /path/to/relay && npm run digest -- "$TMPDIR/relay-rehearsal/.relay/41"
@@ -60,6 +60,29 @@ The file is `KEY=value` with `#` comments and blank lines skipped, which is what
 
 Only the hand-run pass needs this.
 `seed` and `digest` run from this repo and read `.relay/.env` themselves.
+
+## Seed every scenario at once
+
+```sh
+npm run seed -- all merge
+```
+
+Puts every scenario's issues in the tracker in one go, one summary line each:
+
+```
+seed: happy-path: work item #41, tickets #42, #43, #44
+seed: bug-report: work item #45, its own single ticket
+seed: single-spec: work item #46, its own single ticket
+```
+
+For browsing the tracker the way a maintainer would, and for hand-running relay against whichever item you like — or against none, since every work item is created `ready-for-agent` and the **frontier** is oldest-first, so a pass with no work item named picks the first scenario in `scenarios.ts`.
+That is the only way to watch relay choose for itself; every other route hands it a number.
+
+One landing for the whole tracker, because genesis carries one `.relay/config.ts`.
+
+`all` is a `seed` argument and deliberately not a `rehearse` one.
+Passes run one after another over one clone, so under a `merge` landing the second is cut from a base branch already holding the first's work — only the first pass would run against genesis, and that is the property that makes two rehearsals comparable at all.
+Rehearsing every scenario means running `rehearse` once per scenario, each with its own seed.
 
 ## Credentials
 
@@ -90,15 +113,38 @@ It is not a test, and a clean digest is not a passing build.
 - **One sample.** A digest that got better is not a change that got better.
 - **Outside `npm run verify` and CI, on purpose.** A gate that spends Claude sessions and mutates a GitHub repo is not a gate.
 
-## The scenario and the fixture
+## The scenarios
 
-`happy-path` is the only scenario: one work item — todos can have a due date — with three sub-issue tickets, two of them blocked by the first, so the planner's ordering is observable.
-Another is a new entry in `scenarios.ts`, and an unknown name is refused before the seed touches anything.
+Three, each a new entry in `scenarios.ts`. An unknown name is refused before the seed touches anything.
+
+**`happy-path`** — one work item, *todos can have a due date*, with three sub-issue tickets, two of them blocked by the first, so the planner's ordering is observable.
+
+**`bug-report`** — a diagnosed bug report over the defect genesis carries (below). No sub-issues, so the work item is its own single ticket.
+Rehearse this to judge a job `happy-path` does not cover: a change to behaviour that already exists, pinned by a regression test.
+
+**`single-spec`** — one small feature, *search todos by title text*. Also no sub-issues.
+Its counterpart: the same size and shape as `bug-report`, over new behaviour rather than a defect, so the two together say whether the crew builds and fixes equally well at one ticket.
+
+Both single-ticket scenarios exercise a path `happy-path` never reaches — relay's fallback where a work item with no sub-issues becomes the ticket, so the handover's tick and its close land on the same issue.
 
 A scenario is a tracker state and nothing else — it says nothing about the landing, so both landings are rehearsable over every scenario without a second entry.
 
+## Genesis, and the bug in it
+
 `fixtures/todo-app/` is genesis: a small TypeScript todo core whose `verify` is a typecheck plus vitest in a few seconds, so the gate leg is not what a rehearsal's wall clock measures.
 It commits an `AGENTS.md` declaring that gate, code principles for the review's `standards` axis, a `CONTEXT.md` for its `spec` axis, and its tracker doc.
+
+**It contains a deliberate bug**, and nothing in the fixture says so — that is what this paragraph is for ([ADR-0030](../docs/adr/0030-genesis-carries-a-latent-defect.md)).
+`TodoList` mints an id from how many todos it currently holds rather than from how many it has ever minted, so removing a todo and adding another overwrites a live todo: the list silently loses one and reports success.
+It is what `bug-report` is a report of, and a scenario cannot patch genesis, so it lives here permanently.
+
+The defect is **latent** — every test the fixture ships stays green, because each either adds without removing or removes without adding afterwards.
+So `verify` exits zero and the green gate is green on every scenario until a pass writes the regression test.
+
+Two consequences for anyone adding a scenario:
+
+- **A work item that removes a todo inherits the collision.** Its implementer's own tests would go red for a reason its ticket never mentions, which reads in a digest as a role behaving badly. `single-spec` is read-only for this reason — the obvious feature for this fixture, clearing the completed todos, was rejected as a spec because it removes.
+- **Do not fix it.** Fixing it in the fixture deletes `bug-report`.
 
 Two files in `.relay/` are not committed there but written into genesis at seed time.
 The sandbox recipe, because a committed copy can stay green while the recipe users get breaks — and it is gitignored, since a dirty worktree is refused by a `merge` landing.

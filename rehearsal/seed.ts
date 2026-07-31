@@ -13,7 +13,7 @@ import { worktreeForBranch } from "../src/sandbox/sandbox.js";
 import type { GhRunner } from "../src/tracker/github.js";
 import { READY_LABEL } from "../src/tracker/labels.js";
 import { BASE_BRANCH, CLONE_DIR, guardRehearsalOrigin, REHEARSAL_REPO } from "./rehearsal-repo.js";
-import type { Scenario, TicketId } from "./scenarios.js";
+import type { OneOrMore, Scenario, TicketId } from "./scenarios.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -69,15 +69,20 @@ const ISSUE_PAGE = 100;
 /** The issue numbers one seed created, which is the only way anything learns them. */
 export interface SeededScenario {
   workItem: number;
-  /** In the scenario's own order. */
+  /** In the scenario's own order, and empty for a scenario with no tickets. */
   tickets: number[];
 }
 
 /**
  * Take the rehearsal repo from any state — absent, half-seeded, or left behind
- * by a crashed pass — to a clone sitting on the genesis commit, with the
+ * by a crashed pass — to a clone sitting on the genesis commit, with every given
  * scenario's work item and tickets waiting on it, and genesis declaring the
  * landing the pass over it is to take.
+ *
+ * Plural rather than one scenario at a time, because the seed's first act is to
+ * delete every issue in the repo: seeding two scenarios as two calls would have
+ * the second wipe the first. The delete, the genesis push and the label check
+ * happen exactly once whether one scenario is asked for or all of them.
  *
  * Destructive by design: it force-pushes the fixture over the repo's history,
  * deletes every issue the repo had, and deletes the branches a previous pass
@@ -88,12 +93,12 @@ export interface SeededScenario {
  * this destructive should be reachable with a name that names nothing.
  */
 export async function seedRehearsalRepo({
-  scenario,
+  scenarios,
   landing,
 }: {
-  scenario: Scenario;
+  scenarios: OneOrMore<Scenario>;
   landing: Landing;
-}): Promise<SeededScenario> {
+}): Promise<OneOrMore<SeededScenario>> {
   // Resolved the way a pass resolves them, out of relay's own environment and
   // `.relay/.env`, so a rehearsal needs no second copy of a secret on disk. It
   // asks for the Claude credential too, which the seed does not use: a seed that
@@ -118,16 +123,46 @@ export async function seedRehearsalRepo({
   await pushGenesis(git);
   await ensureLabelVocabulary({ gh: ghInClone, git });
 
-  step(`${scenario.name}: ${CLONE_DIR} is on ${BASE_BRANCH} at genesis, landing \`${landing}\``);
-  return await seedScenarioIssues({ gh: ghOnHost, scenario });
+  step(`${CLONE_DIR} is on ${BASE_BRANCH} at genesis, landing \`${landing}\``);
+  return await seedIssues({ gh: ghOnHost, scenarios });
 }
 
 /**
- * Bring the tracker to the scenario: delete every issue the repo had, then
- * create the work item, its tickets, and the edges between them.
+ * Bring the tracker to the given scenarios: delete every issue the repo had, then
+ * create each scenario's own.
  *
- * Deleted and recreated rather than edited back to canonical, because GitHub
- * never reuses an issue number: a fixed scenario means fixed *content*, and
+ * The delete is here rather than in the per-scenario step, so it happens once for
+ * the whole seed however many scenarios are asked for — and before anything is
+ * created, so a token without the permission fails with nothing half-seeded.
+ *
+ * Created in the order they are given, which relay's oldest-first frontier turns
+ * into a priority: an `all` seed followed by a pass with no work item named runs
+ * over the first scenario in the list.
+ */
+async function seedIssues({
+  gh,
+  scenarios,
+}: {
+  gh: GhRunner;
+  scenarios: OneOrMore<Scenario>;
+}): Promise<OneOrMore<SeededScenario>> {
+  await deleteEveryIssue(gh);
+
+  const [firstScenario, ...laterScenarios] = scenarios;
+  const first = await seedScenarioIssues({ gh, scenario: firstScenario });
+
+  const later: SeededScenario[] = [];
+  for (const scenario of laterScenarios) {
+    later.push(await seedScenarioIssues({ gh, scenario }));
+  }
+  return [first, ...later];
+}
+
+/**
+ * Create one scenario's work item, its tickets, and the edges between them.
+ *
+ * The issues are created fresh rather than edited back to canonical, because
+ * GitHub never reuses an issue number: a fixed scenario means fixed *content*, and
  * editing back would mean the seed remembering every field a pass mutates, where
  * one forgotten hold contaminates the next run.
  */
@@ -138,8 +173,6 @@ async function seedScenarioIssues({
   gh: GhRunner;
   scenario: Scenario;
 }): Promise<SeededScenario> {
-  await deleteEveryIssue(gh);
-
   // Labelled ready on creation, so the item a contributor runs relay against by
   // hand is eligible the moment the seed prints its number.
   const workItem = await createIssue(gh, { ...scenario.workItem, labels: [READY_LABEL] });
@@ -167,9 +200,24 @@ async function seedScenarioIssues({
 
   const tickets = [...created.values()];
   // The seed's answer to the operator, and the reason nothing in the rig
-  // hardcodes an issue number.
-  step(`work item #${workItem}, tickets ${tickets.map((number) => `#${number}`).join(", ")}`);
+  // hardcodes an issue number. Named by its scenario, because a seed of them all
+  // prints one of these lines each.
+  step(`${scenario.name}: ${issueSummary({ workItem, tickets })}`);
   return { workItem, tickets };
+}
+
+/**
+ * What one scenario's issues are, for an operator to copy a number out of.
+ *
+ * A work item with no tickets says so rather than trailing an empty list, because
+ * the scenarios shaped that way are the ones where the work item *is* the ticket
+ * — an operator reading `tickets ` with nothing after it would take it for a seed
+ * that failed halfway.
+ */
+function issueSummary({ workItem, tickets }: { workItem: number; tickets: number[] }): string {
+  const item = `work item #${workItem}`;
+  if (tickets.length === 0) return `${item}, its own single ticket`;
+  return `${item}, tickets ${tickets.map((number) => `#${number}`).join(", ")}`;
 }
 
 /**

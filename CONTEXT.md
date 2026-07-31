@@ -294,6 +294,12 @@ Unlike a **probe** it is a whole pass and spends real Claude sessions, and unlik
 It runs against a throwaway repo of its own, never a repo anyone works in, because seeding a scenario means destroying whatever was there.
 _Avoid_: e2e test, integration test, dry run, pass probe
 
+**Genesis**:
+The one fixed commit a **scenario** is seeded onto, and the whole of the **rehearsal** repo's history.
+Fixed so that two rehearsals across a change to relay differ by that change and by the models' own variance and by nothing else — which is also why a **scenario** never varies it: a scenario is a tracker state, and genesis is the code that state is about.
+It carries a latent defect on purpose, because a **scenario** whose **work item** is a bug report needs one to reproduce ([ADR-0030](docs/adr/0030-genesis-carries-a-latent-defect.md)).
+_Avoid_: fixture, base commit, seed state
+
 **Scenario**:
 One named seeded state of the **rehearsal** repo's tracker: its **work item** and that item's **tickets**.
 Named rather than implied, so a second scenario is an addition rather than a rewrite, and fixed rather than generated, so two rehearsals across a change to relay differ by the change and by the models' own variance and by nothing else.

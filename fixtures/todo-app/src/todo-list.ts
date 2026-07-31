@@ -12,7 +12,6 @@ export type TodoFilter = "all" | "open" | "completed";
  */
 export class TodoList {
   private readonly todos = new Map<TodoId, Todo>();
-  private nextId = 1;
 
   /** Add a todo with the given title, and answer the todo that was added. */
   add(title: string): Todo {
@@ -57,9 +56,7 @@ export class TodoList {
 
   /** The next unused id. Only a todo that is about to be added takes one. */
   private mintId(): TodoId {
-    const id = String(this.nextId);
-    this.nextId += 1;
-    return id;
+    return String(this.todos.size + 1);
   }
 }
 

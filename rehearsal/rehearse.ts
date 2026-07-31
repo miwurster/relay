@@ -56,7 +56,10 @@ export async function rehearse({
   const secrets = await loadSecrets({ repoRoot: RELAY_ROOT });
 
   await buildRelay();
-  const { workItem } = await seedRehearsalRepo({ scenario, landing });
+  // One scenario, so one seeded work item: a rehearsal never takes `all`, because
+  // its passes would run one after another over one clone and only the first would
+  // be cut from genesis.
+  const [{ workItem }] = await seedRehearsalRepo({ scenarios: [scenario], landing });
   const startedAt = new Date();
   const exitCode = await runPassInClone({ workItem, secrets });
 
