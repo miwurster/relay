@@ -35,6 +35,7 @@ function rawIssue(number: number, overrides: Record<string, unknown> = {}) {
     labels: [{ name: "ready-for-agent" }],
     blockedBy: { nodes: [], totalCount: 0 },
     subIssues: { nodes: [], totalCount: 0 },
+    parent: null,
     ...overrides,
   };
 }
@@ -80,7 +81,7 @@ describe("frontier", () => {
       "--limit",
       "100",
       "--json",
-      "number,state,labels,blockedBy,subIssues",
+      "number,state,labels,blockedBy,subIssues,parent",
     ]);
   });
 
@@ -144,6 +145,22 @@ describe("frontier", () => {
     expect(issue?.blockedBy).toEqual([{ number: 9, repository: "acme/other", isOpen: true }]);
   });
 
+  it("reads the item a sub-issue hangs under, which gh answers as a lone node", async () => {
+    const { gh } = fakeGh([json([rawIssue(31, { parent: node(30) })])]);
+
+    const [issue] = await createGitHubClient(gh).frontier();
+
+    expect(issue?.parent).toBe(30);
+  });
+
+  it("leaves the parent undefined on an item nobody parented", async () => {
+    const { gh } = fakeGh([json([rawIssue(42)])]);
+
+    const [issue] = await createGitHubClient(gh).frontier();
+
+    expect(issue?.parent).toBeUndefined();
+  });
+
   it("sorts sub-issues by number, since gh's order is insertion order", async () => {
     const { gh } = fakeGh([
       json([
@@ -201,7 +218,7 @@ describe("getIssue", () => {
       "view",
       "42",
       "--json",
-      "number,state,labels,blockedBy,subIssues",
+      "number,state,labels,blockedBy,subIssues,parent",
     ]);
     expect(issue?.number).toBe(42);
   });

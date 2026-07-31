@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { SelectionError } from "../../src/errors.js";
 import type { GitHubClient, GitHubIssue } from "../../src/tracker/github.js";
-import { parseWorkItem, selectWorkItem } from "../../src/pass/work-item.js";
+import { parseWorkItem, selectWorkItem, subIssueNotice } from "../../src/pass/work-item.js";
 
 function issue(overrides: Partial<GitHubIssue> = {}): GitHubIssue {
   return {
@@ -204,5 +204,29 @@ describe("parseWorkItem", () => {
     "https://example.com/miwurster/relay/issues/42",
   ])("rejects %o before any tracker call", (argument) => {
     expect(() => parseWorkItem(argument)).toThrow(SelectionError);
+  });
+});
+
+describe("subIssueNotice", () => {
+  it("names the parent, and what the pass therefore leaves out", () => {
+    expect(subIssueNotice(issue({ number: 31, parent: 30 }))).toBe(
+      "#31 is a sub-issue of #30, and this pass runs over #31 alone — as its own single " +
+        "ticket, without #30's other sub-issues. Run relay on #30 to cover the whole plan.",
+    );
+  });
+
+  it("says nothing about an item nobody parented", () => {
+    expect(subIssueNotice(issue({ number: 30 }))).toBeUndefined();
+  });
+
+  it("does not make a parented item ineligible, on either selection path", async () => {
+    const child = issue({ number: 31, parent: 30 });
+    const github = fakeGitHub([child]);
+
+    await expect(selectWorkItem(github, { number: 31 })).resolves.toEqual({
+      kind: "work-item",
+      issue: child,
+    });
+    await expect(selectWorkItem(github)).resolves.toEqual({ kind: "work-item", issue: child });
   });
 });

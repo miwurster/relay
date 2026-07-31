@@ -82,6 +82,31 @@ async function requireThisRepository(client: GitHubClient, named: NamedWorkItem)
 }
 
 /**
+ * What an operator is told about a work item that is somebody's sub-issue, or
+ * `undefined` when it is nobody's.
+ *
+ * Never a gate: a childless issue is its own single ticket whoever's child it is,
+ * so relay gates on the ready label rather than on the shape of the graph
+ * ([ADR-0008](../../docs/adr/0008-the-native-github-graph-is-the-tracker-model.md)).
+ * What the notice says is what the pass is therefore *not* doing — the siblings
+ * are not in it — because an operator who named the wrong number, or whose
+ * auto-pick reached past a held parent, would otherwise only learn that from the
+ * diff.
+ *
+ * A sentence rather than a print, so the one rule reads the same for both
+ * selection paths and can be asserted without a console.
+ */
+export function subIssueNotice(issue: GitHubIssue): string | undefined {
+  if (issue.parent === undefined) return undefined;
+
+  return (
+    `#${issue.number} is a sub-issue of #${issue.parent}, and this pass runs over ` +
+    `#${issue.number} alone — as its own single ticket, without #${issue.parent}'s ` +
+    `other sub-issues. Run relay on #${issue.parent} to cover the whole plan.`
+  );
+}
+
+/**
  * The first gate the item fails, phrased as a reason, or `undefined` when it
  * passes them all. The one eligibility check both paths run, so an auto-pick
  * and a named item can never disagree about what relay is allowed to run.

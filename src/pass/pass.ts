@@ -12,7 +12,7 @@ import { branchExists, currentBranch, runGit, type GitRunner } from "../host/git
 import { whyDirtyWorktreeRefusesLanding } from "../host/dirty-worktree.js";
 import { loadSecrets, type Secrets } from "../host/secrets.js";
 import { requireTrackerDoc } from "../tracker/tracker-doc.js";
-import { parseWorkItem, selectWorkItem } from "./work-item.js";
+import { parseWorkItem, selectWorkItem, subIssueNotice } from "./work-item.js";
 
 /** The one work item's pass, and the seams tests replace. */
 export interface PassRun {
@@ -48,6 +48,9 @@ export async function runPass(workItem: string | undefined): Promise<ExitCode> {
     console.log("relay: nothing to do — no eligible ready-for-agent issue in this repo");
     return ExitCode.Success;
   }
+
+  const notice = subIssueNotice(selection.issue);
+  if (notice) console.log(`relay: ${notice}`);
 
   return await runPassOnItem({ repoRoot, config, secrets, issue: selection.issue, github });
 }

@@ -25,6 +25,12 @@ export interface GitHubIssue {
   isOpen: boolean;
   blockedBy: GitHubBlocker[];
   subIssues: GitHubSubIssue[];
+  /**
+   * The item this one is a sub-issue of, when it has one. Read for the notice
+   * selection prints and gated on by nothing — a ticket is still runnable on its
+   * own ([ADR-0008](../../docs/adr/0008-the-native-github-graph-is-the-tracker-model.md)).
+   */
+  parent?: number;
 }
 
 /**
@@ -168,7 +174,7 @@ const FRONTIER_LIMIT = 100;
  * call however long the backlog is, and `gh` asks for exactly GitHub's
  * documented page sizes on both, so relay never paginates them.
  */
-const FIELDS = "number,state,labels,blockedBy,subIssues";
+const FIELDS = "number,state,labels,blockedBy,subIssues,parent";
 
 /**
  * Longest-waiting first, asked of GitHub rather than sorted here: the limit
@@ -275,6 +281,8 @@ const issueSchema = z.object({
   labels: z.array(z.object({ name: z.string() })),
   blockedBy: connectionSchema,
   subIssues: connectionSchema,
+  // A lone node rather than a connection, and `null` on an item nobody parented.
+  parent: z.object({ number: z.number() }).nullable(),
 });
 
 type RawIssue = z.infer<typeof issueSchema>;
@@ -297,6 +305,7 @@ function toIssue(raw: RawIssue): GitHubIssue {
     subIssues: raw.subIssues.nodes
       .map((node) => ({ number: node.number, isOpen: isOpen(node) }))
       .sort((left, right) => left.number - right.number),
+    parent: raw.parent?.number,
   };
 }
 
