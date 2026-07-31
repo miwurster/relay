@@ -28,33 +28,26 @@ const RUBRIC_RESOURCE = ["skills", "thermo-nuclear-code-quality-review.md"];
 const findingLines = z.array(z.string().min(1));
 
 /**
- * What each scope answers with: a key per axis it was asked for, and no other.
+ * What one axis set asks the review for, and what it owes back: the prompt's two
+ * instructions and the schema that holds the answer, in one entry.
  *
- * A schema per scope rather than one schema with an optional key per axis, so an
- * axis a scope was never asked for cannot arrive as an empty array — which would
- * read as "found nothing" from the one scope that was asked and as "not asked"
- * from the others, the same JSON meaning two things
+ * Together rather than in a table each, because they are the same fact told
+ * three times — an axis the prompt does not ask for must not be a key the schema
+ * accepts, and a branch review reads whichever set the harness handed it
+ * ([ADR-0031](../../docs/adr/0031-the-branch-review-takes-the-standards-axis-when-no-ticket-review-ran.md)).
+ *
+ * A schema per axis set rather than one schema with an optional key per axis, so
+ * an axis a scope was never asked for cannot arrive as an empty array — which
+ * would read as "found nothing" from the one scope that was asked and as "not
+ * asked" from the others, the same JSON meaning two things
  * ([ADR-0027](../../docs/adr/0027-the-branch-review-splits-into-a-spec-review-and-a-quality-review.md)).
  *
  * The scope and the ticket are the harness's own facts, so a review is never
  * asked to repeat them — relay stamps them on.
  */
-const ANSWERS = {
-  "ticket-review": z.strictObject({ spec: findingLines, standards: findingLines }),
-  "branch-review": z.strictObject({ spec: findingLines }),
-  "quality-review": z.strictObject({ quality: findingLines }),
-} as const;
-
-/**
- * Which axes a scope is asked for, and the answer it owes: the prompt's own two
- * instructions, which are the same fact told to the model twice.
- *
- * A ticket is read on both axes; the whole branch is read on `spec` alone,
- * because the quality scope that follows it asks the wider version of the other
- * question.
- */
-const REVIEW_AXES = {
+const AXIS_SETS = {
   both: {
+    schema: z.strictObject({ spec: findingLines, standards: findingLines }),
     asked: "Both axes: translate the report's `## Standards` section and its `## Spec` section.",
     answer:
       "A JSON object with a `spec` array and a `standards` array, each of one-line findings.\n" +
@@ -67,10 +60,11 @@ const REVIEW_AXES = {
       '{"spec": [], "standards": []}\n' +
       "</relay-findings>",
   },
-  specOnly: {
+  spec: {
+    schema: z.strictObject({ spec: findingLines }),
     asked:
       "The `spec` axis only: translate the report's `## Spec` section.\n" +
-      "Whatever the `## Standards` section says is not yours to pass on — the quality review that runs after you reads this branch's structure, on a rubric stricter than that section's, and a finding raised in both places would reach the fixer twice.",
+      "Whatever the `## Standards` section says is not yours to pass on — every ticket of this plan was already read on that axis by its own review, and a finding raised in both places would reach the fixer twice.",
     answer:
       "A JSON object with a `spec` array of one-line findings, and no other key — a `standards` key is not part of this scope's answer and relay refuses an answer that carries one.\n\n" +
       "<relay-findings>\n" +
@@ -83,6 +77,9 @@ const REVIEW_AXES = {
   },
 } as const;
 
+/** The quality scope's own answer, which no axis set of `review.md` describes. */
+const QUALITY_ANSWER = z.strictObject({ quality: findingLines });
+
 /** What one scope means to a review run, resolved once per run. */
 interface ReviewTarget {
   /**
@@ -94,6 +91,8 @@ interface ReviewTarget {
   prompt: string;
   /** The arguments that prompt is written around. */
   promptArgs: Record<string, string>;
+  /** The shape the answer must hold: the axes this scope was asked for, and no other. */
+  schema: z.ZodType<AxisReport>;
   /** The ticket a finding is about; absent for the whole branch. */
   ticket?: number;
 }
@@ -130,7 +129,7 @@ export function createReviewer({
       prompt: target.prompt,
       promptArgs: target.promptArgs,
       tag: FINDINGS_TAG,
-      schema: ANSWERS[kind],
+      schema: target.schema,
       // A review that changed the branch broke the one rule it runs under, and
       // its change would reach the human as nobody's work. The quality scope's
       // rubric invites restructuring, which makes it the likeliest to start
@@ -180,6 +179,9 @@ function findingsFile(kind: ReviewKind, target: ReviewTarget, name: string): str
  * before it was implemented; both whole-branch scopes are measured against the
  * work item, from the branch it was cut off.
  *
+ * A ticket is always read on both axes; the branch reads whichever set the
+ * harness asked for, which is the axis set's own name.
+ *
  * The re-review is the branch review again, differing only in its name — which
  * it has to differ in, because the two runs write a findings file each and the
  * second must not overwrite the first's.
@@ -189,18 +191,19 @@ async function describeScope(scope: ReviewScope, baseBranch: string): Promise<Re
     case "ticket":
       return {
         prompt: REVIEW_PROMPT,
-        promptArgs: reviewArgs("ticket", `#${scope.ticket.number}`, scope.base, REVIEW_AXES.both),
+        ...reviewRun("ticket", `#${scope.ticket.number}`, scope.base, AXIS_SETS.both),
         ticket: scope.ticket.number,
       };
     case "branch":
       return {
         rereview: scope.rereview,
         prompt: REVIEW_PROMPT,
-        promptArgs: reviewArgs("branch", `#${scope.workItem}`, baseBranch, REVIEW_AXES.specOnly),
+        ...reviewRun("branch", `#${scope.workItem}`, baseBranch, AXIS_SETS[scope.axes]),
       };
     case "quality":
       return {
         prompt: QUALITY_PROMPT,
+        schema: QUALITY_ANSWER,
         promptArgs: {
           ITEM: `#${scope.workItem}`,
           BASE: baseBranch,
@@ -210,18 +213,22 @@ async function describeScope(scope: ReviewScope, baseBranch: string): Promise<Re
   }
 }
 
-function reviewArgs(
+/** The arguments and the schema one `review.md` run takes from its axis set. */
+function reviewRun(
   scope: string,
   item: string,
   base: string,
-  axes: (typeof REVIEW_AXES)[keyof typeof REVIEW_AXES],
-): Record<string, string> {
+  axes: (typeof AXIS_SETS)[keyof typeof AXIS_SETS],
+): Pick<ReviewTarget, "promptArgs" | "schema"> {
   return {
-    SCOPE: scope,
-    ITEM: item,
-    BASE: base,
-    TRACKER_DOC: TRACKER_DOC_PATH,
-    AXES: axes.asked,
-    ANSWER: axes.answer,
+    schema: axes.schema,
+    promptArgs: {
+      SCOPE: scope,
+      ITEM: item,
+      BASE: base,
+      TRACKER_DOC: TRACKER_DOC_PATH,
+      AXES: axes.asked,
+      ANSWER: axes.answer,
+    },
   };
 }

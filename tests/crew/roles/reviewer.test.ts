@@ -19,8 +19,14 @@ const ticketScope: ReviewScope = {
   ticket: { number: 8, summary: "the schema" },
   base: "c0ffee",
 };
-const branchScope: ReviewScope = { kind: "branch", workItem: 7, rereview: false };
-const rereviewScope: ReviewScope = { kind: "branch", workItem: 7, rereview: true };
+const branchScope: ReviewScope = { kind: "branch", workItem: 7, axes: "spec", rereview: false };
+const rereviewScope: ReviewScope = { kind: "branch", workItem: 7, axes: "spec", rereview: true };
+const bothAxesBranchScope: ReviewScope = {
+  kind: "branch",
+  workItem: 7,
+  axes: "both",
+  rereview: false,
+};
 const qualityScope: ReviewScope = { kind: "quality", workItem: 7 };
 
 let recordDir: string;
@@ -209,7 +215,7 @@ describe("createReviewer", () => {
     await expectPromptParity(runs[0], "review.md");
   });
 
-  it("asks the whole branch for the spec axis alone, leaving its structure to the quality scope", async () => {
+  it("asks the whole branch for the spec axis alone where every ticket was reviewed", async () => {
     const { review, runs } = reviewing(cleanBranch);
 
     await review(branchScope);
@@ -234,6 +240,37 @@ describe("createReviewer", () => {
     const { review } = reviewing(taggedFindings('{"spec":[],"standards":[]}'));
 
     await expect(review(branchScope)).rejects.toThrow(RoleError);
+  });
+
+  it("asks the whole branch for both axes where no ticket review ran", async () => {
+    const { review, runs } = reviewing(cleanTicket);
+
+    await review(bothAxesBranchScope);
+
+    expect(runs[0]?.promptArgs?.["AXES"]).toContain("Both axes");
+    expect(runs[0]?.promptArgs?.["ANSWER"]).toContain("`standards` array");
+    await expectPromptParity(runs[0], "review.md");
+  });
+
+  it("stamps a branch review's standards finding with the branch review as its source", async () => {
+    const { review } = reviewing(
+      taggedFindings('{"spec":[],"standards":["src/a.ts:3 duplicated parsing"]}'),
+    );
+
+    await expect(review(bothAxesBranchScope)).resolves.toEqual([
+      {
+        source: "branch-review",
+        axis: "standards",
+        ticket: undefined,
+        summary: "src/a.ts:3 duplicated parsing",
+      },
+    ]);
+  });
+
+  it("refuses a both-axes branch review that answered on spec alone", async () => {
+    const { review } = reviewing(cleanBranch);
+
+    await expect(review(bothAxesBranchScope)).rejects.toThrow(RoleError);
   });
 
   it("names each run for its scope, so each gets its own findings file", async () => {

@@ -117,6 +117,39 @@ describe("runHarness", () => {
     ]);
   });
 
+  it("asks a single-ticket plan's branch review for both axes, since no ticket review read standards", async () => {
+    const axes: string[] = [];
+    const { crew } = recordingCrew({
+      async review(scope) {
+        if (scope.kind === "branch") axes.push(scope.axes);
+        return scope.kind === "branch" && !scope.rereview
+          ? [finding("branch-review", "spec", "the cap is not configurable")]
+          : [];
+      },
+    });
+
+    await run(crew);
+
+    expect(axes).toEqual(["both", "both"]);
+  });
+
+  it("asks a multi-ticket plan's branch review for spec alone, since each ticket was read on both", async () => {
+    const axes: string[] = [];
+    const { crew } = recordingCrew({
+      ...twoTicketPlan,
+      async review(scope) {
+        if (scope.kind === "branch") axes.push(scope.axes);
+        return scope.kind === "branch" && !scope.rereview
+          ? [finding("branch-review", "spec", "the cap is not configurable")]
+          : [];
+      },
+    });
+
+    await run(crew);
+
+    expect(axes).toEqual(["spec", "spec"]);
+  });
+
   it("does not call the fixer when the review found nothing", async () => {
     const { crew, calls } = recordingCrew();
 

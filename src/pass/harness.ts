@@ -1,4 +1,5 @@
 import {
+  type BranchAxes,
   type Crew,
   type Finding,
   type FixReport,
@@ -37,14 +38,16 @@ const REREVIEW_REASON =
  * Run the pass's crew over one work item and return how it ended.
  *
  * The topology is fixed: plan once, then per ticket implement → the ticket
- * review → fix, then the whole-branch spec review → fix → its one re-review,
+ * review → fix, then the whole-branch review → fix → its one re-review,
  * then the quality review → fix, then the gate → fixer loop, then the lander,
  * then handover.
  * Every exit path ends at the same handover call, so no outcome can skip it.
  *
  * A multi-ticket plan is the shape that topology is for. A single-ticket plan
  * drops the per-ticket review, since its one ticket is the work item and the
- * two scopes would ask the same question twice — see `reviewsEachTicket`.
+ * two scopes would ask the same question twice — see `reviewsEachTicket` — and
+ * its branch review is asked for `standards` as well as `spec`, because the
+ * review that would have read that axis is the one just dropped.
  */
 export async function runHarness(crew: Crew, issue: GitHubIssue): Promise<Outcome> {
   const { outcome, committed, blockedOn, land, unaddressed } = await runLegs(crew, issue);
@@ -149,13 +152,16 @@ async function runLegs(crew: Crew, issue: GitHubIssue): Promise<LegsResult> {
     return { ...progress, outcome: { kind: "early-bail", reason: plan.reason } };
   }
 
-  const tickets = await implementTickets(crew, plan.tickets, reviewsEachTicket(plan.tickets));
+  const reviewEachTicket = reviewsEachTicket(plan.tickets);
+  const tickets = await implementTickets(crew, plan.tickets, reviewEachTicket);
   progress.committed = tickets.committed;
   progress.blockedOn = tickets.blockedOn;
   progress.unaddressed.push(...tickets.unaddressed);
   if (tickets.blocked) return { ...progress, outcome: tickets.blocked };
 
-  const branch = await reviewBranch(crew, issue.number);
+  // One fact, both ways round: the per-ticket review is what reads `standards`,
+  // so the branch review takes that axis exactly when no ticket review ran.
+  const branch = await reviewBranch(crew, issue.number, reviewEachTicket ? "spec" : "both");
   progress.unaddressed.push(...branch.unaddressed);
   if (branch.blocked) return { ...progress, outcome: branch.blocked };
 
@@ -199,8 +205,9 @@ async function runLegs(crew: Crew, issue: GitHubIssue): Promise<LegsResult> {
  * branch scope are one question asked twice — the same intent, over the same
  * diff but for the fixer's own commit. The per-ticket round is the one to drop:
  * it is there to keep a bad ticket out of the tickets that follow it, and there
- * are none. The branch review then reads strictly more, and it stays what it
- * always was — the only review that reads a fixer's commit.
+ * are none. The branch review then reads that same diff on both axes, and it
+ * stays what it always was — the only review that reads a fixer's commit
+ * ([ADR-0031](../../docs/adr/0031-the-branch-review-takes-the-standards-axis-when-no-ticket-review-ran.md)).
  */
 function reviewsEachTicket(tickets: readonly TicketRef[]): boolean {
   return tickets.length > 1;
@@ -274,8 +281,8 @@ async function implementTickets(
  * its findings reach no fixer: a loop here is the runaway relay refuses to be
  * ([ADR-0022](../../docs/adr/0022-a-fix-is-verified-once.md)).
  */
-async function reviewBranch(crew: Crew, workItem: number): Promise<StageResult> {
-  const report = await reviewAndFix(crew, { kind: "branch", workItem, rereview: false });
+async function reviewBranch(crew: Crew, workItem: number, axes: BranchAxes): Promise<StageResult> {
+  const report = await reviewAndFix(crew, { kind: "branch", workItem, axes, rereview: false });
   const declined = report.skipped;
   const blocked = blockFor(declined);
   if (blocked) return { unaddressed: [...declined], blocked };
@@ -283,7 +290,10 @@ async function reviewBranch(crew: Crew, workItem: number): Promise<StageResult> 
   // nothing, or a fixer that declined all of it, has already been accounted for.
   if (report.fixed.length === 0) return { unaddressed: [...declined] };
 
-  const findings = await crew.review({ kind: "branch", workItem, rereview: true });
+  // The same axes as the first run: the re-review is that review again, and a
+  // second run asked less would leave the axis it dropped unread on the one
+  // commit nobody else looks at.
+  const findings = await crew.review({ kind: "branch", workItem, axes, rereview: true });
   const raised = findings.map((finding) => ({ finding, reason: REREVIEW_REASON }));
   // Only the re-review's own findings can block from here: whatever the fixer
   // declined was already judged above, and it did not.

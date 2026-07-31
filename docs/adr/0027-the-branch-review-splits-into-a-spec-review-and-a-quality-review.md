@@ -1,6 +1,6 @@
 # 0027. the branch review splits into a spec review and a quality review
 
-- **Status:** accepted
+- **Status:** accepted, spec-only half amended by [ADR-0031](0031-the-branch-review-takes-the-standards-axis-when-no-ticket-review-ran.md)
 - **Date:** 2026-07-31
 
 ## Context and Problem Statement
@@ -31,7 +31,7 @@ The public rubric that does ask it — Cursor's `thermo-nuclear-code-quality-rev
 
 Chosen option: **Option C**.
 
-The whole-branch review now asks the `spec` question alone.
+The whole-branch review now asks the `spec` question alone — where a ticket review ran, which [ADR-0031](0031-the-branch-review-takes-the-standards-axis-when-no-ticket-review-ran.md) later qualified for the single-ticket **plan** that has none.
 A new **quality review** follows it: one cold read-only **leg** over the same branch, judging it against the vendored rubric, reporting a `quality` finding per thing it wants restructured, and handing those to one fixer leg.
 
 It is a third **review scope**, not a role of its own.

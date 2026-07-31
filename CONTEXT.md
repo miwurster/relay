@@ -76,7 +76,8 @@ _Avoid_: backlog, task list
 
 **Review scope**:
 What one review reads: one **ticket**'s own change from the commit it started at, the whole branch from the **base branch**, or that same branch on the **quality review**'s rubric.
-It is the only thing that differs between the reviewer's runs, so it is also what names each one, what picks its model, its prompt, which **axes** it is asked for — a ticket both, the whole branch `spec` alone, the quality scope `quality` — and the shape it answers in.
+It is the only thing that differs between the reviewer's runs, so it is also what names each one, what picks its model, its prompt, which **axes** it is asked for — a ticket both, the quality scope `quality`, and the whole branch whichever set the **harness** handed it — and the shape it answers in.
+The branch scope reads `spec` alone where every **ticket** was already read on `standards` by its own review, and both axes where no ticket review ran at all ([ADR-0031](docs/adr/0031-the-branch-review-takes-the-standards-axis-when-no-ticket-review-ran.md)).
 Three scopes, one **role**: a review is one read-only run over a diff ending in a finding per thing it wants changed, however wide the question ([ADR-0027](docs/adr/0027-the-branch-review-splits-into-a-spec-review-and-a-quality-review.md)).
 _Avoid_: diff range, target, lens
 

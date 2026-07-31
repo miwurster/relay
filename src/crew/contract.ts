@@ -41,6 +41,9 @@ export type ReviewKind = "ticket-review" | "branch-review" | "quality-review";
  */
 export type Axis = "standards" | "spec" | "quality";
 
+/** The axis sets a branch review may be asked for, named as the reviewer's table names them. */
+export type BranchAxes = "both" | "spec";
+
 /**
  * One thing a review or the gate wants changed.
  *
@@ -141,6 +144,13 @@ export type ReviewScope =
   | {
       kind: "branch";
       workItem: number;
+      /**
+       * Which axes this run is asked for: `both` when no ticket review ran, so
+       * the branch review is the pass's only read of the repo's own conventions,
+       * and `spec` when every ticket was already read on `standards` by its own
+       * review ([ADR-0031](../../docs/adr/0031-the-branch-review-takes-the-standards-axis-when-no-ticket-review-ran.md)).
+       */
+      axes: BranchAxes;
       /**
        * Whether this is the branch review's second run, over the fixer's own
        * commit. Exactly one, never a loop, and report-only: its findings reach
