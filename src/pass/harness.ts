@@ -37,8 +37,9 @@ const REREVIEW_REASON =
  * Run the pass's crew over one work item and return how it ended.
  *
  * The topology is fixed: plan once, then per ticket implement → the ticket
- * review → fix, then the whole-branch review → fix → its one re-review, then the
- * gate → fixer loop, then the lander, then handover.
+ * review → fix, then the whole-branch spec review → fix → its one re-review,
+ * then the quality review → fix, then the gate → fixer loop, then the lander,
+ * then handover.
  * Every exit path ends at the same handover call, so no outcome can skip it.
  *
  * A multi-ticket plan is the shape that topology is for. A single-ticket plan
@@ -94,6 +95,18 @@ async function runLegs(crew: Crew, issue: GitHubIssue): Promise<LegsResult> {
   const branch = await reviewBranch(crew, issue.number);
   progress.unaddressed.push(...branch.unaddressed);
   if (branch.blocked) return { ...progress, outcome: branch.blocked };
+
+  // Only now: the branch does what the item asked, so what is left to ask is
+  // whether it is worth keeping. A branch that just took a spec fix is the most
+  // likely to be structurally messy, which is why this runs after the fix rather
+  // than only over a review that was clean first time.
+  //
+  // Nothing here can block, and there is no re-review: a `quality` finding is not
+  // binding, and a fix is verified once
+  // ([ADR-0022](../../docs/adr/0022-a-fix-is-verified-once.md)). What the fixer
+  // declined is reported so a human knows a role overrode a call about their code.
+  const quality = await reviewAndFix(crew, { kind: "quality", workItem: issue.number });
+  progress.unaddressed.push(...quality.skipped);
 
   const loop = await driveGate(crew, gate);
   progress.unaddressed.push(...loop.unaddressed);
@@ -232,7 +245,14 @@ async function reviewAndFix(crew: Crew, scope: ReviewScope): Promise<FixReport> 
 }
 
 function fixTargetFor(scope: ReviewScope): FixTarget {
-  return scope.kind === "ticket" ? { kind: "ticket", ticket: scope.ticket } : { kind: "branch" };
+  switch (scope.kind) {
+    case "ticket":
+      return { kind: "ticket", ticket: scope.ticket };
+    case "branch":
+      return { kind: "branch" };
+    case "quality":
+      return { kind: "quality" };
+  }
 }
 
 /** How the gate loop ended, and how many gate runs it took to get there. */

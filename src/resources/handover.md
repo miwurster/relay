@@ -109,11 +109,12 @@ Each other line carries the axis it came from, and they do not mean the same thi
 
 - `spec` — the change does not do what the item asked, and nobody fixed it. This is why the pass did not succeed: relay stops rather than land it.
 - `standards` — the fixer overrode a call about this repo's own conventions. It never stops a pass. The human is owed the fact, not the argument.
+- `quality` — the fixer declined a restructuring the quality review asked for. It never stops a pass either, and declining one is often the right call. The human is owed the fact, not the argument.
 - `gate` — the fixer declined something the green gate raised. The gate ran again after it regardless, so its verdict above is what actually decided the pass.
 
 What you write depends on **{{OUTCOME}}**:
 
-- **success** — the list can only hold `standards` and `gate` lines, because a `spec` one would have blocked the pass. Give the **count** in your report and in the comment, and point the human at `{{RECORD_PATH}}` on their own machine for the detail. Never restate the findings and never argue them back.
+- **success** — the list can only hold `standards`, `quality` and `gate` lines, because a `spec` one would have blocked the pass. Give the **count** in your report and in the comment, and point the human at `{{RECORD_PATH}}` on their own machine for the detail. Never restate the findings and never argue them back.
 - **mid-block** and **early-bail** — give the **full list**, so the human can see exactly what was left and why.
 
 ## 4. Report to the operator

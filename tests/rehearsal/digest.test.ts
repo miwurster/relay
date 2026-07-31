@@ -56,7 +56,7 @@ async function passRecords(): Promise<void> {
   );
   await record(
     "planner.status.json",
-    { role: "planner", model: "claude-opus-4-8", answer: { kind: "plan", tickets: [] } },
+    { role: "planner", model: "claude-opus-5", answer: { kind: "plan", tickets: [] } },
     1,
   );
   await record(
@@ -68,7 +68,7 @@ async function passRecords(): Promise<void> {
     "ticketReview-101.status.json",
     {
       role: "ticketReview-101",
-      model: "claude-opus-4-8",
+      model: "claude-opus-5",
       answer: { spec: [specFinding.summary], standards: [standardsFinding.summary] },
     },
     3,
@@ -102,7 +102,7 @@ describe("digestRecords", () => {
 
     expect(digest).toContain("gateResolver");
     expect(digest).toContain("claude-haiku-4-5");
-    expect(digest).toMatch(/planner.*claude-opus-4-8.*plan/);
+    expect(digest).toMatch(/planner.*claude-opus-5.*plan/);
     expect(digest).toMatch(/implementer-101.*claude-sonnet-5.*done/);
   });
 

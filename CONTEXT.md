@@ -49,21 +49,47 @@ _Avoid_: issue, story, task
 **Ticket**:
 One unit of the **plan**, and the thing one implementer **leg** runs over.
 A ticket is one of the **work item**'s sub-issues, and carries its issue number.
-It is pass-local and ephemeral — nothing about it is written back, and a work item with no sub-issues is its own single ticket.
+A work item with no sub-issues is its own single ticket.
+What a pass writes back to a ticket is its state and nothing else — the implementer marks the one it is on, and the **handover** records what the pass earned ([ADR-0026](docs/adr/0026-the-handover-writes-ticket-state.md)).
 _Avoid_: subtask, item, unit
+
+**Finished ticket**:
+A **ticket** the pass committed that carries no **unaddressed finding** that is **binding**, and the only kind the **handover** records as done.
+The **harness**'s fact rather than a leg's judgement, because a ticket counts as committed from the moment its implementer returns — before its review runs, so a **blocked** pass's committed tickets include the one it blocked on.
+Binding rather than any finding, because a pass lands with the non-binding ones overridden: on a `success` every committed ticket is finished, and on a **blocked** pass the difference is the ticket it blocked on.
+_Avoid_: done ticket, completed ticket, clean ticket
+
+**Tick**:
+What the **handover** does to a **ticket**'s checkboxes: every unchecked box in the body of a **finished ticket**, or none of them.
+A claim that the branch satisfies the ticket, never a verification of one criterion at a time — the **green gate** and the reviews are what a tick rests on, and neither answers box by box.
+_Avoid_: check, complete, mark done
+
+**Ready label**:
+`ready-for-agent`, a human's offer of a **work item** to relay, and what the **frontier** and the **eligibility check** both read.
+Consumed by the **pass** that acts on it: the **handover** strips it from the work item and from every **ticket** it writes, so re-offering the work is a human's act ([ADR-0025](docs/adr/0025-the-ready-label-is-consumed-by-the-pass-that-acts-on-it.md)).
+An `early-bail` consumes nothing and leaves it alone.
+_Avoid_: ready flag, agent label, opt-in label
 
 **Plan**:
 The planner's answer: **tickets** in dependency order, or a refusal to start on an under-specified **work item**.
 _Avoid_: backlog, task list
 
 **Review scope**:
-What one review reads: one **ticket**'s own change from the commit it started at, or the whole branch from the **base branch**.
-It is the only thing that differs between the reviewer's two runs, so it is also what names them and what picks each one's model.
+What one review reads: one **ticket**'s own change from the commit it started at, the whole branch from the **base branch**, or that same branch on the **quality review**'s rubric.
+It is the only thing that differs between the reviewer's runs, so it is also what names each one, what picks its model, its prompt, which **axes** it is asked for — a ticket both, the whole branch `spec` alone, the quality scope `quality` — and the shape it answers in.
+Three scopes, one **role**: a review is one read-only run over a diff ending in a finding per thing it wants changed, however wide the question ([ADR-0027](docs/adr/0027-the-branch-review-splits-into-a-spec-review-and-a-quality-review.md)).
 _Avoid_: diff range, target, lens
+
+**Quality review**:
+The **review scope** that asks whether the branch's implementation is worth keeping, once the **spec** question is settled.
+It judges against a vendored third-party rubric rather than this repo's own conventions, and unlike the other two scopes it is not bounded by the diff — a remedy may name code the change never touched, though a problem the change did not cause is not its to raise.
+It runs whenever the branch scope did not block, including after a fix, because a branch that was just patched is the likeliest to be structurally messy.
+Its **findings** carry the `quality` **axis**, reach one **fixer** leg, and are verified by nothing but the **green gate** ([ADR-0027](docs/adr/0027-the-branch-review-splits-into-a-spec-review-and-a-quality-review.md)).
+_Avoid_: code review, deep review, maintainability review, quality role
 
 **Re-review**:
 The branch review's second run, over the **fixer**'s own commit, when the first run's fix changed something.
-Exactly one, never a loop, and report-only: there is no fixer after it, so its **spec** findings block and its **standards** findings are reported and landed ([ADR-0022](docs/adr/0022-a-fix-is-verified-once.md)).
+Exactly one, never a loop, and report-only: there is no fixer after it, so its findings block if they are **binding** and are reported and landed if they are not ([ADR-0022](docs/adr/0022-a-fix-is-verified-once.md)).
 It exists because the **green gate** that runs next is objective, so without it a fix could address the wrong half of what was asked and still land green.
 _Avoid_: recheck, second pass, verification
 
@@ -73,14 +99,15 @@ A review finding carries an axis; the green gate's carries none.
 _Avoid_: issue, comment, remark
 
 **Axis**:
-Which of the review's two questions a **finding** answers: `standards`, whether the change follows this repo's own documented conventions, or `spec`, whether it built what the **work item** asked for.
-The two do not weigh the same — a `spec` finding is **binding** and a `standards` finding is not.
-A problem both axes name is a `spec` finding: the stricter axis wins, because filing it under the other would quietly drop the part that stops a **pass**.
+Which question a **finding** answers: `standards`, whether the change follows this repo's own documented conventions; `spec`, whether it built what the **work item** asked for; or `quality`, whether the implementation is structurally worth keeping, judged by the **quality review** against a rubric wider than this repo's conventions.
+They do not weigh the same — a `spec` finding is **binding** and the other two are not.
+A problem both `standards` and `spec` name is a `spec` finding: the stricter axis wins, because filing it under the other would quietly drop the part that stops a **pass**.
+`quality` cannot collide with `standards` that way, because no one **leg** is asked for both.
 _Avoid_: category, kind, dimension
 
 **Binding**:
 A **finding** the **pass** may not land without addressing.
-Spec findings are binding and standards findings are not, because a branch that does not do what was asked is worse to land than one that landed with a standards call overridden ([ADR-0021](docs/adr/0021-spec-findings-are-binding.md)).
+Spec findings are binding and the other axes' are not, because a branch that does not do what was asked is worse to land than one that landed with a standards or a quality call overridden ([ADR-0021](docs/adr/0021-spec-findings-are-binding.md)).
 The **fixer** still decides whether code changes; whether a finding nobody addressed stops the pass is the **harness**'s.
 _Avoid_: mandatory, blocking, required
 
@@ -116,7 +143,8 @@ _Avoid_: source, origin, confidence
 **Handover**:
 The pass's last **leg**: it publishes what the **landing** and the **outcome** owe, names what the pass left as an **unaddressed finding**, and tells the human what state the work is in.
 Every outcome reaches it — no path skips the handover.
-It is the only role that writes to the tracker, so closing a **ticket** is its act and never the **lander**'s.
+It is the only role that writes what a pass *earned* — a **tick**, a close, the **ready label** stripped — so closing a **ticket** is its act and never the **lander**'s.
+The two writes before it claim nothing: the planner **holds** the work item and the implementer marks the ticket it is on.
 _Avoid_: finalize, wrap-up, publish
 
 **Landing**:
@@ -145,12 +173,12 @@ _Avoid_: failed, stuck, paused
 
 **Frontier**:
 This repo's eligible **work items**, longest-waiting first.
-GitHub has no priority field, so humans steer by when they apply the ready label.
+GitHub has no priority field, so humans steer by when they apply the **ready label**.
 A prefilter only — every candidate still faces the **eligibility check**.
 _Avoid_: queue, backlog, inbox
 
 **Eligibility check**:
-The gates a **work item** must pass before relay will run over it: ready label, not already **held**, still open, no **open blocker**.
+The gates a **work item** must pass before relay will run over it: the **ready label**, not already **held**, still open, no **open blocker**.
 The same check decides both auto-pick and an explicitly named item, so the two can never disagree.
 _Avoid_: selection gate, filter, guard
 
@@ -162,6 +190,7 @@ _Avoid_: blocked by, dependency
 **Held**:
 A **work item** carrying the `agent-in-progress` label, which the planner applies and the **handover** replaces.
 A held item is ineligible, so a crashed **pass** leaves the work visibly claimed rather than silently free.
+Only a **work item** is ever held: the same label on a **ticket** says an implementer **leg** is on it and gates nothing, because a ticket relay stripped the **ready label** from is already ineligible.
 _Avoid_: locked, assigned, in progress
 
 **Tracker doc**:
@@ -189,6 +218,13 @@ _Avoid_: agent branch, feature branch
 **Skill plugin**:
 An installed Claude plugin whose skills a **role** runs, bind-mounted from the operator's own installation rather than baked into the sandbox image.
 _Avoid_: extension, tool pack
+
+**Vendored rubric**:
+A third party's review rules, copied verbatim into relay's own resources and carried into a **role**'s prompt as an argument.
+Not a **skill plugin**: nothing relay ships is visible from inside the **sandbox**, whose worktree is the target repo's, so the prompt inlines it rather than the leg loading it.
+Its body is never edited — an upstream change is taken by re-vendoring — and everything that adapts it to relay lives in the prompt that carries it ([ADR-0027](docs/adr/0027-the-branch-review-splits-into-a-spec-review-and-a-quality-review.md)).
+relay authors no rubric of its own.
+_Avoid_: bundled skill, forked skill, inlined skill
 
 **Tagged block**:
 The `<tag>…</tag>` block a **role** ends its run with, holding the JSON answer the harness reads.

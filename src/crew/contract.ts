@@ -19,22 +19,27 @@ export type ImplementResult =
   { kind: "done"; base: string } | { kind: "needs-input"; reason: string };
 
 /**
- * The two reviews, named as the per-role model map names them: one per review
- * scope, since a scope is the only thing that differs between them.
+ * The three reviews, named as the per-role model map names them.
+ *
+ * One per `ReviewScope`, since a review is only ever the scope it read
+ * ([ADR-0027](../../docs/adr/0027-the-branch-review-splits-into-a-spec-review-and-a-quality-review.md)).
  */
-export type ReviewKind = "ticketReview" | "branchReview";
+export type ReviewKind = "ticketReview" | "branchReview" | "qualityReview";
 
 /**
- * Which of the review's two questions a finding answers: whether the change
- * follows this repo's own documented standards, or whether it built what the
- * item asked for.
+ * Which question a finding answers.
  *
- * The two do not weigh the same. A branch that does not do what was asked is
- * worse to land than one that landed with a standards call overridden, so a
- * spec finding is **binding** and a standards finding is not
+ * - `standards` — does the change follow this repo's own documented conventions?
+ * - `spec` — did it build what the item asked for?
+ * - `quality` — is the implementation structurally worth keeping, judged against
+ *   an external maintainability rubric that reaches beyond the diff.
+ *
+ * They do not weigh the same. A branch that does not do what was asked is worse
+ * to land than one that landed with a standards or a quality call overridden, so
+ * a spec finding is **binding** and the other two are not
  * ([ADR-0021](../../docs/adr/0021-spec-findings-are-binding.md)).
  */
-export type Axis = "standards" | "spec";
+export type Axis = "standards" | "spec" | "quality";
 
 /**
  * One thing a review or the gate wants changed.
@@ -118,12 +123,18 @@ export interface ResolvedGate {
 }
 
 /**
- * What the reviewers look at: one ticket's change, or the whole branch.
+ * What one review reads: one ticket's change, the whole branch against what was
+ * asked, or the whole branch against a maintainability rubric.
  *
- * Each arm carries the issue whose intent the change is measured against — the
- * ticket's own brief, or the work item the whole branch belongs to. A ticket
- * also carries the commit its own change starts at, since the branch already
- * holds every earlier ticket of the pass.
+ * Each arm carries the issue the change is measured against — the ticket's own
+ * brief, or the work item the whole branch belongs to. A ticket also carries the
+ * commit its own change starts at, since the branch already holds every earlier
+ * ticket of the pass.
+ *
+ * The scope is what decides the review's prompt, its model, the axes it is asked
+ * for and the shape it answers in, which is why the quality review is a scope
+ * rather than a role of its own
+ * ([ADR-0027](../../docs/adr/0027-the-branch-review-splits-into-a-spec-review-and-a-quality-review.md)).
  */
 export type ReviewScope =
   | { kind: "ticket"; ticket: TicketRef; base: string }
@@ -136,15 +147,31 @@ export type ReviewScope =
        * no fixer ([ADR-0022](../../docs/adr/0022-a-fix-is-verified-once.md)).
        */
       rereview: boolean;
-    };
+    }
+  | { kind: "quality"; workItem: number };
+
+/** Which of the three reviews a scope is, in the model map and on its findings. */
+export function reviewKindOf(scope: ReviewScope): ReviewKind {
+  switch (scope.kind) {
+    case "ticket":
+      return "ticketReview";
+    case "branch":
+      return "branchReview";
+    case "quality":
+      return "qualityReview";
+  }
+}
 
 /**
  * What one fixer leg is fixing: a ticket's own review, the whole-branch review,
- * or a red gate. A gate fix carries which attempt of the loop it is, because
- * the gate is the pass's one leg that runs more than once.
+ * the quality review, or a red gate. A gate fix carries which attempt of the
+ * loop it is, because the gate is the pass's one leg that runs more than once.
  */
 export type FixTarget =
-  { kind: "ticket"; ticket: TicketRef } | { kind: "branch" } | { kind: "gate"; attempt: number };
+  | { kind: "ticket"; ticket: TicketRef }
+  | { kind: "branch" }
+  | { kind: "quality" }
+  | { kind: "gate"; attempt: number };
 
 /**
  * What became of the base branch.
@@ -189,6 +216,12 @@ export interface Crew {
   resolveGate(): Promise<ResolvedGate>;
   plan(issue: GitHubIssue): Promise<PlanResult>;
   implement(ticket: TicketRef): Promise<ImplementResult>;
+  /**
+   * Read one scope and report what it wants changed. The `quality` scope is the
+   * one that is not bounded by its diff: its rubric's remedies reach into the
+   * code the change sits in
+   * ([ADR-0027](../../docs/adr/0027-the-branch-review-splits-into-a-spec-review-and-a-quality-review.md)).
+   */
   review(scope: ReviewScope): Promise<Finding[]>;
   /**
    * Act on the findings handed to it, one verdict per finding. It reports what

@@ -46,7 +46,7 @@ export const ticket = (number: number): TicketRef => ({ number, summary: `work o
 
 /** A review finding on the axis given, since the axis is what decides its weight. */
 export const finding = (
-  source: "ticketReview" | "branchReview",
+  source: "ticketReview" | "branchReview" | "qualityReview",
   axis: Axis,
   summary: string,
   ticket?: number,
@@ -142,6 +142,12 @@ export function recordingCrew(overrides: Partial<Crew> = {}) {
 
 /** What a scope is called in the recorded call list, re-review included. */
 export function reviewName(scope: ReviewScope): string {
-  if (scope.kind === "ticket") return String(scope.ticket.number);
-  return scope.rereview ? "branch-rereview" : "branch";
+  switch (scope.kind) {
+    case "ticket":
+      return String(scope.ticket.number);
+    case "branch":
+      return scope.rereview ? "branch-rereview" : "branch";
+    case "quality":
+      return "quality";
+  }
 }

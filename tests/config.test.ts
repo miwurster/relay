@@ -52,11 +52,22 @@ describe("loadConfig", () => {
     expect(config.dockerfile).toBe(".relay/Dockerfile");
     expect(config.image).toBeUndefined();
     expect(config.models.gateResolver).toBe("claude-haiku-4-5");
-    expect(config.models.planner).toBe("claude-opus-4-8");
+    expect(config.models.planner).toBe("claude-opus-5");
     expect(config.models.implementer).toBe("claude-sonnet-5");
-    expect(config.models.ticketReview).toBe("claude-opus-4-8");
+    expect(config.models.ticketReview).toBe("claude-opus-5");
     expect(config.models.branchReview).toBe("claude-fable-5");
+    expect(config.models.qualityReview).toBe("claude-fable-5");
     expect(config.models.greenGate).toBe("claude-sonnet-5");
+  });
+
+  it("lets a repo override the quality review's model", async () => {
+    const root = await repoWith(`export default {
+      landing: "merge",
+      models: { qualityReview: "claude-opus-5" },
+    };`);
+    const config = await loadConfig(root);
+    expect(config.models.qualityReview).toBe("claude-opus-5");
+    expect(config.models.branchReview).toBe("claude-fable-5");
   });
 
   it("defaults the lander to the model the fixer escalates to", async () => {
@@ -78,14 +89,14 @@ describe("loadConfig", () => {
       landing: "merge",
       branchPrefix: "relay/",
       image: "registry.example.com/relay:1",
-      models: { implementer: "claude-opus-4-8", gateResolver: "claude-sonnet-5" },
+      models: { implementer: "claude-opus-5", gateResolver: "claude-sonnet-5" },
     };`);
     const config = await loadConfig(root);
     expect(config.models.gateResolver).toBe("claude-sonnet-5");
     expect(config.branchPrefix).toBe("relay/");
     expect(config.image).toBe("registry.example.com/relay:1");
-    expect(config.models.implementer).toBe("claude-opus-4-8");
-    expect(config.models.planner).toBe("claude-opus-4-8");
+    expect(config.models.implementer).toBe("claude-opus-5");
+    expect(config.models.planner).toBe("claude-opus-5");
     expect(config.models.fixer).toBe("claude-sonnet-5");
   });
 
@@ -110,7 +121,7 @@ describe("loadConfig", () => {
   it("rejects a config still setting one of the collapsed review models", async () => {
     const root = await repoWith(`export default {
       landing: "merge",
-      models: { inDepthCodeReview: "claude-opus-4-8" },
+      models: { inDepthCodeReview: "claude-opus-5" },
     };`);
     await expect(loadConfig(root)).rejects.toThrow(/inDepthCodeReview/);
   });

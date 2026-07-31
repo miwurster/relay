@@ -16,7 +16,7 @@ import {
 } from "./harness-crew.js";
 
 describe("runHarness", () => {
-  it("runs the full topology in order: plan, per-ticket loop, branch review, gate, land, handover", async () => {
+  it("runs the full topology in order: plan, per-ticket loop, branch review, quality review, gate, land, handover", async () => {
     const { crew, calls } = recordingCrew({
       async plan() {
         calls.push("plan");
@@ -35,6 +35,7 @@ describe("runHarness", () => {
       "implement:2",
       "review:2",
       "review:branch",
+      "review:quality",
       "gate",
       "land",
       "handover:success",
@@ -75,6 +76,7 @@ describe("runHarness", () => {
       { kind: "ticket", ticket: ticket(1) },
       { kind: "ticket", ticket: ticket(2) },
       { kind: "branch" },
+      { kind: "quality" },
       { kind: "gate", attempt: 1 },
       { kind: "gate", attempt: 2 },
     ]);
@@ -90,6 +92,7 @@ describe("runHarness", () => {
       "plan",
       "implement:1",
       "review:branch",
+      "review:quality",
       "gate",
       "land",
       "handover:success",

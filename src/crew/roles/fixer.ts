@@ -51,9 +51,9 @@ interface FixLeg {
  * commits the result itself, and answers for every finding either way.
  *
  * The same role runs all the fixer legs — after a ticket's review, after the
- * whole-branch review, and inside the gate loop — because all of them are the
- * same job: a list of findings over the branch as it stands. Only the leg's
- * name, the scope it is told, and its model differ.
+ * whole-branch review, after the quality review, and inside the gate loop —
+ * because all of them are the same job: a list of findings over the branch as it
+ * stands. Only the leg's name, the scope it is told, and its model differ.
  */
 export function createFixer(deps: RoleDeps): Crew["fix"] {
   return async function fix(findings: readonly Finding[], target: FixTarget): Promise<FixReport> {
@@ -99,6 +99,8 @@ function describeLeg(target: FixTarget, config: RelayConfig): FixLeg {
       };
     case "branch":
       return { name: "branch", scope: "the whole branch", model: fixer };
+    case "quality":
+      return { name: "quality", scope: "the whole branch's structure", model: fixer };
     case "gate":
       return {
         name: `gate-${target.attempt}`,

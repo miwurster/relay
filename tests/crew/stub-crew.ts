@@ -4,6 +4,7 @@ import {
   type GateResult,
   type LandResult,
   NO_LANDING,
+  reviewKindOf,
 } from "../../src/crew/contract.js";
 
 /**
@@ -34,7 +35,7 @@ export function createStubCrew({ landing = "pull-request" }: { landing?: Landing
 
     async review(scope) {
       const target = scope.kind === "ticket" ? `#${scope.ticket.number}` : "the branch";
-      log(scope.kind === "ticket" ? "ticketReview" : "branchReview", `would review ${target}`);
+      log(reviewKindOf(scope), `would review ${target}`);
       return [];
     },
 

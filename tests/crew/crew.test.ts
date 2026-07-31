@@ -242,7 +242,7 @@ describe("createCrew", () => {
           commits: [],
           stdout: options.name?.startsWith("handover")
             ? `<${HANDOVER_TAG}>{"prUrl":"https://github.com/g/r/pull/1","report":"done"}</${HANDOVER_TAG}>`
-            : `<${FINDINGS_TAG}>{"standards":[],"spec":[]}</${FINDINGS_TAG}>`,
+            : `<${FINDINGS_TAG}>{"spec":[]}</${FINDINGS_TAG}>`,
         };
       },
       async exec() {

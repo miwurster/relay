@@ -168,6 +168,13 @@ describe("createFixer", () => {
     expect(await readResource("fixer.md")).toContain("Leaving one of these unfixed stops the pass");
   });
 
+  it("tells the fixer a quality finding may reach past the diff and is its to decline", async () => {
+    const prompt = await readResource("fixer.md");
+    expect(prompt).toContain("- `quality` —");
+    expect(prompt).toContain("may ask you to change code the branch never touched");
+    expect(prompt).toContain("this repo's own documented conventions win over it");
+  });
+
   it("tells the fixer it owes a verdict for every finding, collapsed ones included", async () => {
     const prompt = await readResource("fixer.md");
     expect(prompt).toContain("one verdict per finding");
@@ -239,11 +246,26 @@ describe("createFixer", () => {
 
     await fix(findings, ticketTarget);
     await fix(findings, branchTarget);
+    await fix(findings, { kind: "quality" });
     await fix(findings, { kind: "gate", attempt: 2 });
 
-    expect(runs.map((run) => run.name)).toEqual(["fixer-8", "fixer-branch", "fixer-gate-2"]);
+    expect(runs.map((run) => run.name)).toEqual([
+      "fixer-8",
+      "fixer-branch",
+      "fixer-quality",
+      "fixer-gate-2",
+    ]);
     expect(runs[1]?.promptArgs?.SCOPE).toBe("the whole branch");
-    expect(runs[2]?.promptArgs?.SCOPE).toBe("the green gate, fix attempt 2");
+    expect(runs[2]?.promptArgs?.SCOPE).toBe("the whole branch's structure");
+    expect(runs[3]?.promptArgs?.SCOPE).toBe("the green gate, fix attempt 2");
+  });
+
+  it("runs a quality fix on the fixer's own model, never the escalated one", async () => {
+    const { fix, runs } = fixing(fixedAll(["standards-1", "standards-2"]));
+
+    await fix(findings, { kind: "quality" });
+
+    expect(commandOf(runs[0])).toContain(`--model '${config.models.fixer}'`);
   });
 
   it("runs on the fixer's model", async () => {

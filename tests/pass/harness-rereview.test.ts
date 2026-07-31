@@ -26,6 +26,7 @@ describe("runHarness re-reviewing a fix", () => {
       "review:branch",
       "fix",
       "review:branch-rereview",
+      "review:quality",
       "gate",
       "land",
       "handover:success",

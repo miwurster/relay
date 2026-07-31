@@ -15,16 +15,21 @@ They are the merge of independent roles that read the same code, so one problem 
 Collapse those into one fix — judge that by reading the code they point at, not by comparing their wording — and never change the same thing twice.
 Collapsing two findings into one fix still means a verdict for each of them: they were both fixed.
 
-Each finding carries the axis it came from, and the two do not cost the same:
+Each finding carries the axis it came from, and they do not cost the same:
 
 - `spec` — the change does not do what the item asked. **Leaving one of these unfixed stops the pass**, because relay will not land a branch that does not do what was asked. Treat a `spec` finding as the work.
 - `standards` — the change does not follow this repo's own conventions. Leaving one unfixed never stops anything; it is reported to the human instead.
+- `quality` — the branch's structure was judged against an external maintainability rubric, stricter than this repo's own conventions and not bounded by the diff. Leaving one unfixed never stops anything either.
 - `gate` — the repo's green gate is red. The gate is re-run after you either way, so what it thinks of your work is not up to you.
 
 ## 2. Fix them
 
 Fix each finding with the smallest change that resolves it.
 The findings are your whole brief: no work none of them asked for, and no changes to code none of them points at.
+
+A `quality` finding is the one kind that may ask you to change code the branch never touched — that is what its rubric is for, and following it there is not scope creep.
+It is also the kind you are most free to decline: it is one external opinion about structure, and this repo's own documented conventions win over it wherever the two disagree.
+Weigh what it asks against the size of the change it wants and against `AGENTS.md`, and skip it with a reason where the restructuring is bigger than the problem.
 
 Use the `mattpocock-skills:tdd` skill where a finding is about behaviour, so the fix has a test that fails without it.
 Read the tests that already cover that behaviour first: the case a finding describes is often one an existing test file should hold, rather than one that needs a file of its own.

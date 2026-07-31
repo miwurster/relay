@@ -3,7 +3,7 @@ import { roleAgent } from "../../src/crew/role-agent.js";
 import { SANDBOX_PLUGIN_ROOT } from "../../src/sandbox/skills.js";
 
 const printCommand = () =>
-  roleAgent("claude-opus-4-8").buildPrintCommand({
+  roleAgent("claude-opus-5").buildPrintCommand({
     prompt: "plan it",
     dangerouslySkipPermissions: true,
   });
@@ -25,7 +25,7 @@ describe("roleAgent", () => {
   it("keeps the underlying claude invocation intact", () => {
     const { command, stdin } = printCommand();
     expect(command.startsWith("claude ")).toBe(true);
-    expect(command).toContain("--model 'claude-opus-4-8'");
+    expect(command).toContain("--model 'claude-opus-5'");
     expect(command).toContain("--output-format stream-json");
     expect(command.endsWith("-p -")).toBe(true);
     expect(stdin).toBe("plan it");
