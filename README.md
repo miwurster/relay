@@ -7,9 +7,27 @@ Where the pass stops is your repo's to declare: at a pull request waiting on you
 
 relay runs against a GitHub repo whose issues live in that same repo, and speaks GitHub only.
 
+## Prerequisites
+
+Have these on your host before the first pass:
+
+- **Node 20 or newer**, to run relay itself.
+- **Docker**, reachable as your own user — every leg of a pass runs inside a container.
+- **`gh`** on your `PATH` and authenticated (`gh auth login`), because relay's own tracker calls go through it.
+- **A repo-scoped GitHub token** as `GH_TOKEN`, with write access — one token covers relay's tracker calls on the host and the `gh` running inside every sandbox.
+- **A Claude credential**, either `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`, since every agent leg runs on it.
+- **The `mattpocock-skills@claude-plugins-official` plugin, installed on your host.**
+  relay ships no skills of its own: a pass bind-mounts this plugin's directory into the sandbox, so a host without it cannot run a pass at all.
+  In Claude Code:
+
+  ```
+  /plugin install mattpocock-skills@claude-plugins-official
+  ```
+
+`npx @miwurster/relay doctor` verifies all of it.
+
 ## Quickstart
 
-Requirements: Node 20+, Docker, an authenticated `gh`, a repo-scoped `GH_TOKEN`, a Claude credential (`CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`), and the `mattpocock-skills@claude-plugins-official` plugin installed on your host.
 Secrets live in your environment or in `.relay/.env`, which git never sees.
 
 ```sh

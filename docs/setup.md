@@ -9,16 +9,14 @@ It speaks GitHub and only GitHub, for the tracker and the forge alike — there 
 
 ## What you need first
 
-- **Node 20 or newer** on your host, to run relay itself.
-- **Docker**, reachable as your own user — every pass runs its legs inside a container.
-- **`gh`** on your host's `PATH`, authenticated (`gh auth login`).
-- **A GitHub token** with write access to the repo, as `GH_TOKEN`.
-  One token covers everything: relay's own tracker calls on the host, and the `gh` running inside every sandbox.
-- **A Claude credential**, either `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`.
-  Every agent leg of a pass runs on it, inside the sandbox.
-- **One Claude plugin installed on your host**, `mattpocock-skills@claude-plugins-official`.
-  A pass mounts its directory into the sandbox rather than shipping its skills, so a host without it cannot run a pass at all.
-  Step 6 installs it.
+- **Node 20 or newer**
+- **Docker**
+- **`gh`**, authenticated
+- **`GH_TOKEN`**
+- **A Claude credential**
+- **The `mattpocock-skills@claude-plugins-official` plugin**
+
+Each of these is explained in [the README's Prerequisites](../README.md#prerequisites).
 
 ## 1. Bootstrap the repo
 
