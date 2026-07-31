@@ -1,9 +1,15 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { cp, readdir, rm } from "node:fs/promises";
+import { cp, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { DEFAULT_DOCKERFILE_PATH, loadConfig } from "../src/config.js";
+import {
+  CONFIG_FILE_PATH,
+  DEFAULT_BRANCH_PREFIX,
+  DEFAULT_DOCKERFILE_PATH,
+  LANDINGS,
+  type Landing,
+} from "../src/config.js";
 import { ConfigError, reasonOf } from "../src/errors.js";
 import { originUrl, type GitRunner } from "../src/host/git.js";
 import { loadSecrets } from "../src/host/secrets.js";
@@ -74,18 +80,48 @@ export interface SeededScenario {
 }
 
 /**
+ * The landing by that name, or a refusal naming the ones that exist.
+ *
+ * Validated against relay's own `LANDINGS` rather than a list of its own, so the
+ * rig cannot come to accept a landing relay does not, or refuse one it does.
+ *
+ * Resolved before the seed touches anything, for `resolveScenario`'s reason: the
+ * seed's next act is to destroy what the rehearsal repo holds. There is no
+ * default, because relay has none either — a landing nobody chose is a base
+ * branch nobody agreed to move ([ADR-0015](../docs/adr/0015-a-repo-declares-how-a-pass-lands.md)).
+ */
+export function resolveLanding(name: string): Landing {
+  const landing = LANDINGS.find((candidate) => candidate === name);
+  if (!landing) {
+    throw new ConfigError(
+      `There is no \`${name}\` landing. The landings that exist are: ${LANDINGS.join(", ")}.`,
+    );
+  }
+  return landing;
+}
+
+/**
  * Take the rehearsal repo from any state — absent, half-seeded, or left behind
  * by a crashed pass — to a clone sitting on the genesis commit, with the
- * scenario's work item and tickets waiting on it.
+ * scenario's work item and tickets waiting on it, and genesis declaring the
+ * landing the pass over it is to take.
  *
- * Destructive by design: it force-pushes the fixture over the repo's history and
- * deletes every issue the repo had. The whole protection is the slug guard,
- * which runs before anything in the clone is touched.
+ * Destructive by design: it force-pushes the fixture over the repo's history,
+ * deletes every issue the repo had, and deletes the branches a previous pass
+ * pushed. The whole protection is the slug guard, which runs before anything in
+ * the clone is touched.
  */
-export async function seedRehearsalRepo(scenario: string): Promise<SeededScenario> {
-  // First, because everything after it destroys something: a mistyped scenario
-  // name must cost nothing.
+export async function seedRehearsalRepo({
+  scenario,
+  landing,
+}: {
+  scenario: string;
+  landing: string;
+}): Promise<SeededScenario> {
+  // First, because everything after them destroys something: a mistyped scenario
+  // name or landing must cost nothing.
   const resolved = resolveScenario(scenario);
+  const resolvedLanding = resolveLanding(landing);
 
   // Resolved the way a pass resolves them, out of relay's own environment and
   // `.relay/.env`, so a rehearsal needs no second copy of a secret on disk. It
@@ -107,11 +143,11 @@ export async function seedRehearsalRepo(scenario: string): Promise<SeededScenari
 
   await git(["fetch", "--prune", "origin"]);
   await prunePassBranches(git);
-  await writeGenesisTree();
+  await writeGenesisTree(resolvedLanding);
   await pushGenesis(git);
   await ensureLabelVocabulary({ gh: ghInClone, git });
 
-  step(`${scenario}: ${CLONE_DIR} is on ${BASE_BRANCH} at genesis`);
+  step(`${scenario}: ${CLONE_DIR} is on ${BASE_BRANCH} at genesis, landing \`${resolvedLanding}\``);
   return await seedScenarioIssues({ gh: ghOnHost, scenario: resolved });
 }
 
@@ -365,18 +401,26 @@ async function ensureClone(gh: GhRunner): Promise<void> {
 }
 
 /**
- * Delete the branches a pass left in the clone, and the worktrees they are
- * checked out in.
+ * Delete the branches a pass left behind, on the clone and on the rehearsal repo.
+ *
+ * The prefix is relay's own default, which the config the seed writes does not
+ * override — so what is pruned is what a pass over this clone will actually
+ * create, read from the one place that decides it.
+ */
+async function prunePassBranches(git: GitRunner): Promise<void> {
+  await pruneLocalPassBranches(git);
+  await pruneRemotePassBranches(git);
+}
+
+/**
+ * Delete the pass branches in the clone, and the worktrees they are checked out in.
  *
  * A hard-killed pass leaves both, on purpose ([ADR-0003](../docs/adr/0003-a-crashed-pass-leaves-the-work-for-a-human.md)),
  * and git refuses to delete a branch that is still checked out somewhere — so a
  * crash would otherwise make the next rehearsal refuse before it starts.
  */
-async function prunePassBranches(git: GitRunner): Promise<void> {
-  // The prefix genesis itself declares, so what is pruned is what a pass over
-  // this clone will actually create.
-  const { branchPrefix } = await loadConfig(FIXTURE_DIR);
-  const stale = (await localBranches(git)).filter((branch) => branch.startsWith(branchPrefix));
+async function pruneLocalPassBranches(git: GitRunner): Promise<void> {
+  const stale = await passBranches(git, "refs/heads");
   if (stale.length === 0) return;
 
   // A crashed pass may have left HEAD on one of them, and git will not delete
@@ -392,26 +436,84 @@ async function prunePassBranches(git: GitRunner): Promise<void> {
   await git(["worktree", "prune"]);
 }
 
-async function localBranches(git: GitRunner): Promise<string[]> {
-  const output = await git(["for-each-ref", "--format=%(refname:short)", "refs/heads"]);
-  return output.split("\n").filter(Boolean);
+/**
+ * Delete the pass branches on the rehearsal repo itself, which closes any pull
+ * request opened against them.
+ *
+ * Every pass that pushed leaves one: a `pull-request` landing pushes on the way
+ * to opening a pull request, and a blocked `merge` landing pushes to hand the
+ * work over. Neither is undone by force-pushing genesis or by deleting the
+ * issues, so without this a rehearsal starts with the last one's pull request
+ * still open against a base branch that no longer contains its base.
+ *
+ * The pull request is closed as a consequence rather than by `gh pr close`:
+ * GitHub closes a pull request whose head branch is deleted, so the branch is the
+ * only thing that has to be named.
+ */
+async function pruneRemotePassBranches(git: GitRunner): Promise<void> {
+  for (const branch of await passBranches(git, "refs/remotes/origin")) {
+    await git(["push", "--delete", "origin", branch]);
+    step(`pruned ${branch} on ${REHEARSAL_REPO}, closing any pull request on it`);
+  }
 }
 
 /**
- * Put the genesis files in the clone: the committed fixture, plus the sandbox
- * recipe relay ships.
+ * The pass branches under one ref namespace, named as branches rather than as
+ * refs so a local and a remote one read and delete the same way.
+ *
+ * The namespace's own depth is what is stripped, so `refs/heads/agent/42` and
+ * `refs/remotes/origin/agent/42` both come back as `agent/42` — which is the name
+ * `branch --delete` and `push --delete` each want.
+ */
+async function passBranches(git: GitRunner, namespace: string): Promise<string[]> {
+  const depth = namespace.split("/").length;
+  const output = await git(["for-each-ref", `--format=%(refname:lstrip=${depth})`, namespace]);
+  return output
+    .split("\n")
+    .filter(Boolean)
+    .filter((branch) => branch.startsWith(DEFAULT_BRANCH_PREFIX));
+}
+
+/**
+ * Put the genesis files in the clone: the committed fixture, the sandbox recipe
+ * relay ships, and a config declaring this rehearsal's landing.
  *
  * The recipe is copied rather than read from a committed copy, for the sandbox
  * probe's reason — a copy can stay green while the recipe users get breaks. The
  * fixture ignores it, so it stays out of genesis and out of `git status`.
+ *
+ * The config is written rather than committed because the landing is a rehearsal's
+ * own argument, and it is *not* ignored: a repo running relay commits this file,
+ * so genesis carries it too and the base branch a pass is cut from has the shape
+ * relay demands of any target.
  */
-async function writeGenesisTree(): Promise<void> {
+async function writeGenesisTree(landing: Landing): Promise<void> {
   for (const entry of await readdir(CLONE_DIR)) {
     if (entry === ".git") continue;
     await rm(join(CLONE_DIR, entry), { recursive: true, force: true });
   }
   await cp(FIXTURE_DIR, CLONE_DIR, { recursive: true });
   await cp(SANDBOX_RECIPE, join(CLONE_DIR, DEFAULT_DOCKERFILE_PATH));
+  await writeFile(join(CLONE_DIR, CONFIG_FILE_PATH), genesisConfig(landing), "utf8");
+}
+
+/**
+ * The `.relay/config.ts` genesis carries: the landing this rehearsal was asked
+ * for, and nothing else.
+ *
+ * Nothing else on purpose. Every other setting is left to relay's own default, so
+ * a rehearsal exercises the defaults a repo running `init` gets rather than a set
+ * of values chosen for the rig.
+ */
+function genesisConfig(landing: Landing): string {
+  return `/**
+ * The rehearsal's fixture repo, written by the seed rather than committed:
+ * the landing is the rehearsal's own argument, not a property of the fixture.
+ */
+export default {
+  landing: "${landing}",
+};
+`;
 }
 
 /**

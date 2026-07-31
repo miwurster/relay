@@ -282,12 +282,13 @@ Hand-run and outside relay's own **green gate**, because that gate runs inside a
 _Avoid_: e2e test, smoke test, test driver, harness
 
 **Rehearsal**:
-One real **pass**, over a repo seeded to a fixed **scenario**, run to judge how the flow feels.
+One real **pass**, over a repo seeded to a fixed **scenario** and declaring a chosen **landing**, run to judge how the flow feels.
 Unlike a **probe** it is a whole pass and spends real Claude sessions, and unlike a test it has no oracle: **roles** are non-deterministic, so what it yields is evidence for a human's judgement rather than a verdict ([ADR-0024](docs/adr/0024-the-rehearsal-runs-against-a-real-throwaway-repo.md)).
 It runs against a throwaway repo of its own, never a repo anyone works in, because seeding a scenario means destroying whatever was there.
 _Avoid_: e2e test, integration test, dry run, pass probe
 
 **Scenario**:
-One named seeded state of the **rehearsal** repo: its genesis commit, its **work item** and that item's **tickets**.
+One named seeded state of the **rehearsal** repo's tracker: its **work item** and that item's **tickets**.
 Named rather than implied, so a second scenario is an addition rather than a rewrite, and fixed rather than generated, so two rehearsals across a change to relay differ by the change and by the models' own variance and by nothing else.
+It says nothing about how the pass over it lands: **landing** is the rehearsal's other axis, so either landing can be rehearsed over any scenario without a second entry.
 _Avoid_: case, fixture, suite

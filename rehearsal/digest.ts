@@ -131,9 +131,16 @@ function legOf(status: RoleStatus, mtimeMs: number): Leg {
  * Most roles answer with a kind, and the ones that decline carry the reason with
  * it. A review's or a fixer's answer has no kind of its own — what those legs
  * found is the digest's own findings and verdicts sections.
+ *
+ * The handover's answer is the pull request it opened, which is what a
+ * `pull-request` rehearsal is run to look at. Carried here rather than left in the
+ * pass's own console output, so a run file read later still points at the diff a
+ * human was meant to review.
  */
 function statusOf(answer: unknown): string {
-  if (!isRecord(answer) || typeof answer.kind !== "string") return "recorded";
+  if (!isRecord(answer)) return "recorded";
+  if (typeof answer.prUrl === "string") return answer.prUrl;
+  if (typeof answer.kind !== "string") return "recorded";
   return typeof answer.reason === "string" ? `${answer.kind}: ${answer.reason}` : answer.kind;
 }
 

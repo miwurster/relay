@@ -1,13 +1,14 @@
 import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { Landing } from "../src/config.js";
 import { passRecordDir } from "../src/crew/leg-record.js";
 import { ConfigError } from "../src/errors.js";
 import { loadSecrets, type Secrets } from "../src/host/secrets.js";
 import { digestRecords } from "./digest.js";
 import { BASE_BRANCH, CLONE_DIR, REHEARSAL_REPO } from "./rehearsal-repo.js";
 import { resolveScenario } from "./scenarios.js";
-import { seedRehearsalRepo } from "./seed.js";
+import { resolveLanding, seedRehearsalRepo } from "./seed.js";
 
 /** relay's own checkout: what is built, and where the credentials are read from. */
 const RELAY_ROOT = join(import.meta.dirname, "..");
@@ -39,10 +40,17 @@ export interface Rehearsal {
  * separately invokable, so a contributor can seed, drive relay by hand with an
  * ad-hoc flag, poke the clone mid-flight, and digest afterwards.
  */
-export async function rehearse(scenario: string): Promise<Rehearsal> {
+export async function rehearse({
+  scenario,
+  landing,
+}: {
+  scenario: string;
+  landing: string;
+}): Promise<Rehearsal> {
   // Before the build, because a build is the most expensive thing a mistyped
-  // scenario name could cost.
+  // scenario name or landing could cost.
   resolveScenario(scenario);
+  const resolvedLanding = resolveLanding(landing);
 
   // Resolved here as well as in the seed, because the pass runs in the clone —
   // which carries a `.relay/config.ts` but deliberately no credential file — so
@@ -50,16 +58,16 @@ export async function rehearse(scenario: string): Promise<Rehearsal> {
   const secrets = await loadSecrets({ repoRoot: RELAY_ROOT });
 
   await buildRelay();
-  const { workItem } = await seedRehearsalRepo(scenario);
+  const { workItem } = await seedRehearsalRepo({ scenario, landing: resolvedLanding });
   const startedAt = new Date();
   const exitCode = await runPassInClone({ workItem, secrets });
 
   const digest = [
-    heading({ scenario, workItem, startedAt, exitCode }),
+    heading({ scenario, landing: resolvedLanding, workItem, startedAt, exitCode }),
     await digestRecords(passRecordDir(CLONE_DIR, workItem)),
   ].join("\n");
 
-  const runFile = await fileDigest({ scenario, startedAt, digest });
+  const runFile = await fileDigest({ scenario, landing: resolvedLanding, startedAt, digest });
   console.log(`\n${digest}`);
   step(`digest filed in ${runFile}`);
   return { exitCode, runFile };
@@ -104,8 +112,8 @@ async function runPassInClone({
 }
 
 /**
- * What the digest's own sections cannot know: which scenario ran, over which
- * work item, when, and how relay exited.
+ * What the digest's own sections cannot know: which scenario ran, under which
+ * landing, over which work item, when, and how relay exited.
  *
  * The exit code is here rather than passed on as the rehearsal's own, because a
  * blocked pass is an ordinary rehearsal outcome and not a failure of the rig. It
@@ -114,17 +122,20 @@ async function runPassInClone({
  */
 function heading({
   scenario,
+  landing,
   workItem,
   startedAt,
   exitCode,
 }: {
   scenario: string;
+  landing: Landing;
   workItem: number;
   startedAt: Date;
   exitCode: number;
 }): string {
   return [
     `rehearsal: ${scenario}`,
+    `landing: ${landing}`,
     `repo: ${REHEARSAL_REPO} (${BASE_BRANCH})`,
     `work item: #${workItem}`,
     `started: ${startedAt.toISOString()}`,
@@ -134,20 +145,27 @@ function heading({
 }
 
 /**
- * File the digest under the rig, named by scenario and start time, so two runs
- * over the same scenario sit side by side and diff.
+ * File the digest under the rig, named by scenario, landing and start time, so
+ * the runs that are actually comparable sit side by side and diff.
+ *
+ * The landing is in the name rather than only in the heading because a `merge`
+ * run and a `pull-request` run over one scenario differ in the legs they even
+ * have — diffing the two says nothing, and a name that sorted them together
+ * would invite it.
  */
 async function fileDigest({
   scenario,
+  landing,
   startedAt,
   digest,
 }: {
   scenario: string;
+  landing: Landing;
   startedAt: Date;
   digest: string;
 }): Promise<string> {
   await mkdir(RUNS_DIR, { recursive: true });
-  const path = join(RUNS_DIR, `${scenario}-${stamp(startedAt)}.txt`);
+  const path = join(RUNS_DIR, `${scenario}-${landing}-${stamp(startedAt)}.txt`);
   await writeFile(path, digest, "utf8");
   return path;
 }

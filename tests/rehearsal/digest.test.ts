@@ -106,6 +106,22 @@ describe("digestRecords", () => {
     expect(digest).toMatch(/implementer-101.*claude-sonnet-5.*done/);
   });
 
+  it("carries the pull request the handover opened, which is what a pr rehearsal is for", async () => {
+    await record(
+      "handover.status.json",
+      {
+        role: "handover",
+        model: "claude-haiku-4-5",
+        answer: { prUrl: "https://github.com/miwurster/relay-rehearsal/pull/7" },
+      },
+      0,
+    );
+
+    const digest = await digestRecords(dir);
+
+    expect(digest).toContain("https://github.com/miwurster/relay-rehearsal/pull/7");
+  });
+
   it("groups findings by axis, so a spec finding never reads as a standards one", async () => {
     await passRecords();
 

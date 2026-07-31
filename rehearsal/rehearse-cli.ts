@@ -8,14 +8,14 @@ import { rehearse } from "./rehearse.js";
  * a blocked pass is an ordinary outcome, and its exit code is in the digest. A
  * non-zero exit here is the rig failing, not the flow.
  */
-const scenario = process.argv[2];
-if (!scenario) {
-  console.error("usage: npm run rehearse -- <scenario>");
+const [scenario, landing] = process.argv.slice(2);
+if (!scenario || !landing) {
+  console.error("usage: npm run rehearse -- <scenario> <landing>");
   process.exit(2);
 }
 
 try {
-  await rehearse(scenario);
+  await rehearse({ scenario, landing });
 } catch (error) {
   console.error(`rehearse: ${reasonOf(error)}`);
   process.exit(2);
