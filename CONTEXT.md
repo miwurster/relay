@@ -43,12 +43,19 @@ _Avoid_: output, artefact, hand-off
 ## The work
 
 **Work item**:
-The one tracker issue a **pass** runs over, and the only thing the **eligibility check** gates.
-_Avoid_: issue, story, task
+The one tracker item a **pass** runs over, and the only thing the **eligibility check** gates.
+A **spec**, a **ticket**, or any other issue a human filed — relay asks only whether it is specified enough to plan.
+A GitHub issue today, which is why the tracker-neutral word is the one relay uses for the role.
+_Avoid_: story, task
+
+**Spec**:
+A **work item** that describes wanted behaviour, normally written by a `to-spec` run.
+_Avoid_: "the spec" for whatever a work item asked for, which is the **axis**'s question and not this
 
 **Ticket**:
 One unit of the **plan**, and the thing one implementer **leg** runs over.
 A ticket is one of the **work item**'s sub-issues, and carries its issue number.
+Normally written by a `to-tickets` run, slicing a **spec** into tracer-bullet deliverables.
 A work item with no sub-issues is its own single ticket.
 What a pass writes back to a ticket is its state and nothing else — the implementer marks the one it is on, and the **handover** records what the pass earned ([ADR-0026](docs/adr/0026-the-handover-writes-ticket-state.md)).
 _Avoid_: subtask, item, unit
@@ -77,7 +84,7 @@ _Avoid_: backlog, task list
 **Review scope**:
 What one review reads: one **ticket**'s own change from the commit it started at, the whole branch from the **base branch**, or that same branch on the **quality review**'s rubric.
 It is the only thing that differs between the reviewer's runs, so it is also what names each one, what picks its model, its prompt, which **axes** it is asked for — a ticket both, the quality scope `quality`, and the whole branch whichever set the **harness** handed it — and the shape it answers in.
-The branch scope reads `spec` alone where every **ticket** was already read on `standards` by its own review, and both axes where no ticket review ran at all ([ADR-0031](docs/adr/0031-the-branch-review-takes-the-standards-axis-when-no-ticket-review-ran.md)).
+The branch scope reads `spec` alone where every **ticket** was already read on `standards` by its own review, and both axes where no ticket review ran at all — which is the one-ticket **plan**, whose per-ticket review is dropped because no ticket follows the one it would read ([ADR-0031](docs/adr/0031-the-branch-review-takes-the-standards-axis-when-no-ticket-review-ran.md)).
 Three scopes, one **role**: a review is one read-only run over a diff ending in a finding per thing it wants changed, however wide the question ([ADR-0027](docs/adr/0027-the-branch-review-splits-into-a-spec-review-and-a-quality-review.md)).
 _Avoid_: diff range, target, lens
 
@@ -101,6 +108,7 @@ _Avoid_: issue, comment, remark
 
 **Axis**:
 Which question a **finding** answers: `standards`, whether the change follows this repo's own documented conventions; `spec`, whether it built what the **work item** asked for; or `quality`, whether the implementation is structurally worth keeping, judged by the **quality review** against a rubric wider than this repo's conventions.
+`spec` is the `code-review` skill's name for that axis, which resolves the spec to the originating issue where no document exists — so the axis asks its question of any **work item**, whether or not that item is a **spec**.
 They do not weigh the same — a `spec` finding is **binding** and the other two are not.
 A problem both `standards` and `spec` name is a `spec` finding: the stricter axis wins, because filing it under the other would quietly drop the part that stops a **pass**.
 `quality` cannot collide with `standards` that way, because no one **leg** is asked for both.

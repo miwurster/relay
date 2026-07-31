@@ -44,10 +44,10 @@ const REREVIEW_REASON =
  * Every exit path ends at the same handover call, so no outcome can skip it.
  *
  * A multi-ticket plan is the shape that topology is for. A single-ticket plan
- * drops the per-ticket review, since its one ticket is the work item and the
- * two scopes would ask the same question twice — see `reviewsEachTicket` — and
- * its branch review is asked for `standards` as well as `spec`, because the
- * review that would have read that axis is the one just dropped.
+ * drops the per-ticket review, since there is no ticket after it to protect —
+ * see `reviewsEachTicket` — and its branch review is asked for `standards` as
+ * well as `spec`, because the review that would have read that axis is the one
+ * just dropped.
  */
 export async function runHarness(crew: Crew, issue: GitHubIssue): Promise<Outcome> {
   const { outcome, committed, blockedOn, land, unaddressed } = await runLegs(crew, issue);
@@ -201,12 +201,13 @@ async function runLegs(crew: Crew, issue: GitHubIssue): Promise<LegsResult> {
 /**
  * Whether each ticket is reviewed as it is implemented.
  *
- * A single-ticket plan is the work item itself, so its ticket scope and the
- * branch scope are one question asked twice — the same intent, over the same
- * diff but for the fixer's own commit. The per-ticket round is the one to drop:
- * it is there to keep a bad ticket out of the tickets that follow it, and there
- * are none. The branch review then reads that same diff on both axes, and it
- * stays what it always was — the only review that reads a fixer's commit
+ * The count is the whole test, and the count is the reason: the per-ticket
+ * round exists to keep a bad ticket out of the tickets that follow it, and a
+ * one-ticket plan has none. That holds however the plan came to have one ticket
+ * — whether the work item had no sub-issues and became the ticket itself, or a
+ * human filed exactly one. The branch review then reads that same diff on both
+ * axes, and it stays what it always was — the only review that reads a fixer's
+ * commit
  * ([ADR-0031](../../docs/adr/0031-the-branch-review-takes-the-standards-axis-when-no-ticket-review-ran.md)).
  */
 function reviewsEachTicket(tickets: readonly TicketRef[]): boolean {
