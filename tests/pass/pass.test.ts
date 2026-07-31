@@ -246,6 +246,19 @@ describe("runPassOnItem", () => {
     expect(comments[0]?.text).toContain("gh issue edit 1 --remove-label agent-in-progress");
   });
 
+  it("names the ticket labels a crash left behind, as well as the item's own hold", async () => {
+    const { github, comments } = fakeGitHub();
+
+    await expect(runOnePass({ github, createCrew: crashingCrew })).rejects.toThrow(
+      "the sandbox died",
+    );
+
+    expect(comments[0]?.text).toMatch(/sub-issue the pass had started[\s\S]*`agent-in-progress`/);
+    expect(comments[0]?.text).toContain(
+      "gh issue edit <sub-issue> --remove-label agent-in-progress",
+    );
+  });
+
   it("comments too when the sandbox never opened", async () => {
     const { github, comments } = fakeGitHub();
 

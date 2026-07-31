@@ -186,6 +186,12 @@ describe("the implementer prompt", () => {
     );
   });
 
+  it("makes the one tracker write an idempotent `agent-in-progress` label on its ticket", () => {
+    expect(prompt).toMatch(/Label \{\{TICKET\}\} `agent-in-progress`/);
+    expect(prompt).toMatch(/is not an error/);
+    expect(prompt).toMatch(/the only tracker write you make/);
+  });
+
   it("shows the pass's commits where it tells the leg to build on them", () => {
     expect(prompt).toMatch(/\{\{PASS_COMMITS\}\}[\s\S]*build on it rather than repeating it/);
   });

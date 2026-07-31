@@ -110,6 +110,7 @@ describe("createHandover", () => {
       LANDED_DETAIL: "nothing was landed",
       COMMITTED_TICKETS: "#8, #9",
       FINISHED_TICKETS: "#8, #9",
+      BLOCKED_TICKET: "nothing",
       UNADDRESSED: "none",
       RECORD_PATH: `.relay/${workItem}`,
       WORK_ITEM: `#${workItem}`,
@@ -146,6 +147,34 @@ describe("createHandover", () => {
       COMMITTED_TICKETS: "#8, #9",
       FINISHED_TICKETS: "#8",
     });
+  });
+
+  it("names the ticket that blocked, as the committed one no review left finished", async () => {
+    const { handover, runs } = handing({
+      stdout: tagged('{"report":"#7 blocked on #9; agent/7 pushed."}'),
+      withConfig: mergeConfig,
+    });
+
+    await handover(
+      midBlock,
+      tickets,
+      NO_LANDING,
+      [],
+      [{ number: 8, summary: "reject an empty cart" }],
+    );
+
+    expect(runs[0]?.promptArgs).toMatchObject({ BLOCKED_TICKET: "#9" });
+  });
+
+  it("names no blocking ticket when every committed ticket finished", async () => {
+    const { handover, runs } = handing({
+      stdout: tagged('{"report":"#7 blocked on the gate; agent/7 pushed."}'),
+      withConfig: mergeConfig,
+    });
+
+    await handover(midBlock, tickets, NO_LANDING);
+
+    expect(runs[0]?.promptArgs).toMatchObject({ BLOCKED_TICKET: "nothing" });
   });
 
   it("tells a leg that finished nothing so, rather than leaving the list empty", async () => {
@@ -526,6 +555,25 @@ describe("the handover prompt", () => {
     expect(section("## 4. Report to the operator", "## Output")).toContain(
       "git log --oneline {{BASE_BRANCH}}..{{BRANCH}}",
     );
+  });
+
+  it("labels each finished ticket for the state its landing leaves it in", () => {
+    const success = section("### success", "### mid-block");
+    expect(success).toMatch(/Label each of \{\{FINISHED_TICKETS\}\}, and no other ticket/);
+    expect(success).toMatch(/remove `agent-in-progress`/);
+    expect(success).toMatch(/under `pull-request` landing, add `agent-in-review` to each/);
+    expect(success).toMatch(/under `merge` landing, add \*\*no\*\* label to any of them/);
+  });
+
+  it("leaves the held label on the ticket that blocked and marks it blocked", () => {
+    const block = section("### mid-block", "### early-bail");
+    expect(block).toMatch(/\{\{BLOCKED_TICKET\}\}/);
+    expect(block).toMatch(/leave `agent-in-progress` on it and add `agent-blocked`/);
+    expect(block).toMatch(/remove `agent-in-progress` and add \*\*no\*\* label/);
+  });
+
+  it("writes no ticket at all on a pass that implemented none", () => {
+    expect(section("### early-bail")).toMatch(/no ticket/);
   });
 
   it("swaps the held label for the state the outcome leaves the item in", () => {

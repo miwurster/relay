@@ -64,8 +64,9 @@ export async function runPass(workItem: string | undefined): Promise<ExitCode> {
  * A crash is reported on the item on the way out and then rethrown, so the
  * caller maps it to the error exit code. relay never unlabels the item — a
  * crash it cannot catch would leave the label behind anyway — so the item stays
- * held and a re-run is refused until a human lifts the hold. The comment says
- * how.
+ * held and a re-run is refused until a human lifts the hold. The same is true of
+ * the tickets an implementer had labelled, so the comment names those too and
+ * says how to clear all of it.
  */
 export async function runPassOnItem({
   repoRoot,
@@ -167,11 +168,15 @@ async function reportCrash(
       issue.number,
       `relay crashed during its pass on ${branch}: ${reason}\n\n` +
         "The sandbox was disposed of, and this item is left labelled `agent-in-progress`, " +
-        "which no further pass will run over. To hand it back to relay, review " +
-        `\`${branch}\` and delete it, then remove the label:\n\n` +
+        "which no further pass will run over. Every sub-issue the pass had started is " +
+        "left labelled `agent-in-progress` too, applied by the implementer that was on " +
+        "it. To hand the work back to relay, review " +
+        `\`${branch}\` and delete it, then remove the label from this item and from ` +
+        "each of those sub-issues:\n\n" +
         "```sh\n" +
         `git branch -D ${branch}\n` +
         `gh issue edit ${issue.number} --remove-label agent-in-progress\n` +
+        "gh issue edit <sub-issue> --remove-label agent-in-progress\n" +
         "```",
     );
   } catch (commentError) {

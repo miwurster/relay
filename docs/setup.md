@@ -120,11 +120,11 @@ A pass gates on the first two labels and writes all four:
 
 - `ready-for-agent` — you apply it.
   relay runs only over items carrying it, longest-waiting first.
-- `agent-in-progress` — the planner applies it, the handover removes it.
-  An item carrying it is **held** and ineligible.
-- `agent-in-review` — a successful pass leaves it under `pull-request` landing, meaning the work is waiting on you.
+- `agent-in-progress` — the planner applies it to the work item and each implementer to the sub-issue it is on; the handover removes it from both.
+  An item carrying it is **held** and ineligible; on a sub-issue it only says an implementer is on it.
+- `agent-in-review` — a successful pass leaves it under `pull-request` landing on the item and on every sub-issue it finished, meaning the work is waiting on you.
   Under `merge` landing a successful pass adds no label at all: nothing is waiting on review, and the closed issue carries the meaning.
-- `agent-blocked` — a blocked pass leaves it, meaning the item needs a human decision.
+- `agent-blocked` — a blocked pass leaves it, meaning the item needs a human decision, and leaves it on the sub-issue it blocked on too.
 
 All four have to exist in the repo before the first pass.
 Nothing creates them lazily: `gh` resolves every `--label` and `--add-label` name against the repo's existing labels and fails the whole call with `'agent-in-progress' not found` when a name is missing, so a pass that reaches for an absent label dies there rather than inventing it.
@@ -271,6 +271,7 @@ Exit zero with a `gate` warning still means you can run a pass.
 
 relay never reuses or deletes a branch, and never lifts the `agent-in-progress` label itself.
 A crashed pass therefore leaves its branch, its worktree and its hold in place, and comments on the item saying so — a re-run is refused until you clean up.
+Its hold is now on more than the item: every sub-issue an implementer had started carries `agent-in-progress` too, and the comment names those as well as the item.
 That is deliberate: the work of a pass that went wrong is yours to look at, not the next pass's to overwrite.
 
 Under `merge` landing the same holds, and your own branch is untouched by a pass that crashed: the fast-forward is the last thing to happen, after relay's re-run of the gate on the lander's result has passed.

@@ -7,7 +7,7 @@ You implement that ticket and nothing else, and you commit it yourself.
 
 Read `{{TRACKER_DOC}}` in this worktree for how to reach the tracker, then read {{TICKET}} there.
 Its description is your brief — the single source of what to build.
-Read the ticket only; make no tracker writes.
+Read the ticket only; the label in step 2 is the one thing you write.
 
 Every earlier ticket of this pass that is already committed on this branch is listed here, one line each — nothing below means yours is the pass's first:
 
@@ -15,7 +15,13 @@ Every earlier ticket of this pass that is already committed on this branch is li
 
 Whatever is listed is in the worktree — build on it rather than repeating it.
 
-## 2. Orient yourself before you write anything
+## 2. Label {{TICKET}} `agent-in-progress`
+
+Apply the label to {{TICKET}} before you start; do not remove any other, and never label another issue.
+An earlier pass may have crashed after labelling, so finding the label already on the ticket is normal and is not an error — applying it twice changes nothing.
+This label is the only tracker write you make: the handover writes everything else a ticket ends up carrying.
+
+## 3. Orient yourself before you write anything
 
 You are a cold session: nothing you know about this repo came from working in it.
 Read the code the ticket touches before you change it, and read the tests that already cover that code before you write a new one.
@@ -26,7 +32,7 @@ A ticket that looks under-specified from its description alone is often fully se
 Stop reading once you can say what you are going to change and where.
 This is orientation, not a survey of the repo.
 
-## 3. Implement the ticket
+## 4. Implement the ticket
 
 Implement the work the ticket describes.
 
@@ -36,14 +42,14 @@ Run typechecking regularly, single test files regularly, and the full test suite
 
 Stay inside the ticket: no work the ticket did not ask for, and no changes to code your ticket does not touch.
 
-## 4. Commit your work
+## 5. Commit your work
 
 Commit your work to the current branch, as one commit for this ticket.
 Never push, never merge, never branch.
 
 You do not review your own change and you do not fix findings — later roles in the pass own both.
 
-## 5. Ask rather than guess
+## 6. Ask rather than guess
 
 When the ticket does not convey enough to implement it, and the repo and its docs do not settle it, stop and report what you need.
 Do not invent the answer and do not implement half of it: nothing you did commit is lost, but say plainly what is missing.
