@@ -47,6 +47,21 @@ A committed ticket is not yet a **finished** one: a ticket is committed the mome
 The pass finished **{{FINISHED_TICKETS}}** — relay derived that from what the reviews left unaddressed, and it is the only list you may record as done.
 Never work it out yourself: nothing on this branch tells you which committed ticket a review found unbuilt.
 
+That list is also what you **tick**, where the outcome below says to.
+Ticking a ticket means reading its body and rewriting **every** unchecked box in it as checked — all of them or none, whatever heading sits above them, and nothing else in the body touched:
+
+```sh
+gh issue view <number> --json body --jq .body > /tmp/<number>.md
+# rewrite every `- [ ]` in that file as `- [x]`, and change nothing else
+gh issue edit <number> --body-file /tmp/<number>.md
+```
+
+GitHub exposes no per-checkbox API, which is why this rewrites the whole body.
+A ticket with no unchecked box is already ticked: leave it exactly as it is and write nothing back.
+
+Never weigh one box against the branch and tick it alone.
+A tick is the pass's claim that the branch satisfies the ticket, and it rests on the reviews and the gate that ran before you — neither of which answered box by box, and you have no diff in front of you to answer better.
+
 GitHub fires those `Closes` lines only when the pull request merges into this repo's **default branch**, and the branch this one is based on is whatever the operator stood on.
 So read the default branch yourself and compare it with **{{BASE_BRANCH}}**:
 
@@ -84,7 +99,8 @@ The branch is green.
    - remove `agent-in-progress` from each of them;
    - under `pull-request` landing, add `agent-in-review` to each — its work is waiting on a human's review;
    - under `merge` landing, add **no** label to any of them — closing them was step 2's, and nothing is awaiting a review that is not coming.
-5. Comment the resolution on {{WORK_ITEM}}: the pull request URL when there is one, or {{BASE_BRANCH}} when the work landed there; one line on what the pass built; the tickets it committed and which of them you closed; {{REASON}}, the gate that verified what landed; and how many findings went unaddressed, as section 3 says.
+5. Tick each of {{FINISHED_TICKETS}}, as above, and no other ticket — under **both** landings, because the branch is green either way and the claim is about the branch, not about who merges it.
+6. Comment the resolution on {{WORK_ITEM}}: the pull request URL when there is one, or {{BASE_BRANCH}} when the work landed there; one line on what the pass built; the tickets it committed and which of them you closed; {{REASON}}, the gate that verified what landed; and how many findings went unaddressed, as section 3 says.
 
 ### mid-block
 
@@ -112,14 +128,15 @@ Close **nothing**, under either landing: the work reached nobody but you.
    - **{{BLOCKED_TICKET}}** is the ticket the pass blocked on: leave `agent-in-progress` on it and add `agent-blocked`, so a human can see which ticket needs their decision.
      `nothing` means no one ticket is at fault — the gate stayed red, or nothing could be landed — and then there is no ticket to label here.
    - Each of {{FINISHED_TICKETS}}: remove `agent-in-progress` and add **no** label. Their work is real, but nothing landed and nothing closed, so there is no state to claim beyond lifting the hold.
-4. Comment on {{WORK_ITEM}}: the branch and the draft pull request URL when there is one, one line on what the pass built, the cause above, every finding left unaddressed as section 3 says, and what a human has to decide.
+4. Tick each of {{FINISHED_TICKETS}}, as above, and no other ticket — the ticket the pass blocked on keeps its boxes exactly as they are, because a review found its work unbuilt.
+5. Comment on {{WORK_ITEM}}: the branch and the draft pull request URL when there is one, one line on what the pass built, the cause above, every finding left unaddressed as section 3 says, and what a human has to decide.
 
 ### early-bail
 
 The planner refused an under-specified item before any code was written.
 
 1. Open **no** pull request, push **nothing** and close **nothing** — no code was written, and an empty branch is noise.
-   Write **no ticket** either: no implementer ran, so no ticket carries anything this pass put there.
+   Write **no ticket** either — no label, and **no tick**: no implementer ran, so no ticket carries anything this pass put there.
 2. Swap the labels on {{WORK_ITEM}}: add `agent-blocked` and remove `agent-in-progress`.
    Leave `ready-for-agent` on {{WORK_ITEM}}: this pass consumed nothing, and the item is exactly as eligible as the human left it.
 3. Comment what is missing from the item.

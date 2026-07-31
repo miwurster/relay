@@ -576,6 +576,44 @@ describe("the handover prompt", () => {
     expect(section("### early-bail")).toMatch(/no ticket/);
   });
 
+  it("ticks every unchecked box in a finished ticket, or none of them", () => {
+    expect(prompt).toMatch(
+      /rewriting \*\*every\*\* unchecked box in it as checked — all of them or none/,
+    );
+    expect(prompt).toContain("gh issue edit <number> --body-file");
+  });
+
+  it("ticks under whatever heading a box sits, naming none itself", () => {
+    expect(prompt).toMatch(/whatever heading sits above them/);
+    // A body heading, never the bail reason in the example report below it:
+    // the repo's body conventions are the repo's, and relay states none.
+    expect(prompt).not.toMatch(/#+ *acceptance criteria/i);
+  });
+
+  it("leaves a ticket whose boxes are already ticked exactly as it is", () => {
+    expect(prompt).toMatch(/A ticket with no unchecked box is already ticked/);
+  });
+
+  it("never weighs one criterion at a time, having no diff to weigh it against", () => {
+    expect(prompt).toMatch(/Never weigh one box against the branch and tick it alone/);
+  });
+
+  it("ticks the finished tickets on a success, under both landings", () => {
+    expect(section("### success", "### mid-block")).toMatch(
+      /Tick each of \{\{FINISHED_TICKETS\}\}, as above, and no other ticket — under \*\*both\*\* landings/,
+    );
+  });
+
+  it("ticks the finished tickets on a block and leaves the blocking one untouched", () => {
+    const block = section("### mid-block", "### early-bail");
+    expect(block).toMatch(/Tick each of \{\{FINISHED_TICKETS\}\}, as above, and no other ticket/);
+    expect(block).toMatch(/keeps its boxes exactly as they are/);
+  });
+
+  it("ticks nothing on a pass that implemented none", () => {
+    expect(section("### early-bail")).toMatch(/\*\*no tick\*\*/);
+  });
+
   it("swaps the held label for the state the outcome leaves the item in", () => {
     expect(prompt).toMatch(/add `agent-in-review` and remove `agent-in-progress`/);
     expect(prompt).toMatch(/add `agent-blocked` and remove `agent-in-progress`/);
