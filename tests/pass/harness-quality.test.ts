@@ -9,7 +9,7 @@ import { finding, recordingCrew, reviewName, run, skippedAll } from "./harness-c
  * ([ADR-0027](../../docs/adr/0027-the-branch-review-splits-into-a-spec-review-and-a-quality-review.md)).
  */
 describe("runHarness reviewing the branch's quality", () => {
-  const wanted = finding("qualityReview", "quality", "the two loaders should be one module");
+  const wanted = finding("quality-review", "quality", "the two loaders should be one module");
 
   /** A crew whose quality scope found `wanted`, and whose branch review found what is given. */
   const crewFinding = (onBranch: Finding[] = []) => {
@@ -26,7 +26,7 @@ describe("runHarness reviewing the branch's quality", () => {
 
   it("reads the branch after the spec review's fix has been re-reviewed", async () => {
     const { crew, calls } = crewFinding([
-      finding("branchReview", "spec", "the cap is read from the wrong key"),
+      finding("branch-review", "spec", "the cap is read from the wrong key"),
     ]);
 
     await run(crew);
@@ -105,7 +105,7 @@ describe("runHarness reviewing the branch's quality", () => {
       async review(scope) {
         calls.push(`review:${reviewName(scope)}`);
         return scope.kind === "branch" && !scope.rereview
-          ? [finding("branchReview", "spec", "the retry cap is still hardcoded")]
+          ? [finding("branch-review", "spec", "the retry cap is still hardcoded")]
           : [];
       },
       async fix(findings) {

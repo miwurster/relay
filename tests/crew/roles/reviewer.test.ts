@@ -75,9 +75,9 @@ describe("createReviewer", () => {
     );
 
     await expect(review(ticketScope)).resolves.toEqual([
-      { source: "ticketReview", axis: "spec", ticket: 8, summary: "src/b.ts:9 no cap" },
+      { source: "ticket-review", axis: "spec", ticket: 8, summary: "src/b.ts:9 no cap" },
       {
-        source: "ticketReview",
+        source: "ticket-review",
         axis: "standards",
         ticket: 8,
         summary: "src/a.ts:3 duplicated parsing",
@@ -97,7 +97,7 @@ describe("createReviewer", () => {
     const { review } = reviewing(taggedFindings('{"spec":["the cap is read from the wrong key"]}'));
 
     await expect(review(branchScope)).resolves.toEqual([
-      { source: "branchReview", axis: "spec", summary: "the cap is read from the wrong key" },
+      { source: "branch-review", axis: "spec", summary: "the cap is read from the wrong key" },
     ]);
   });
 
@@ -150,11 +150,11 @@ describe("createReviewer", () => {
     await ticketRun.review(ticketScope);
     await branchRun.review(branchScope);
 
-    await expect(findingsFile("8-ticketReview.json")).resolves.toEqual([
-      { source: "ticketReview", axis: "standards", ticket: 8, summary: "src/a.ts:3 dead" },
+    await expect(findingsFile("8-ticket-review.json")).resolves.toEqual([
+      { source: "ticket-review", axis: "standards", ticket: 8, summary: "src/a.ts:3 dead" },
     ]);
-    await expect(findingsFile("branch-branchReview.json")).resolves.toEqual([
-      { source: "branchReview", axis: "spec", summary: "src/b.ts:9 no cap" },
+    await expect(findingsFile("branch-review.json")).resolves.toEqual([
+      { source: "branch-review", axis: "spec", summary: "src/b.ts:9 no cap" },
     ]);
   });
 
@@ -164,8 +164,8 @@ describe("createReviewer", () => {
     await review(branchScope);
     await review(rereviewScope);
 
-    await expect(findingsFile("branch-branchReview.json")).resolves.toHaveLength(1);
-    await expect(findingsFile("branch-rereview-branchReview.json")).resolves.toHaveLength(1);
+    await expect(findingsFile("branch-review.json")).resolves.toHaveLength(1);
+    await expect(findingsFile("branch-review-rereview.json")).resolves.toHaveLength(1);
   });
 
   it("runs the ticket review one-shot on its own model, over the ticket's own diff", async () => {
@@ -175,7 +175,7 @@ describe("createReviewer", () => {
 
     expect(runs).toHaveLength(1);
     expect(runs[0]?.maxIterations).toBe(1);
-    expect(commandOf(runs[0])).toContain(`--model '${config.models.ticketReview}'`);
+    expect(commandOf(runs[0])).toContain(`--model '${config.models["ticket-review"]}'`);
     expect(runs[0]?.promptArgs).toMatchObject({
       SCOPE: "ticket",
       ITEM: "#8",
@@ -199,7 +199,7 @@ describe("createReviewer", () => {
 
     await review(branchScope);
 
-    expect(commandOf(runs[0])).toContain(`--model '${config.models.branchReview}'`);
+    expect(commandOf(runs[0])).toContain(`--model '${config.models["branch-review"]}'`);
     expect(runs[0]?.promptArgs).toMatchObject({
       SCOPE: "branch",
       ITEM: "#7",
@@ -242,10 +242,7 @@ describe("createReviewer", () => {
     await review(branchScope);
     await review(rereviewScope);
 
-    expect(runs.map((run) => run.name)).toEqual([
-      "branchReview-branch",
-      "branchReview-branch-rereview",
-    ]);
+    expect(runs.map((run) => run.name)).toEqual(["branch-review", "branch-review-rereview"]);
   });
 
   it("runs the re-review as the branch review again, on the same model and diff", async () => {
@@ -254,7 +251,7 @@ describe("createReviewer", () => {
     await review(branchScope);
     await review(rereviewScope);
 
-    expect(commandOf(runs[1])).toContain(`--model '${config.models.branchReview}'`);
+    expect(commandOf(runs[1])).toContain(`--model '${config.models["branch-review"]}'`);
     expect(runs[1]?.promptArgs).toEqual(runs[0]?.promptArgs);
   });
 });
@@ -273,7 +270,7 @@ describe("createReviewer over the quality scope", () => {
 
     await expect(review(qualityScope)).resolves.toEqual([
       {
-        source: "qualityReview",
+        source: "quality-review",
         axis: "quality",
         summary: "src/a.ts — the two loaders should be one module",
       },
@@ -309,8 +306,8 @@ describe("createReviewer over the quality scope", () => {
 
     await review(qualityScope);
 
-    await expect(findingsFile("branch-qualityReview.json")).resolves.toEqual([
-      { source: "qualityReview", axis: "quality", summary: "split the harness" },
+    await expect(findingsFile("quality-review.json")).resolves.toEqual([
+      { source: "quality-review", axis: "quality", summary: "split the harness" },
     ]);
   });
 
@@ -321,8 +318,8 @@ describe("createReviewer over the quality scope", () => {
 
     expect(runs).toHaveLength(1);
     expect(runs[0]?.maxIterations).toBe(1);
-    expect(runs[0]?.name).toBe("qualityReview-branch");
-    expect(commandOf(runs[0])).toContain(`--model '${config.models.qualityReview}'`);
+    expect(runs[0]?.name).toBe("quality-review");
+    expect(commandOf(runs[0])).toContain(`--model '${config.models["quality-review"]}'`);
     expect(runs[0]?.promptArgs).toMatchObject({ ITEM: "#7", BASE: baseBranch });
     expect(String(runs[0]?.promptArgs?.["RUBRIC"])).toContain("Thermo-Nuclear Code Quality Review");
     await expectPromptParity(runs[0], "quality-review.md");

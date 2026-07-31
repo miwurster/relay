@@ -7,7 +7,7 @@ import { finding, recordingCrew, reviewName, run, skippedAll } from "./harness-c
  * the item asked would land green — which is what the one re-review is for.
  */
 describe("runHarness re-reviewing a fix", () => {
-  const wanted = finding("branchReview", "spec", "the cap is read from the wrong key");
+  const wanted = finding("branch-review", "spec", "the cap is read from the wrong key");
 
   it("re-reads the branch once after a fix that changed something", async () => {
     const { crew, calls } = recordingCrew({
@@ -42,7 +42,7 @@ describe("runHarness re-reviewing a fix", () => {
   });
 
   it("blocks on a spec finding the re-review raised, and hands it to no fixer", async () => {
-    const raised = finding("branchReview", "spec", "the fix reads the cap from the wrong key");
+    const raised = finding("branch-review", "spec", "the fix reads the cap from the wrong key");
     const { crew, calls } = recordingCrew({
       async review(scope) {
         calls.push(`review:${reviewName(scope)}`);
@@ -63,7 +63,7 @@ describe("runHarness re-reviewing a fix", () => {
   });
 
   it("lands a pass whose re-review raised only standards findings, and reports them", async () => {
-    const raised = finding("branchReview", "standards", "the fix duplicates parseKey");
+    const raised = finding("branch-review", "standards", "the fix duplicates parseKey");
     const { crew, calls, unaddressed } = recordingCrew({
       async review(scope) {
         calls.push(`review:${reviewName(scope)}`);
@@ -90,7 +90,7 @@ describe("runHarness re-reviewing a fix", () => {
       async review(scope) {
         calls.push(`review:${reviewName(scope)}`);
         return scope.kind === "branch" && !scope.rereview
-          ? [finding("branchReview", "standards", "split the loader")]
+          ? [finding("branch-review", "standards", "split the loader")]
           : [];
       },
       async fix(findings) {

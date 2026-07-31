@@ -106,7 +106,7 @@ function ticketState(
 
 /** Which ticket a finding is about, if it is about one rather than the branch. */
 function ticketOf(finding: Finding): number | undefined {
-  return finding.source === "greenGate" ? undefined : finding.ticket;
+  return finding.source === "green-gate" ? undefined : finding.ticket;
 }
 
 /** The exit code an outcome ends the process with. */
@@ -364,5 +364,5 @@ async function driveGate(crew: Crew, gate: ResolvedGate): Promise<GateLoop> {
 }
 
 function gateFinding(detail: string): Finding {
-  return { source: "greenGate", summary: detail };
+  return { source: "green-gate", summary: detail };
 }

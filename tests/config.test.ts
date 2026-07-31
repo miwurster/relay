@@ -51,28 +51,28 @@ describe("loadConfig", () => {
     expect(config.roleTimeoutMs).toBe(45 * 60 * 1000);
     expect(config.dockerfile).toBe(".relay/Dockerfile");
     expect(config.image).toBeUndefined();
-    expect(config.models.gateResolver).toBe("claude-haiku-4-5");
+    expect(config.models["gate-resolver"]).toBe("claude-haiku-4-5");
     expect(config.models.planner).toBe("claude-opus-5");
     expect(config.models.implementer).toBe("claude-sonnet-5");
-    expect(config.models.ticketReview).toBe("claude-opus-5");
-    expect(config.models.branchReview).toBe("claude-fable-5");
-    expect(config.models.qualityReview).toBe("claude-fable-5");
-    expect(config.models.greenGate).toBe("claude-sonnet-5");
+    expect(config.models["ticket-review"]).toBe("claude-opus-5");
+    expect(config.models["branch-review"]).toBe("claude-fable-5");
+    expect(config.models["quality-review"]).toBe("claude-fable-5");
+    expect(config.models["green-gate"]).toBe("claude-sonnet-5");
   });
 
   it("lets a repo override the quality review's model", async () => {
     const root = await repoWith(`export default {
       landing: "merge",
-      models: { qualityReview: "claude-opus-5" },
+      models: { "quality-review": "claude-opus-5" },
     };`);
     const config = await loadConfig(root);
-    expect(config.models.qualityReview).toBe("claude-opus-5");
-    expect(config.models.branchReview).toBe("claude-fable-5");
+    expect(config.models["quality-review"]).toBe("claude-opus-5");
+    expect(config.models["branch-review"]).toBe("claude-fable-5");
   });
 
   it("defaults the lander to the model the fixer escalates to", async () => {
     const config = await loadConfig(await repoWith(minimalConfig));
-    expect(config.models.lander).toBe(config.models.fixerEscalated);
+    expect(config.models.lander).toBe(config.models["fixer-escalated"]);
   });
 
   it("lets a repo override the lander's model", async () => {
@@ -89,10 +89,10 @@ describe("loadConfig", () => {
       landing: "merge",
       branchPrefix: "relay/",
       image: "registry.example.com/relay:1",
-      models: { implementer: "claude-opus-5", gateResolver: "claude-sonnet-5" },
+      models: { implementer: "claude-opus-5", "gate-resolver": "claude-sonnet-5" },
     };`);
     const config = await loadConfig(root);
-    expect(config.models.gateResolver).toBe("claude-sonnet-5");
+    expect(config.models["gate-resolver"]).toBe("claude-sonnet-5");
     expect(config.branchPrefix).toBe("relay/");
     expect(config.image).toBe("registry.example.com/relay:1");
     expect(config.models.implementer).toBe("claude-opus-5");

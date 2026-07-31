@@ -158,7 +158,7 @@ describe("createGreenGate", () => {
 
     await greenGate(1, gate);
 
-    expect(commandOf(runs[0])).toContain(`--model '${config.models.greenGate}'`);
+    expect(commandOf(runs[0])).toContain(`--model '${config.models["green-gate"]}'`);
   });
 
   it("tolerates the build artefacts the gate command itself left behind", async () => {

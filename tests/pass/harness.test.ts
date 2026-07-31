@@ -65,13 +65,13 @@ describe("runHarness", () => {
       ...twoTicketPlan,
       async review(scope) {
         if (scope.kind !== "ticket") return [];
-        return [finding("ticketReview", "standards", "same problem", scope.ticket.number)];
+        return [finding("ticket-review", "standards", "same problem", scope.ticket.number)];
       },
     });
 
     await run(crew);
 
-    expect(fixed[0]).toEqual([finding("ticketReview", "standards", "same problem", 1)]);
+    expect(fixed[0]).toEqual([finding("ticket-review", "standards", "same problem", 1)]);
   });
 
   it("tells each fixer leg what it is fixing", async () => {
@@ -81,7 +81,7 @@ describe("runHarness", () => {
         // The re-review's findings reach no fixer, so it reports nothing here.
         if (scope.kind === "branch" && scope.rereview) return [];
         const ticketNumber = scope.kind === "ticket" ? scope.ticket.number : undefined;
-        return [finding("ticketReview", "standards", "same problem", ticketNumber)];
+        return [finding("ticket-review", "standards", "same problem", ticketNumber)];
       },
       async greenGate() {
         return { green: false, detail: "still red" };
@@ -283,7 +283,7 @@ describe("runHarness", () => {
     const { crew, unaddressed } = recordingCrew({
       async review(scope) {
         if (scope.kind !== "branch" || scope.rereview) return [];
-        return [finding("branchReview", "standards", "the two loaders should be one")];
+        return [finding("branch-review", "standards", "the two loaders should be one")];
       },
       async fix(findings) {
         return skippedAll(findings, "AGENTS.md prefers one file until a second caller exists");
@@ -295,7 +295,7 @@ describe("runHarness", () => {
     expect(outcome.kind).toBe("success");
     expect(unaddressed()).toEqual([
       {
-        finding: finding("branchReview", "standards", "the two loaders should be one"),
+        finding: finding("branch-review", "standards", "the two loaders should be one"),
         reason: "AGENTS.md prefers one file until a second caller exists",
       },
     ]);
@@ -305,7 +305,7 @@ describe("runHarness", () => {
     const { crew, unaddressed } = recordingCrew({
       async review(scope) {
         if (scope.kind !== "branch" || scope.rereview) return [];
-        return [finding("branchReview", "spec", "the retry cap is still hardcoded")];
+        return [finding("branch-review", "spec", "the retry cap is still hardcoded")];
       },
     });
 

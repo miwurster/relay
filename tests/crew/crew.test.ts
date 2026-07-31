@@ -153,7 +153,7 @@ describe("createCrew", () => {
     });
 
     await crew.fix(
-      [{ source: "ticketReview", axis: "standards", ticket: 8, summary: "src/a.ts:3 dead" }],
+      [{ source: "ticket-review", axis: "standards", ticket: 8, summary: "src/a.ts:3 dead" }],
       { kind: "ticket", ticket: { number: 8, summary: "the schema" } },
     );
 
@@ -223,13 +223,13 @@ describe("createCrew", () => {
 
     expect(findings).toEqual([
       {
-        source: "ticketReview",
+        source: "ticket-review",
         axis: "standards",
         ticket: 8,
         summary: "src/a.ts:3 duplicated parsing",
       },
     ]);
-    expect(runs.map((run) => run.name)).toEqual(["ticketReview-8"]);
+    expect(runs.map((run) => run.name)).toEqual(["ticket-review-8"]);
   });
 
   it("gives its base branch to the whole-branch reviewer and to the handover", async () => {

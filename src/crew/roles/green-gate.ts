@@ -35,7 +35,7 @@ export function createGreenGate(deps: RoleDeps): Crew["greenGate"] {
     const { detail } = await runRole({
       ...deps,
       name: `green-gate-${attempt}`,
-      model: deps.config.models.greenGate,
+      model: deps.config.models["green-gate"],
       prompt: GATE_PROMPT,
       promptArgs: {
         COMMAND: gate.command,

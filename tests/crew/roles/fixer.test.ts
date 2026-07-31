@@ -16,7 +16,7 @@ const ticketTarget: FixTarget = { kind: "ticket", ticket: { number: 8, summary: 
 const branchTarget: FixTarget = { kind: "branch" };
 
 const oneFinding: Finding = {
-  source: "ticketReview",
+  source: "ticket-review",
   axis: "standards",
   ticket: 8,
   summary: "src/a.ts:3 duplicated parsing",
@@ -24,14 +24,14 @@ const oneFinding: Finding = {
 
 const findings: Finding[] = [
   oneFinding,
-  { source: "ticketReview", axis: "standards", ticket: 8, summary: "src/a.ts:3 parses twice" },
+  { source: "ticket-review", axis: "standards", ticket: 8, summary: "src/a.ts:3 parses twice" },
 ];
 
 /** One of each label, to say how a label and a place in the list make an id. */
 const mixedFindings: Finding[] = [
-  { source: "branchReview", axis: "spec", summary: "#7 asks for a configurable cap" },
-  { source: "branchReview", axis: "standards", summary: "src/a.ts:3 duplicated parsing" },
-  { source: "branchReview", axis: "standards", summary: "src/b.ts:9 dead branch" },
+  { source: "branch-review", axis: "spec", summary: "#7 asks for a configurable cap" },
+  { source: "branch-review", axis: "standards", summary: "src/a.ts:3 duplicated parsing" },
+  { source: "branch-review", axis: "standards", summary: "src/b.ts:9 dead branch" },
 ];
 
 const fixedAll = (ids: string[]) =>
@@ -101,10 +101,10 @@ describe("createFixer", () => {
   it("numbers a gate finding under its own label", async () => {
     const { fix, runs } = fixing(fixedAll(["gate-1"]));
 
-    await fix([{ source: "greenGate", summary: "one test red" }], { kind: "gate", attempt: 1 });
+    await fix([{ source: "green-gate", summary: "one test red" }], { kind: "gate", attempt: 1 });
 
     expect(promptFindings(runs[0])).toEqual([
-      { id: "gate-1", source: "greenGate", summary: "one test red" },
+      { id: "gate-1", source: "green-gate", summary: "one test red" },
     ]);
   });
 
@@ -283,6 +283,6 @@ describe("createFixer", () => {
     await fix(findings, { kind: "gate", attempt: 2 });
 
     expect(commandOf(runs[0])).toContain(`--model '${config.models.fixer}'`);
-    expect(commandOf(runs[1])).toContain(`--model '${config.models.fixerEscalated}'`);
+    expect(commandOf(runs[1])).toContain(`--model '${config.models["fixer-escalated"]}'`);
   });
 });

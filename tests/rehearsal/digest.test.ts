@@ -10,21 +10,21 @@ const GENESIS = new Date("2026-07-30T12:00:00Z").getTime();
 const MINUTE = 60_000;
 
 const specFinding: Finding = {
-  source: "ticketReview",
+  source: "ticket-review",
   axis: "spec",
   ticket: 101,
   summary: "the due date is never validated",
 };
 
 const standardsFinding: Finding = {
-  source: "ticketReview",
+  source: "ticket-review",
   axis: "standards",
   ticket: 101,
   summary: "toDueDate is named vaguely",
 };
 
 const rereviewFinding: Finding = {
-  source: "branchReview",
+  source: "branch-review",
   axis: "spec",
   summary: "the overdue query ignores the injected clock",
 };
@@ -46,9 +46,9 @@ async function record(name: string, value: unknown, minute: number): Promise<voi
 /** The records of a pass that reviewed one ticket, fixed one finding and declined one. */
 async function passRecords(): Promise<void> {
   await record(
-    "gateResolver.status.json",
+    "gate-resolver.status.json",
     {
-      role: "gateResolver",
+      role: "gate-resolver",
       model: "claude-haiku-4-5",
       answer: { command: "npm run verify", provenance: "declared", source: "AGENTS.md" },
     },
@@ -65,15 +65,15 @@ async function passRecords(): Promise<void> {
     2,
   );
   await record(
-    "ticketReview-101.status.json",
+    "ticket-review-101.status.json",
     {
-      role: "ticketReview-101",
+      role: "ticket-review-101",
       model: "claude-opus-5",
       answer: { spec: [specFinding.summary], standards: [standardsFinding.summary] },
     },
     3,
   );
-  await record("101-ticketReview.json", [specFinding, standardsFinding], 3);
+  await record("101-ticket-review.json", [specFinding, standardsFinding], 3);
   await record(
     "fixer-101.status.json",
     { role: "fixer-101", model: "claude-sonnet-5", answer: [] },
@@ -91,7 +91,7 @@ async function passRecords(): Promise<void> {
     ],
     4,
   );
-  await record("branch-rereview-branchReview.json", [rereviewFinding], 5);
+  await record("branch-review-rereview.json", [rereviewFinding], 5);
 }
 
 describe("digestRecords", () => {
@@ -100,7 +100,7 @@ describe("digestRecords", () => {
 
     const digest = await digestRecords(dir);
 
-    expect(digest).toContain("gateResolver");
+    expect(digest).toContain("gate-resolver");
     expect(digest).toContain("claude-haiku-4-5");
     expect(digest).toMatch(/planner.*claude-opus-5.*plan/);
     expect(digest).toMatch(/implementer-101.*claude-sonnet-5.*done/);

@@ -49,17 +49,17 @@ export type Landing = (typeof LANDINGS)[number];
 const modelsSchema = z
   .strictObject({
     /** Reading three docs and a manifest is the cheapest judgement of the pass. */
-    gateResolver: z.string().default("claude-haiku-4-5"),
+    "gate-resolver": z.string().default("claude-haiku-4-5"),
     planner: z.string().default("claude-opus-5"),
     implementer: z.string().default("claude-sonnet-5"),
-    ticketReview: z.string().default("claude-opus-5"),
-    branchReview: z.string().default("claude-fable-5"),
+    "ticket-review": z.string().default("claude-opus-5"),
+    "branch-review": z.string().default("claude-fable-5"),
     /** The same model the branch review runs on: both read the whole branch. */
-    qualityReview: z.string().default("claude-fable-5"),
+    "quality-review": z.string().default("claude-fable-5"),
     fixer: z.string().default("claude-sonnet-5"),
     /** What the fixer escalates to when its first attempt at a red gate failed. */
-    fixerEscalated: z.string().default("claude-opus-5"),
-    greenGate: z.string().default("claude-sonnet-5"),
+    "fixer-escalated": z.string().default("claude-opus-5"),
+    "green-gate": z.string().default("claude-sonnet-5"),
     /**
      * The same model the fixer escalates to: resolving a rebase conflict is a
      * harder judgement than a first attempt at a red gate, so the lander starts

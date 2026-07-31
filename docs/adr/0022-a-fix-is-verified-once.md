@@ -55,7 +55,7 @@ Option C was refused rather than deferred. The blocking rule stays the single ru
 ### Confirmation
 
 `tests/pass/harness-rereview.test.ts` asserts the re-review runs after a fix that changed something, does not run when the branch review found nothing, does not run when the fixer declined everything, blocks on a spec finding it raises, and lands while reporting a standards finding it raises.
-`tests/crew/roles/reviewer.test.ts` asserts the re-review's findings file is `branch-rereview-branchReview.json` and its prompt arguments are identical to the first run's.
+`tests/crew/roles/reviewer.test.ts` asserts the re-review's findings file is `branch-review-rereview.json` and its prompt arguments are identical to the first run's.
 Exactly one fixer leg runs per branch review: the test on a blocking re-review counts them.
 
 ## Pros and Cons of the Options

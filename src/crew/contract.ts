@@ -24,7 +24,7 @@ export type ImplementResult =
  * One per `ReviewScope`, since a review is only ever the scope it read
  * ([ADR-0027](../../docs/adr/0027-the-branch-review-splits-into-a-spec-review-and-a-quality-review.md)).
  */
-export type ReviewKind = "ticketReview" | "branchReview" | "qualityReview";
+export type ReviewKind = "ticket-review" | "branch-review" | "quality-review";
 
 /**
  * Which question a finding answers.
@@ -57,7 +57,7 @@ export type Finding =
       ticket?: number;
       summary: string;
     }
-  | { source: "greenGate"; summary: string };
+  | { source: "green-gate"; summary: string };
 
 /**
  * Whether the pass may not land without this finding addressed.
@@ -66,12 +66,12 @@ export type Finding =
  * block and the handover's report cannot drift apart on what it means.
  */
 export function isBinding(finding: Finding): boolean {
-  return finding.source !== "greenGate" && finding.axis === "spec";
+  return finding.source !== "green-gate" && finding.axis === "spec";
 }
 
 /** How a finding is labelled wherever one is listed, for the fixer or a human. */
 export function findingLabel(finding: Finding): string {
-  return finding.source === "greenGate" ? "gate" : finding.axis;
+  return finding.source === "green-gate" ? "gate" : finding.axis;
 }
 
 /**
@@ -154,11 +154,11 @@ export type ReviewScope =
 export function reviewKindOf(scope: ReviewScope): ReviewKind {
   switch (scope.kind) {
     case "ticket":
-      return "ticketReview";
+      return "ticket-review";
     case "branch":
-      return "branchReview";
+      return "branch-review";
     case "quality":
-      return "qualityReview";
+      return "quality-review";
   }
 }
 

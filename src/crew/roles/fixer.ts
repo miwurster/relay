@@ -89,7 +89,7 @@ export function createFixer(deps: RoleDeps): Crew["fix"] {
 }
 
 function describeLeg(target: FixTarget, config: RelayConfig): FixLeg {
-  const { fixer, fixerEscalated } = config.models;
+  const { fixer, "fixer-escalated": fixerEscalated } = config.models;
   switch (target.kind) {
     case "ticket":
       return {

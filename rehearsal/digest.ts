@@ -249,7 +249,7 @@ function isRoleStatus(value: unknown): value is RoleStatus {
 function isFinding(value: unknown): value is Finding {
   if (!isRecord(value) || typeof value.summary !== "string") return false;
   if (typeof value.source !== "string") return false;
-  return value.source === "greenGate" ? true : value.axis === "spec" || value.axis === "standards";
+  return value.source === "green-gate" ? true : value.axis === "spec" || value.axis === "standards";
 }
 
 function isFindingVerdict(value: unknown): value is FindingVerdict {

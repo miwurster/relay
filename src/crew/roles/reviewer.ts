@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Axis, Crew, Finding, ReviewScope } from "../contract.js";
+import type { Axis, Crew, Finding, ReviewKind, ReviewScope } from "../contract.js";
 import { reviewKindOf } from "../contract.js";
 import { writeFindingsFile } from "../leg-record.js";
 import { readResource } from "../../resources.js";
@@ -12,8 +12,8 @@ export const FINDINGS_TAG = "relay-findings";
 const REVIEW_PROMPT = "review.md";
 const QUALITY_PROMPT = "quality-review.md";
 
-/** What the branch review's second run is called, so it never overwrites the first. */
-const REREVIEW_NAME = "branch-rereview";
+/** What the branch review's second run adds to its name, so it never overwrites the first. */
+const REREVIEW_SUFFIX = "rereview";
 
 /**
  * The vendored rubric the quality scope judges by, inlined into its prompt.
@@ -40,9 +40,9 @@ const findingLines = z.array(z.string().min(1));
  * asked to repeat them — relay stamps them on.
  */
 const ANSWERS = {
-  ticketReview: z.strictObject({ spec: findingLines, standards: findingLines }),
-  branchReview: z.strictObject({ spec: findingLines }),
-  qualityReview: z.strictObject({ quality: findingLines }),
+  "ticket-review": z.strictObject({ spec: findingLines, standards: findingLines }),
+  "branch-review": z.strictObject({ spec: findingLines }),
+  "quality-review": z.strictObject({ quality: findingLines }),
 } as const;
 
 /**
@@ -85,8 +85,11 @@ const REVIEW_AXES = {
 
 /** What one scope means to a review run, resolved once per run. */
 interface ReviewTarget {
-  /** What the scope is called in the run's name and its findings file. */
-  name: string;
+  /**
+   * Whether this is the re-review, which shares its kind with the first branch
+   * run and so needs a name of its own to keep their findings files apart.
+   */
+  rereview?: boolean;
   /** The prompt resource this scope reads from. */
   prompt: string;
   /** The arguments that prompt is written around. */
@@ -118,10 +121,11 @@ export function createReviewer({
   return async function review(scope: ReviewScope): Promise<Finding[]> {
     const kind = reviewKindOf(scope);
     const target = await describeScope(scope, baseBranch);
+    const name = runName(kind, target);
 
     const report: AxisReport = await runRole({
       ...deps,
-      name: `${kind}-${target.name}`,
+      name,
       model: deps.config.models[kind],
       prompt: target.prompt,
       promptArgs: target.promptArgs,
@@ -144,9 +148,31 @@ export function createReviewer({
         summary,
       })),
     );
-    await writeFindingsFile({ dir: deps.recordDir, name: `${target.name}-${kind}`, findings });
+    await writeFindingsFile({
+      dir: deps.recordDir,
+      name: findingsFile(kind, target, name),
+      findings,
+    });
     return findings;
   };
+}
+
+/**
+ * What one review run is called: its kind, plus what the kind does not already
+ * say. A ticket's run is named after its ticket and the re-review after itself;
+ * the first branch run and the quality run need nothing but their kind.
+ */
+function runName(kind: ReviewKind, target: ReviewTarget): string {
+  const suffix = target.ticket ?? (target.rereview ? REREVIEW_SUFFIX : undefined);
+  return suffix === undefined ? kind : `${kind}-${suffix}`;
+}
+
+/**
+ * A ticket's findings file leads with its number, so a pass's record directory
+ * reads ticket by ticket; every other scope's file is named after its run.
+ */
+function findingsFile(kind: ReviewKind, target: ReviewTarget, name: string): string {
+  return target.ticket === undefined ? name : `${target.ticket}-${kind}`;
 }
 
 /**
@@ -162,20 +188,18 @@ async function describeScope(scope: ReviewScope, baseBranch: string): Promise<Re
   switch (scope.kind) {
     case "ticket":
       return {
-        name: String(scope.ticket.number),
         prompt: REVIEW_PROMPT,
         promptArgs: reviewArgs("ticket", `#${scope.ticket.number}`, scope.base, REVIEW_AXES.both),
         ticket: scope.ticket.number,
       };
     case "branch":
       return {
-        name: scope.rereview ? REREVIEW_NAME : "branch",
+        rereview: scope.rereview,
         prompt: REVIEW_PROMPT,
         promptArgs: reviewArgs("branch", `#${scope.workItem}`, baseBranch, REVIEW_AXES.specOnly),
       };
     case "quality":
       return {
-        name: "branch",
         prompt: QUALITY_PROMPT,
         promptArgs: {
           ITEM: `#${scope.workItem}`,

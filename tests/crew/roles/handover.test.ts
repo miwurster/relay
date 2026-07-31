@@ -417,11 +417,11 @@ describe("createHandover under merge landing", () => {
 describe("createHandover on findings nobody addressed", () => {
   const unaddressed: UnaddressedFinding[] = [
     {
-      finding: { source: "branchReview", axis: "standards", summary: "split the loader" },
+      finding: { source: "branch-review", axis: "standards", summary: "split the loader" },
       reason: "one caller only",
     },
     {
-      finding: { source: "greenGate", summary: "one test red" },
+      finding: { source: "green-gate", summary: "one test red" },
       reason: "that test is flaky",
     },
   ];

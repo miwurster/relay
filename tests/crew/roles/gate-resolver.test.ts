@@ -77,7 +77,7 @@ describe("createGateResolver", () => {
     expect(run?.maxIterations).toBe(1);
     expect(
       run?.agent.buildPrintCommand({ prompt: "", dangerouslySkipPermissions: true }).command,
-    ).toContain(`--model '${config.models.gateResolver}'`);
+    ).toContain(`--model '${config.models["gate-resolver"]}'`);
     // The one role that takes no arguments: its prompt has to hold no
     // placeholders either, or the run fails on the first one it cannot fill.
     expect(run?.promptArgs).toEqual({});

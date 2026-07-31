@@ -46,13 +46,13 @@ export const ticket = (number: number): TicketRef => ({ number, summary: `work o
 
 /** A review finding on the axis given, since the axis is what decides its weight. */
 export const finding = (
-  source: "ticketReview" | "branchReview" | "qualityReview",
+  source: "ticket-review" | "branch-review" | "quality-review",
   axis: Axis,
   summary: string,
   ticket?: number,
 ): Finding => ({ source, axis, summary, ...(ticket ? { ticket } : {}) });
 
-export const gateFinding = (summary: string): Finding => ({ source: "greenGate", summary });
+export const gateFinding = (summary: string): Finding => ({ source: "green-gate", summary });
 
 /** A fixer that fixed everything it was handed, which is what a clean pass looks like. */
 export const fixedAll = (findings: readonly Finding[]): FixReport => ({

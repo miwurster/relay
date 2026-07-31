@@ -19,7 +19,7 @@ export function createStubCrew({ landing = "pull-request" }: { landing?: Landing
     land: landing === "merge" ? stubLand : () => Promise.resolve(NO_LANDING),
 
     async resolveGate() {
-      log("gateResolver", "would read the repo's docs for its green gate");
+      log("gate-resolver", "would read the repo's docs for its green gate");
       return { command: "true", provenance: "inferred", source: "the stub crew" };
     },
 
@@ -47,7 +47,7 @@ export function createStubCrew({ landing = "pull-request" }: { landing?: Landing
     },
 
     async greenGate(attempt, gate) {
-      log("greenGate", `would run \`${gate.command}\` (attempt ${attempt})`);
+      log("green-gate", `would run \`${gate.command}\` (attempt ${attempt})`);
       return { green: true, detail: "stub gate is always green" };
     },
 

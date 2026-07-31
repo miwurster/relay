@@ -22,12 +22,12 @@ function decliningCrew(findingsFor: (scope: ReviewScope) => Finding[]) {
 
 const specOnBranch = (scope: ReviewScope): Finding[] =>
   scope.kind === "branch" && !scope.rereview
-    ? [finding("branchReview", "spec", "#1 asks for the cap to be read from config")]
+    ? [finding("branch-review", "spec", "#1 asks for the cap to be read from config")]
     : [];
 
 const specOnTicketOne = (scope: ReviewScope): Finding[] =>
   scope.kind === "ticket" && scope.ticket.number === 1
-    ? [finding("ticketReview", "spec", "#1 asks for a configurable cap; this hardcodes 3", 1)]
+    ? [finding("ticket-review", "spec", "#1 asks for a configurable cap; this hardcodes 3", 1)]
     : [];
 
 /**
@@ -83,7 +83,7 @@ describe("runHarness on a binding finding nobody addressed", () => {
     expect(unaddressed()).toEqual([
       {
         finding: finding(
-          "ticketReview",
+          "ticket-review",
           "spec",
           "#1 asks for a configurable cap; this hardcodes 3",
           1,
@@ -106,7 +106,7 @@ describe("runHarness on a binding finding nobody addressed", () => {
   it("finishes a ticket carrying only an unaddressed standards finding", async () => {
     const { crew, finished } = decliningCrew((scope) =>
       scope.kind === "ticket" && scope.ticket.number === 1
-        ? [finding("ticketReview", "standards", "split the loader", 1)]
+        ? [finding("ticket-review", "standards", "split the loader", 1)]
         : [],
     );
 
@@ -117,7 +117,7 @@ describe("runHarness on a binding finding nobody addressed", () => {
 
   it("finishes a ticket carrying only an unaddressed quality finding", async () => {
     const { crew, finished } = decliningCrew((scope) =>
-      scope.kind === "quality" ? [finding("qualityReview", "quality", "extract the cap", 1)] : [],
+      scope.kind === "quality" ? [finding("quality-review", "quality", "extract the cap", 1)] : [],
     );
 
     await run(crew);
@@ -128,7 +128,7 @@ describe("runHarness on a binding finding nobody addressed", () => {
   it("lands a pass whose fixer declined only standards findings", async () => {
     const { crew, calls } = decliningCrew((scope) =>
       scope.kind === "ticket" && scope.ticket.number === 1
-        ? [finding("ticketReview", "standards", "split the loader", 1)]
+        ? [finding("ticket-review", "standards", "split the loader", 1)]
         : [],
     );
 

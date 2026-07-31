@@ -29,7 +29,7 @@ The marketplace and `plugins/relay-skills/` are gone, and relay ships no skill o
 
 The review is one **role** with one prompt, run once per **review scope**: it names the fixed point and the issue, invokes `mattpocock-skills:code-review`, and translates that skill's prose report into the `<relay-findings>` block the fixer reads.
 That collapses three lenses — a two-axis ticket lens, an in-depth code lens and an in-depth spec lens — into two runs of one review, named by the only thing that differs between them, so **lens** stops being a term this project needs.
-The model map follows: `ticketReview` and `branchReview`.
+The model map follows: `ticket-review` and `branch-review`.
 
 Committing goes back to being an instruction in the implementer and fixer prompts — "commit your work to the current branch, as one commit for this ticket" — with no rules attached.
 `mattpocock-skills@claude-plugins-official` is now the one **skill plugin** a pass mounts, and ADR-0004's mount-from-host rule is unchanged.

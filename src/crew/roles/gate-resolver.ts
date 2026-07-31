@@ -27,7 +27,7 @@ export function createGateResolver(deps: RoleDeps): Crew["resolveGate"] {
     return await runRole({
       ...deps,
       name: "gate-resolver",
-      model: deps.config.models.gateResolver,
+      model: deps.config.models["gate-resolver"],
       prompt: RESOLVER_PROMPT,
       promptArgs: {},
       tag: RESOLVED_GATE_TAG,
