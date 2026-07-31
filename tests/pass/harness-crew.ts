@@ -5,9 +5,11 @@ import {
   type FixReport,
   type FixTarget,
   type GateResult,
+  type GateVerdict,
   type ImplementResult,
   type LandResult,
   NO_LANDING,
+  notGated,
   type Outcome,
   type PlanResult,
   type ResolvedGate,
@@ -86,6 +88,7 @@ export function recordingCrew(overrides: Partial<Crew> = {}) {
   let handedOverFinished: readonly TicketRef[] = [];
   let handedOverBlocked: readonly TicketRef[] = [];
   let handedOverLand: LandResult = NO_LANDING;
+  let handedOverGate: GateVerdict = notGated(resolvedGate);
   let handedOverUnaddressed: readonly UnaddressedFinding[] = [];
 
   const crew: Crew = {
@@ -120,13 +123,14 @@ export function recordingCrew(overrides: Partial<Crew> = {}) {
       calls.push("land");
       return NO_LANDING;
     },
-    async handover(outcome, committed, finished, blocked, land, unaddressed): Promise<void> {
+    async handover(outcome, committed, finished, blocked, land, gate, unaddressed): Promise<void> {
       calls.push(`handover:${outcome.kind}`);
       handedOver = outcome;
       handedOverTickets = committed;
       handedOverFinished = finished;
       handedOverBlocked = blocked;
       handedOverLand = land;
+      handedOverGate = gate;
       handedOverUnaddressed = unaddressed;
     },
     ...overrides,
@@ -142,6 +146,7 @@ export function recordingCrew(overrides: Partial<Crew> = {}) {
     finished: () => handedOverFinished,
     blocked: () => handedOverBlocked,
     land: () => handedOverLand,
+    gate: () => handedOverGate,
     unaddressed: () => handedOverUnaddressed,
   };
 }

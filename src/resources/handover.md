@@ -98,7 +98,7 @@ The branch is green.
 
    When {{WORK_ITEM}} is itself the only ticket, this step asks of it exactly what the step above did: do it once.
 5. Tick each of {{FINISHED_TICKETS}}, as above, and no other ticket — under **both** landings, because the branch is green either way and the claim is about the branch, not about who merges it.
-6. Comment the resolution on {{WORK_ITEM}}: the pull request URL when there is one, or {{BASE_BRANCH}} when the work landed there; one line on what the pass built; the tickets it committed and which of them you closed; {{REASON}}, the gate that verified what landed; and how many findings went unaddressed, as section 3 says.
+6. Comment the resolution on {{WORK_ITEM}}: the pull request URL when there is one, or {{BASE_BRANCH}} when the work landed there; one line on what the pass built; the tickets it committed and which of them you closed; {{REASON}}, the gate that verified what landed as {{GATE}} gives it; and how many findings went unaddressed, as section 3 says.
 
 ### mid-block
 
@@ -176,7 +176,8 @@ Write the report the human reads in their terminal, as plain text lines — no J
 - what the pass left unaddressed, as the section above says for this outcome;
 - what landed and how: {{LANDED_DETAIL}} — relay's own words for it, and when {{LANDED}} is `no` say too that the work sits on {{BRANCH}} alone;
 - each ticket the branch committed, with its short SHA from `git log --oneline {{BASE_BRANCH}}..{{BRANCH}}` — read those now, never earlier, because a rebase before you rewrote them;
-- the green gate's verdict.
+- the green gate's verdict: {{GATE}} — relay's own words for it, as with what landed.
+  Never run the gate command yourself, and never report a verdict relay did not hand you: a pass that blocked before the gate has none, and {{GATE}} says so.
 
 ## Output
 
@@ -192,11 +193,11 @@ Published as a pull request:
 Landed on the base branch, with no pull request:
 
 <relay-handover>
-{"report": "outcome: success\nwork item: #7 (closed, agent-in-progress removed)\nlanded: main, pushed\nbranch: agent/7\nunaddressed: none\ntickets: 1a2b3c4 feat(cart): reject an empty cart (#8, closed)\ngate: `make test` exited 0"}
+{"report": "outcome: success\nwork item: #7 (closed, agent-in-progress removed)\nlanded: main, pushed\nbranch: agent/7\nunaddressed: none\ntickets: 1a2b3c4 feat(cart): reject an empty cart (#8, closed)\ngate: `make test` exited 0 — declared in AGENTS.md"}
 </relay-handover>
 
 Bailed early, with no pull request:
 
 <relay-handover>
-{"report": "outcome: early-bail\ncause: #7 has no acceptance criteria\nwork item: #7 (agent-blocked)\nbranch: agent/7 (no commits, not pushed)"}
+{"report": "outcome: early-bail\ncause: #7 has no acceptance criteria\nwork item: #7 (agent-blocked)\nbranch: agent/7 (no commits, not pushed)\ngate: `make test` never ran — the pass blocked before the green gate (declared in AGENTS.md)"}
 </relay-handover>

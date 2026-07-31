@@ -144,6 +144,12 @@ The **pass**'s first **leg**: it reads the repo's own docs and answers with the 
 It never blocks — a gate no doc declares is inferred from the build manifest instead, and the answer carries its **provenance** either way.
 _Avoid_: gate detection, gate config, gate lookup
 
+**Gate verdict**:
+What a **pass** verified with and what the **green gate** said about it, or that the pass blocked before the gate ran.
+It carries the command and its **provenance** on both counts, because the **gate resolver** runs first: a pass that never reached its gate still knows what it would have run.
+The **handover** is told it, and names it in its report and in the resolution comment — the one fact about the gate no other leg can tell a human.
+_Avoid_: gate result, gate status, test result
+
 **Provenance**:
 Where a **gate resolver**'s answer came from: `declared` when a doc named it, `inferred` when the resolver fell back to the manifest.
 It is on the record of every **pass** — the **handover** names it, and the **doctor** warns on an inferred gate before a pass ever runs — because an inferred gate is a command no human chose.
@@ -154,6 +160,7 @@ The pass's last **leg**: it publishes what the **landing** and the **outcome** o
 Every outcome reaches it — no path skips the handover.
 It is the only role that writes what a pass *earned* — a **tick**, a close, the **ready label** stripped — so closing a **ticket** is its act and never the **lander**'s.
 The two writes before it claim nothing: the planner **holds** the work item and the implementer marks the ticket it is on.
+It publishes only what relay hands it — the **finished ticket** list, what the **lander** did, the **gate verdict**, the findings left unaddressed — and infers none of it: a fact this leg has to work out for itself is one it can get wrong in the pass's most durable words.
 _Avoid_: finalize, wrap-up, publish
 
 **Landing**:

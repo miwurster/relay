@@ -126,6 +126,25 @@ export interface ResolvedGate {
 }
 
 /**
+ * What a pass verified with and what the gate said about it, or that the pass
+ * never got as far as asking.
+ *
+ * `not-gated` rather than an absent verdict, for the same reason `no-landing`
+ * exists: a leg that never ran is a fact the handover has to be able to state,
+ * not one it has to infer from an absence. Both arms carry the resolved gate,
+ * because the gate resolver is the pass's first leg — so even a pass that
+ * blocked before the gate knows the command it would have run.
+ */
+export type GateVerdict =
+  | { kind: "gated"; gate: ResolvedGate; green: boolean; detail: string }
+  | { kind: "not-gated"; gate: ResolvedGate };
+
+/** The verdict of a pass that has not reached its gate, which every pass starts as. */
+export function notGated(gate: ResolvedGate): GateVerdict {
+  return { kind: "not-gated", gate };
+}
+
+/**
  * What one review reads: one ticket's change, the whole branch against what was
  * asked, or the whole branch against a maintainability rubric.
  *
@@ -281,6 +300,13 @@ export interface Crew {
    * outcome, because closing an issue is the pass's one irreversible tracker
    * act and the leg that does it has to be reading the lander's own verdict.
    *
+   * `gate` is what the pass verified with and what came of it, `not-gated` when
+   * the pass blocked before the gate ran. Told for the same reason `land` is: the
+   * report and the tracker comment both name the gate, and a leg left to work
+   * that out has only the repo's docs to read — which is the gate resolver's job,
+   * already done, and answers what a gate *would* verify with rather than what
+   * this pass's gate said.
+   *
    * `unaddressed` is every finding nobody acted on, in the order the legs ran.
    * A green pass can only carry non-binding ones, and the human is owed the
    * fact that a role overrode a call about their repo — a skip a pass swallowed
@@ -292,6 +318,7 @@ export interface Crew {
     finished: readonly TicketRef[],
     blocked: readonly TicketRef[],
     land: LandResult,
+    gate: GateVerdict,
     unaddressed: readonly UnaddressedFinding[],
   ): Promise<void>;
 }

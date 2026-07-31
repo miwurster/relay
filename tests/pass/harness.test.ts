@@ -334,6 +334,33 @@ describe("runHarness", () => {
     ]);
   });
 
+  it("hands the handover the gate's verdict, rather than leaving it to infer it", async () => {
+    const { crew, gate } = recordingCrew();
+
+    await run(crew);
+
+    expect(gate()).toEqual({ kind: "gated", gate: resolvedGate, green: true, detail: "green" });
+  });
+
+  it("hands the handover a not-gated verdict when the pass blocked before the gate", async () => {
+    const { crew, gate } = recordingCrew({
+      async review(scope) {
+        if (scope.kind !== "branch" || scope.rereview) return [];
+        return [finding("branch-review", "spec", "the retry cap is still hardcoded")];
+      },
+      async fix(findings) {
+        return skippedAll(findings, "I read it as fine");
+      },
+    });
+
+    const outcome = await run(crew);
+
+    // Blocked at the branch review, so nothing ran the gate — and the verdict
+    // still names the command, because the gate resolver ran first.
+    expect(outcome.kind).toBe("mid-block");
+    expect(gate()).toEqual({ kind: "not-gated", gate: resolvedGate });
+  });
+
   it("hands the handover nothing when every finding was fixed", async () => {
     const { crew, unaddressed } = recordingCrew({
       async review(scope) {

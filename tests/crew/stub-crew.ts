@@ -54,7 +54,7 @@ export function createStubCrew({ landing = "pull-request" }: { landing?: Landing
       return { green: true, detail: "stub gate is always green" };
     },
 
-    async handover(outcome, _committed, finished, _blocked, _land, unaddressed) {
+    async handover(outcome, _committed, finished, _blocked, _land, _gate, unaddressed) {
       log(
         "handover",
         `would hand over: ${outcome.kind}, closing ${finished.length} tickets, ` +

@@ -3,6 +3,7 @@ import { type Landing, RELAY_DIR } from "../../config.js";
 import {
   type Crew,
   findingLabel,
+  type GateVerdict,
   type LandResult,
   type Outcome,
   type TicketRef,
@@ -45,6 +46,7 @@ export function createHandover({
     finished: readonly TicketRef[],
     blocked: readonly TicketRef[],
     land: LandResult,
+    gate: GateVerdict,
     unaddressed: readonly UnaddressedFinding[],
   ): Promise<void> {
     const leg = describeLeg(outcome, committed, finished, blocked, deps.config.landing, land);
@@ -65,6 +67,12 @@ export function createHandover({
         LANDING: deps.config.landing,
         LANDED: leg.landed,
         LANDED_DETAIL: leg.landedDetail,
+        // The one sentence the report and the tracker comment both say about the
+        // gate. Told rather than read off the repo's docs or the worktree: a leg
+        // that has to work out what verified this branch can only run the gate
+        // itself or guess, and a pass that blocked before the gate has no verdict
+        // to find either way.
+        GATE: describeGate(gate),
         // Told too: the leg cannot read the ticket numbers back out of the
         // commits, which carry no issue reference of their own.
         COMMITTED_TICKETS: leg.committed,
@@ -172,6 +180,30 @@ function describeUnaddressed(unaddressed: readonly UnaddressedFinding[]): string
   return unaddressed
     .map(({ finding, reason }) => `[${findingLabel(finding)}] ${finding.summary} — left: ${reason}`)
     .join("\n");
+}
+
+/**
+ * The gate's one line, as the report and the tracker comment carry it.
+ *
+ * A pass that never reached the gate still names the command, because the gate
+ * resolver ran first and "what this pass would have verified with" is what tells
+ * an operator the branch is unverified rather than unverifiable.
+ *
+ * The provenance rides along wherever the verdict does not already carry it: an
+ * inferred gate is a command no human chose ([CONTEXT.md](../../../CONTEXT.md),
+ * _provenance_), and a green run's own detail names it while a red run's names
+ * the failure instead.
+ */
+function describeGate(verdict: GateVerdict): string {
+  const provenance =
+    verdict.gate.provenance === "declared"
+      ? `declared in ${verdict.gate.source}`
+      : `inferred from ${verdict.gate.source}`;
+
+  if (verdict.kind === "not-gated") {
+    return `\`${verdict.gate.command}\` never ran — the pass blocked before the green gate (${provenance}).`;
+  }
+  return verdict.green ? verdict.detail : `${verdict.detail} (${provenance})`;
 }
 
 function enforcePullRequestRule(

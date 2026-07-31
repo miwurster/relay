@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { Sandbox, SandboxRunOptions, SandboxRunResult } from "@ai-hero/sandcastle";
 import { beforeEach, describe, expect, it } from "vitest";
 import { relayConfigSchema } from "../../src/config.js";
-import { NO_LANDING } from "../../src/crew/contract.js";
+import { NO_LANDING, notGated, type ResolvedGate } from "../../src/crew/contract.js";
 import { createCrew } from "../../src/crew/crew.js";
 import { FIX_TAG } from "../../src/crew/roles/fixer.js";
 import { RESOLVED_GATE_TAG } from "../../src/crew/roles/gate-resolver.js";
@@ -28,6 +28,11 @@ const issue: GitHubIssue = {
 const repoRoot = "/repo";
 const branch = "agent/7";
 const baseBranch = "main";
+const resolvedGate: ResolvedGate = {
+  command: "make test",
+  provenance: "declared",
+  source: "AGENTS.md",
+};
 
 let recordDir: string;
 
@@ -266,6 +271,7 @@ describe("createCrew", () => {
       [{ number: 8, summary: "the one ticket" }],
       [],
       NO_LANDING,
+      notGated(resolvedGate),
       [],
     );
 
@@ -301,6 +307,7 @@ describe("createCrew", () => {
       [{ number: 8, summary: "the one ticket" }],
       [],
       NO_LANDING,
+      notGated(resolvedGate),
       [],
     );
 

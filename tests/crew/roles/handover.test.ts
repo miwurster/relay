@@ -5,9 +5,12 @@ import type { Sandbox, SandboxRunOptions, SandboxRunResult } from "@ai-hero/sand
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { relayConfigSchema } from "../../../src/config.js";
 import {
+  type GateVerdict,
   type LandResult,
   NO_LANDING,
+  notGated,
   type Outcome,
+  type ResolvedGate,
   type TicketRef,
   type UnaddressedFinding,
 } from "../../../src/crew/contract.js";
@@ -23,6 +26,20 @@ const mergeConfig = relayConfigSchema.parse({ landing: "merge" });
 const workItem = 7;
 const branch = "agent/7";
 const baseBranch = "main";
+
+const resolvedGate: ResolvedGate = {
+  command: "make test",
+  provenance: "declared",
+  source: "relay.config.ts",
+};
+
+/** The gate of a green pass, which is the one most of these hand over. */
+const green: GateVerdict = {
+  kind: "gated",
+  gate: resolvedGate,
+  green: true,
+  detail: "`make test` exited 0 — declared in relay.config.ts.",
+};
 
 /** A sandbox whose handover run has a fixed stdout and commit count. */
 function handing({ stdout = "", commits = [] as { sha: string }[], withConfig = config } = {}) {
@@ -55,7 +72,8 @@ function handing({ stdout = "", commits = [] as { sha: string }[], withConfig = 
       unaddressed: readonly UnaddressedFinding[] = [],
       finished: readonly TicketRef[] = committed,
       blocked: readonly TicketRef[] = [],
-    ) => handover(outcome, committed, finished, blocked, land, unaddressed),
+      gate: GateVerdict = green,
+    ) => handover(outcome, committed, finished, blocked, land, gate, unaddressed),
     runs,
   };
 }
@@ -110,6 +128,7 @@ describe("createHandover", () => {
       LANDING: "pull-request",
       LANDED: "no",
       LANDED_DETAIL: "nothing was landed",
+      GATE: "`make test` exited 0 — declared in relay.config.ts.",
       COMMITTED_TICKETS: "#8, #9",
       FINISHED_TICKETS: "#8, #9",
       BLOCKED_TICKETS: "nothing",
@@ -319,6 +338,55 @@ describe("createHandover", () => {
     const { handover } = handing({ stdout: "Pushed it." });
 
     await expect(handover(success, tickets, NO_LANDING)).rejects.toThrow(RoleError);
+  });
+});
+
+/**
+ * The gate line is the one fact the leg used to have to work out for itself, and
+ * the only way it could was to run the gate or invent a verdict. These say what
+ * it is told instead, on each of the three passes there are: green, red, and one
+ * that never got there.
+ */
+describe("createHandover's gate line", () => {
+  const gateOf = async (gate: GateVerdict, outcome: Outcome = success) => {
+    const { handover, runs } = handing({ stdout: published });
+    await handover(outcome, tickets, NO_LANDING, [], tickets, [], gate);
+    return runs[0]?.promptArgs?.GATE;
+  };
+
+  it("passes a green verdict on as the gate reported it", async () => {
+    expect(await gateOf(green)).toBe("`make test` exited 0 — declared in relay.config.ts.");
+  });
+
+  it("names the provenance beside a red verdict, which carries the failure instead", async () => {
+    const red: GateVerdict = {
+      kind: "gated",
+      gate: resolvedGate,
+      green: false,
+      detail: "`make test`: two cart tests fail on an empty cart",
+    };
+
+    expect(await gateOf(red, midBlock)).toBe(
+      "`make test`: two cart tests fail on an empty cart (declared in relay.config.ts)",
+    );
+  });
+
+  it("says the gate never ran, and still names the command, when the pass never reached it", async () => {
+    expect(await gateOf(notGated(resolvedGate), earlyBail)).toBe(
+      "`make test` never ran — the pass blocked before the green gate (declared in relay.config.ts).",
+    );
+  });
+
+  it("says an inferred command was inferred, since no human chose it", async () => {
+    const inferred: GateVerdict = notGated({
+      command: "npm test",
+      provenance: "inferred",
+      source: "package.json",
+    });
+
+    expect(await gateOf(inferred, earlyBail)).toBe(
+      "`npm test` never ran — the pass blocked before the green gate (inferred from package.json).",
+    );
   });
 });
 

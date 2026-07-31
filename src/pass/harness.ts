@@ -5,9 +5,11 @@ import {
   findingLabel,
   type FixReport,
   type FixTarget,
+  type GateVerdict,
   isBinding,
   type LandResult,
   NO_LANDING,
+  notGated,
   type Outcome,
   type ResolvedGate,
   type ReviewScope,
@@ -51,9 +53,9 @@ const REREVIEW_REASON =
  * just dropped.
  */
 export async function runHarness(crew: Crew, workItem: GitHubIssue): Promise<Outcome> {
-  const { outcome, committed, blockedOn, land, unaddressed } = await runLegs(crew, workItem);
+  const { outcome, committed, blockedOn, land, gate, unaddressed } = await runLegs(crew, workItem);
   const { finished, blocked } = ticketState(committed, unaddressed, blockedOn);
-  await crew.handover(outcome, committed, finished, blocked, land, unaddressed);
+  await crew.handover(outcome, committed, finished, blocked, land, gate, unaddressed);
   return outcome;
 }
 
@@ -129,6 +131,8 @@ interface LegsResult {
   blockedOn?: TicketRef;
   /** What the lander did, or no landing at all when the legs never reached it. */
   land: LandResult;
+  /** What the gate said, or that the legs blocked before it ran. */
+  gate: GateVerdict;
   /** Every finding nobody acted on, in the order the legs that produced it ran. */
   unaddressed: UnaddressedFinding[];
 }
@@ -137,14 +141,16 @@ async function runLegs(crew: Crew, workItem: GitHubIssue): Promise<LegsResult> {
   // Resolved once per pass, ahead of the planner, so the same command answers
   // every attempt of the gate loop below — and so even a pass the planner bails
   // on has read the repo's docs for its gate.
-  const gate: ResolvedGate = await crew.resolveGate();
+  const resolvedGate: ResolvedGate = await crew.resolveGate();
 
   // What the pass has to show for itself, as each leg fills it in. Nothing has
-  // landed until the lander says so, which is why `no-landing` is the default
-  // rather than a fact every exit short of the lander has to restate.
+  // landed and nothing is verified until the legs that do so say so, which is why
+  // `no-landing` and `not-gated` are the defaults rather than facts every exit
+  // short of those legs has to restate.
   const progress: Omit<LegsResult, "outcome"> = {
     committed: [],
     land: NO_LANDING,
+    gate: notGated(resolvedGate),
     unaddressed: [],
   };
 
@@ -178,15 +184,19 @@ async function runLegs(crew: Crew, workItem: GitHubIssue): Promise<LegsResult> {
   const quality = await reviewAndFix(crew, { kind: "quality", workItem: workItem.number });
   progress.unaddressed.push(...quality.skipped);
 
-  const loop = await driveGate(crew, gate);
+  const loop = await driveGate(crew, resolvedGate);
   progress.unaddressed.push(...loop.unaddressed);
+  // The loop's last run, which is the verdict that decided the pass. The lander's
+  // own re-gate travels in its `LandResult` instead, since what it verified is a
+  // branch the loop never saw.
+  progress.gate = loop.verdict;
   // Only a green branch is worth landing, so a blocked pass never asks.
   if (loop.outcome.kind !== "success") return { ...progress, outcome: loop.outcome };
 
   // The loop's verdict said nothing about what the base branch has gained since
   // it was taken, so the lander's result is gated once more — the same resolved
   // gate, numbered as the run after the loop's last.
-  const land = await crew.land(() => crew.greenGate(loop.runs + 1, gate));
+  const land = await crew.land(() => crew.greenGate(loop.runs + 1, resolvedGate));
   // A base branch that was meant to be landed on and was not is a `mid-block`
   // with everything the pass committed still only on its own branch — nothing
   // landed, nothing closed. Anything else leaves the gate loop's verdict as the
@@ -344,6 +354,8 @@ function fixTargetFor(scope: ReviewScope): FixTarget {
 /** How the gate loop ended, and how many gate runs it took to get there. */
 interface GateLoop {
   outcome: Outcome;
+  /** What the loop's last run said, which is the verdict the handover reports. */
+  verdict: GateVerdict;
   /** How many gate runs it took, which is what a later run has to number after. */
   runs: number;
   /** The gate findings the fixer declined, which are reported but never block. */
@@ -372,6 +384,7 @@ async function driveGate(crew: Crew, gate: ResolvedGate): Promise<GateLoop> {
     outcome: result.green
       ? { kind: "success", detail: result.detail }
       : { kind: "mid-block", reason: result.detail },
+    verdict: { kind: "gated", gate, green: result.green, detail: result.detail },
     runs,
     unaddressed,
   };
