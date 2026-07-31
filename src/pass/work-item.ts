@@ -3,7 +3,7 @@ import { type GitHubBlocker, type GitHubClient, type GitHubIssue } from "../trac
 import { HELD_LABEL, READY_LABEL } from "../tracker/labels.js";
 
 /** Either the one item this pass runs, or an empty frontier. */
-export type Selection = { kind: "work-item"; issue: GitHubIssue } | { kind: "nothing-to-do" };
+export type Selection = { kind: "work-item"; workItem: GitHubIssue } | { kind: "nothing-to-do" };
 
 /** The issue an operator named, and the repository they named it in. */
 export interface NamedWorkItem {
@@ -47,22 +47,22 @@ export async function selectWorkItem(
 ): Promise<Selection> {
   return workItem === undefined
     ? await autoPick(client)
-    : { kind: "work-item", issue: await pickByName(client, workItem) };
+    : { kind: "work-item", workItem: await pickByName(client, workItem) };
 }
 
 async function autoPick(client: GitHubClient): Promise<Selection> {
   const candidates = await client.frontier();
-  const issue = candidates.find((candidate) => eligibilityFailure(candidate) === undefined);
-  return issue ? { kind: "work-item", issue } : { kind: "nothing-to-do" };
+  const workItem = candidates.find((candidate) => eligibilityFailure(candidate) === undefined);
+  return workItem ? { kind: "work-item", workItem } : { kind: "nothing-to-do" };
 }
 
 async function pickByName(client: GitHubClient, named: NamedWorkItem): Promise<GitHubIssue> {
   await requireThisRepository(client, named);
-  const issue = await client.getIssue(named.number);
-  if (!issue) throw new SelectionError(`#${named.number} does not exist or is not visible.`);
-  const failure = eligibilityFailure(issue);
-  if (failure) throw new SelectionError(`#${issue.number} ${failure}`);
-  return issue;
+  const workItem = await client.getIssue(named.number);
+  if (!workItem) throw new SelectionError(`#${named.number} does not exist or is not visible.`);
+  const failure = eligibilityFailure(workItem);
+  if (failure) throw new SelectionError(`#${workItem.number} ${failure}`);
+  return workItem;
 }
 
 /**
@@ -96,13 +96,13 @@ async function requireThisRepository(client: GitHubClient, named: NamedWorkItem)
  * A sentence rather than a print, so the one rule reads the same for both
  * selection paths and can be asserted without a console.
  */
-export function subIssueNotice(issue: GitHubIssue): string | undefined {
-  if (issue.parent === undefined) return undefined;
+export function subIssueNotice(workItem: GitHubIssue): string | undefined {
+  if (workItem.parent === undefined) return undefined;
 
   return (
-    `#${issue.number} is a sub-issue of #${issue.parent}, and this pass runs over ` +
-    `#${issue.number} alone — as its own single ticket, without #${issue.parent}'s ` +
-    `other sub-issues. Run relay on #${issue.parent} to cover the whole plan.`
+    `#${workItem.number} is a sub-issue of #${workItem.parent}, and this pass runs over ` +
+    `#${workItem.number} alone — as its own single ticket, without #${workItem.parent}'s ` +
+    `other sub-issues. Run relay on #${workItem.parent} to cover the whole plan.`
   );
 }
 
@@ -111,24 +111,24 @@ export function subIssueNotice(issue: GitHubIssue): string | undefined {
  * passes them all. The one eligibility check both paths run, so an auto-pick
  * and a named item can never disagree about what relay is allowed to run.
  */
-function eligibilityFailure(issue: GitHubIssue): string | undefined {
-  if (!issue.labels.includes(READY_LABEL)) {
+function eligibilityFailure(workItem: GitHubIssue): string | undefined {
+  if (!workItem.labels.includes(READY_LABEL)) {
     return `is not labelled ${READY_LABEL}.`;
   }
-  if (issue.labels.includes(HELD_LABEL)) {
+  if (workItem.labels.includes(HELD_LABEL)) {
     // Nothing removes this label on a crash, so relay says how to lift the hold
     // rather than leaving the operator at a dead end. Lifting it is a human's
     // call: only they can tell a running pass from a dead one.
     return (
       `is held by a pass, labelled ${HELD_LABEL}. If no pass is running it crashed — ` +
-      `review its branch, then \`gh issue edit ${issue.number} --remove-label ${HELD_LABEL}\` ` +
+      `review its branch, then \`gh issue edit ${workItem.number} --remove-label ${HELD_LABEL}\` ` +
       "and run again."
     );
   }
-  if (!issue.isOpen) {
+  if (!workItem.isOpen) {
     return "is closed.";
   }
-  const blockers = openBlockers(issue);
+  const blockers = openBlockers(workItem);
   if (blockers.length > 0) {
     return `is blocked by ${blockers.map(nameOf).join(", ")}.`;
   }
@@ -140,8 +140,8 @@ function eligibilityFailure(issue: GitHubIssue): string | undefined {
  * GitHub's includes closed blockers and a finished dependency must not hold
  * work back forever.
  */
-function openBlockers(issue: GitHubIssue): GitHubBlocker[] {
-  return issue.blockedBy.filter((blocker) => blocker.isOpen);
+function openBlockers(workItem: GitHubIssue): GitHubBlocker[] {
+  return workItem.blockedBy.filter((blocker) => blocker.isOpen);
 }
 
 /** Repo-qualified, so a blocker in another repository reads as one. */

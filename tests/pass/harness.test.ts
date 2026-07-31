@@ -12,7 +12,7 @@ import { createStubCrew } from "../crew/stub-crew.js";
 import {
   finding,
   gateFinding,
-  issue,
+  workItem,
   recordingCrew,
   resolvedGate,
   run,
@@ -370,13 +370,13 @@ describe("runHarness", () => {
   });
 
   it("runs end to end on the stub crew", async () => {
-    const outcome = await runHarness(createStubCrew(), issue);
+    const outcome = await runHarness(createStubCrew(), workItem);
 
     expect(outcome).toEqual({ kind: "success", detail: "stub gate is always green" });
   });
 
   it("runs end to end on the stub crew of a merge-landing repo", async () => {
-    const outcome = await runHarness(createStubCrew({ landing: "merge" }), issue);
+    const outcome = await runHarness(createStubCrew({ landing: "merge" }), workItem);
 
     expect(outcome).toEqual({ kind: "success", detail: "stub gate is always green" });
   });

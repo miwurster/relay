@@ -19,7 +19,7 @@ export interface PassRun {
   repoRoot: string;
   config: RelayConfig;
   secrets: Secrets;
-  issue: GitHubIssue;
+  workItem: GitHubIssue;
   github: GitHubClient;
   open?: typeof openSandbox;
   createCrew?: (sandbox: Sandbox, branch: string, baseBranch: string) => Crew;
@@ -49,10 +49,10 @@ export async function runPass(workItem: string | undefined): Promise<ExitCode> {
     return ExitCode.Success;
   }
 
-  const notice = subIssueNotice(selection.issue);
+  const notice = subIssueNotice(selection.workItem);
   if (notice) console.log(`relay: ${notice}`);
 
-  return await runPassOnItem({ repoRoot, config, secrets, issue: selection.issue, github });
+  return await runPassOnItem({ repoRoot, config, secrets, workItem: selection.workItem, github });
 }
 
 /**
@@ -75,23 +75,23 @@ export async function runPassOnItem({
   repoRoot,
   config,
   secrets,
-  issue,
+  workItem,
   github,
   open = openSandbox,
   createCrew = (opened, branch, baseBranch) =>
     createRelayCrew({
       sandbox: opened,
       config,
-      recordDir: passRecordDir(repoRoot, issue.number),
+      recordDir: passRecordDir(repoRoot, workItem.number),
       repoRoot,
-      workItem: issue.number,
+      workItem: workItem.number,
       branch,
       baseBranch,
       git,
     }),
   git = runGit,
 }: PassRun): Promise<ExitCode> {
-  const branch = passBranch(config, issue.number);
+  const branch = passBranch(config, workItem.number);
   const baseBranch = await currentBranch({ repoRoot, git });
   // Before the sandbox is built, so a refusal costs nothing. Only `merge`
   // landing moves the host's branch, so only `merge` landing cares; the rule
@@ -108,10 +108,10 @@ export async function runPassOnItem({
     // Inside the try: a sandbox that will not open is the likeliest crash of
     // all, and it deserves the same note on the item as one that dies later.
     opened = await open({ repoRoot, config, secrets, branch, baseBranch });
-    const outcome = await runHarness(createCrew(opened, branch, baseBranch), issue);
+    const outcome = await runHarness(createCrew(opened, branch, baseBranch), workItem);
     return exitCodeFor(outcome);
   } catch (error) {
-    await reportCrash(github, issue, branch, error);
+    await reportCrash(github, workItem, branch, error);
     throw error;
   } finally {
     await opened?.close();
@@ -161,14 +161,14 @@ async function cleanupAdvice(repoRoot: string, branch: string): Promise<string> 
  */
 async function reportCrash(
   github: GitHubClient,
-  issue: GitHubIssue,
+  workItem: GitHubIssue,
   branch: string,
   error: unknown,
 ): Promise<void> {
   const reason = error instanceof Error ? error.message : String(error);
   try {
     await github.addComment(
-      issue.number,
+      workItem.number,
       `relay crashed during its pass on ${branch}: ${reason}\n\n` +
         "The sandbox was disposed of, and this item is left labelled `agent-in-progress`, " +
         "which no further pass will run over. Every sub-issue the pass had started is " +
@@ -178,12 +178,12 @@ async function reportCrash(
         "each of those sub-issues:\n\n" +
         "```sh\n" +
         `git branch -D ${branch}\n` +
-        `gh issue edit ${issue.number} --remove-label agent-in-progress\n` +
-        `${subIssueCleanup(issue)}\n` +
+        `gh issue edit ${workItem.number} --remove-label agent-in-progress\n` +
+        `${subIssueCleanup(workItem)}\n` +
         "```",
     );
   } catch (commentError) {
-    console.error(`relay: could not comment the crash on #${issue.number}:`, commentError);
+    console.error(`relay: could not comment the crash on #${workItem.number}:`, commentError);
   }
 }
 
@@ -196,8 +196,8 @@ async function reportCrash(
  * error. An item with no sub-issues gets the placeholder, because a crash that
  * happened before the planner ran may still have left one.
  */
-function subIssueCleanup(issue: GitHubIssue): string {
-  const numbers = issue.subIssues.map(({ number }) => number);
+function subIssueCleanup(workItem: GitHubIssue): string {
+  const numbers = workItem.subIssues.map(({ number }) => number);
   if (numbers.length === 0) return "gh issue edit <sub-issue> --remove-label agent-in-progress";
 
   return numbers

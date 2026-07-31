@@ -224,7 +224,7 @@ export interface Crew {
    * as the pass's first leg, so every later leg means the same command by green.
    */
   resolveGate(): Promise<ResolvedGate>;
-  plan(issue: GitHubIssue): Promise<PlanResult>;
+  plan(workItem: GitHubIssue): Promise<PlanResult>;
   implement(ticket: TicketRef): Promise<ImplementResult>;
   /**
    * Read one scope and report what it wants changed. The `quality` scope is the

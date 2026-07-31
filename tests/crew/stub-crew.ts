@@ -23,9 +23,12 @@ export function createStubCrew({ landing = "pull-request" }: { landing?: Landing
       return { command: "true", provenance: "inferred", source: "the stub crew" };
     },
 
-    async plan(issue) {
-      log("planner", `would plan #${issue.number}`);
-      return { kind: "plan", tickets: [{ number: issue.number, summary: "the work item itself" }] };
+    async plan(workItem) {
+      log("planner", `would plan #${workItem.number}`);
+      return {
+        kind: "plan",
+        tickets: [{ number: workItem.number, summary: "the work item itself" }],
+      };
     },
 
     async implement(ticket) {

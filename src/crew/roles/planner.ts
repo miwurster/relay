@@ -37,13 +37,13 @@ const planSchema = z.discriminatedUnion("kind", [
  * ([ADR-0028](../../../docs/adr/0028-the-tracker-doc-owns-invocation-relay-owns-the-graph.md)).
  */
 export function createPlanner(deps: RoleDeps): Crew["plan"] {
-  return async function plan(issue: GitHubIssue): Promise<PlanResult> {
+  return async function plan(workItem: GitHubIssue): Promise<PlanResult> {
     return await runRole({
       ...deps,
       name: "planner",
       model: deps.config.models.planner,
       prompt: PLANNER_PROMPT,
-      promptArgs: { WORK_ITEM: `#${issue.number}`, TRACKER_DOC: TRACKER_DOC_PATH },
+      promptArgs: { WORK_ITEM: `#${workItem.number}`, TRACKER_DOC: TRACKER_DOC_PATH },
       tag: PLAN_TAG,
       schema: planSchema,
     });

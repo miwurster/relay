@@ -49,7 +49,7 @@ describe("auto-pick", () => {
 
     const selection = await selectWorkItem(github);
 
-    expect(selection).toEqual({ kind: "work-item", issue: issue({ number: 9 }) });
+    expect(selection).toEqual({ kind: "work-item", workItem: issue({ number: 9 }) });
     expect(github.frontierScans).toBe(1);
   });
 
@@ -59,7 +59,7 @@ describe("auto-pick", () => {
 
     const selection = await selectWorkItem(fakeGitHub([blocked, ready]));
 
-    expect(selection).toEqual({ kind: "work-item", issue: ready });
+    expect(selection).toEqual({ kind: "work-item", workItem: ready });
   });
 
   it("skips a held candidate so two passes never race on it", async () => {
@@ -68,7 +68,7 @@ describe("auto-pick", () => {
 
     const selection = await selectWorkItem(fakeGitHub([held, ready]));
 
-    expect(selection).toEqual({ kind: "work-item", issue: ready });
+    expect(selection).toEqual({ kind: "work-item", workItem: ready });
   });
 
   it("skips a closed candidate, so finished work is never re-run", async () => {
@@ -77,7 +77,7 @@ describe("auto-pick", () => {
 
     const selection = await selectWorkItem(fakeGitHub([closed, ready]));
 
-    expect(selection).toEqual({ kind: "work-item", issue: ready });
+    expect(selection).toEqual({ kind: "work-item", workItem: ready });
   });
 
   it("resolves an empty frontier to nothing-to-do", async () => {
@@ -99,7 +99,7 @@ describe("an explicitly named item", () => {
 
     const selection = await selectWorkItem(fakeGitHub([target]), { number: 7 });
 
-    expect(selection).toEqual({ kind: "work-item", issue: target });
+    expect(selection).toEqual({ kind: "work-item", workItem: target });
   });
 
   it("never scans the frontier", async () => {
@@ -133,7 +133,7 @@ describe("an explicitly named item", () => {
 
     await expect(selectWorkItem(fakeGitHub([target]), { number: 7 })).resolves.toEqual({
       kind: "work-item",
-      issue: target,
+      workItem: target,
     });
   });
 
@@ -164,7 +164,7 @@ describe("an explicitly named item", () => {
 
     await expect(
       selectWorkItem(fakeGitHub([target]), { number: 7, repository: "MiWurster/Relay" }),
-    ).resolves.toEqual({ kind: "work-item", issue: target });
+    ).resolves.toEqual({ kind: "work-item", workItem: target });
   });
 
   it("breaks the pass on an unknown number", async () => {
@@ -225,8 +225,8 @@ describe("subIssueNotice", () => {
 
     await expect(selectWorkItem(github, { number: 31 })).resolves.toEqual({
       kind: "work-item",
-      issue: child,
+      workItem: child,
     });
-    await expect(selectWorkItem(github)).resolves.toEqual({ kind: "work-item", issue: child });
+    await expect(selectWorkItem(github)).resolves.toEqual({ kind: "work-item", workItem: child });
   });
 });

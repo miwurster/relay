@@ -49,8 +49,8 @@ const REREVIEW_REASON =
  * well as `spec`, because the review that would have read that axis is the one
  * just dropped.
  */
-export async function runHarness(crew: Crew, issue: GitHubIssue): Promise<Outcome> {
-  const { outcome, committed, blockedOn, land, unaddressed } = await runLegs(crew, issue);
+export async function runHarness(crew: Crew, workItem: GitHubIssue): Promise<Outcome> {
+  const { outcome, committed, blockedOn, land, unaddressed } = await runLegs(crew, workItem);
   const { finished, blocked } = ticketState(committed, unaddressed, blockedOn);
   await crew.handover(outcome, committed, finished, blocked, land, unaddressed);
   return outcome;
@@ -132,7 +132,7 @@ interface LegsResult {
   unaddressed: UnaddressedFinding[];
 }
 
-async function runLegs(crew: Crew, issue: GitHubIssue): Promise<LegsResult> {
+async function runLegs(crew: Crew, workItem: GitHubIssue): Promise<LegsResult> {
   // Resolved once per pass, ahead of the planner, so the same command answers
   // every attempt of the gate loop below — and so even a pass the planner bails
   // on has read the repo's docs for its gate.
@@ -147,7 +147,7 @@ async function runLegs(crew: Crew, issue: GitHubIssue): Promise<LegsResult> {
     unaddressed: [],
   };
 
-  const plan = await crew.plan(issue);
+  const plan = await crew.plan(workItem);
   if (plan.kind === "under-specified") {
     return { ...progress, outcome: { kind: "early-bail", reason: plan.reason } };
   }
@@ -161,7 +161,7 @@ async function runLegs(crew: Crew, issue: GitHubIssue): Promise<LegsResult> {
 
   // One fact, both ways round: the per-ticket review is what reads `standards`,
   // so the branch review takes that axis exactly when no ticket review ran.
-  const branch = await reviewBranch(crew, issue.number, reviewEachTicket ? "spec" : "both");
+  const branch = await reviewBranch(crew, workItem.number, reviewEachTicket ? "spec" : "both");
   progress.unaddressed.push(...branch.unaddressed);
   if (branch.blocked) return { ...progress, outcome: branch.blocked };
 
@@ -174,7 +174,7 @@ async function runLegs(crew: Crew, issue: GitHubIssue): Promise<LegsResult> {
   // binding, and a fix is verified once
   // ([ADR-0022](../../docs/adr/0022-a-fix-is-verified-once.md)). What the fixer
   // declined is reported so a human knows a role overrode a call about their code.
-  const quality = await reviewAndFix(crew, { kind: "quality", workItem: issue.number });
+  const quality = await reviewAndFix(crew, { kind: "quality", workItem: workItem.number });
   progress.unaddressed.push(...quality.skipped);
 
   const loop = await driveGate(crew, gate);

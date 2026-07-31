@@ -13,7 +13,7 @@ import { expectPromptParity } from "./prompt-parity.js";
 
 const config = relayConfigSchema.parse({ landing: "pull-request" });
 
-const issue: GitHubIssue = {
+const workItem: GitHubIssue = {
   number: 7,
   labels: ["ready-for-agent"],
   isOpen: true,
@@ -55,7 +55,7 @@ describe("createPlanner", () => {
       ),
     );
 
-    await expect(plan(issue)).resolves.toEqual({
+    await expect(plan(workItem)).resolves.toEqual({
       kind: "plan",
       tickets: [
         { number: 8, summary: "the schema" },
@@ -69,7 +69,7 @@ describe("createPlanner", () => {
       taggedPlan('{"kind":"under-specified","reason":"#8 says nothing about the change"}'),
     );
 
-    await expect(plan(issue)).resolves.toEqual({
+    await expect(plan(workItem)).resolves.toEqual({
       kind: "under-specified",
       reason: "#8 says nothing about the change",
     });
@@ -78,13 +78,13 @@ describe("createPlanner", () => {
   it("refuses a plan with no tickets in it", async () => {
     const { plan } = planning(taggedPlan('{"kind":"plan","tickets":[]}'));
 
-    await expect(plan(issue)).rejects.toThrow(RoleError);
+    await expect(plan(workItem)).rejects.toThrow(RoleError);
   });
 
   it("refuses a run that emitted no plan", async () => {
     const { plan } = planning("I thought about it for a while.");
 
-    await expect(plan(issue)).rejects.toThrow(RoleError);
+    await expect(plan(workItem)).rejects.toThrow(RoleError);
   });
 
   it("runs one-shot on the planner's model, over the work item and the tracker doc", async () => {
@@ -92,7 +92,7 @@ describe("createPlanner", () => {
       taggedPlan('{"kind":"plan","tickets":[{"number":7,"summary":"the item itself"}]}'),
     );
 
-    await plan(issue);
+    await plan(workItem);
 
     expect(runs).toHaveLength(1);
     const [run] = runs;
@@ -101,7 +101,7 @@ describe("createPlanner", () => {
       run?.agent.buildPrintCommand({ prompt: "", dangerouslySkipPermissions: true }).command,
     ).toContain(`--model '${config.models.planner}'`);
     expect(run?.promptArgs).toEqual({
-      WORK_ITEM: `#${issue.number}`,
+      WORK_ITEM: `#${workItem.number}`,
       TRACKER_DOC: TRACKER_DOC_PATH,
     });
     await expectPromptParity(run, "planner.md");

@@ -80,7 +80,7 @@ describe("runPass", () => {
 
 const execFileAsync = promisify(execFile);
 
-const issue: GitHubIssue = {
+const workItem: GitHubIssue = {
   number: 1,
   labels: ["ready-for-agent"],
   isOpen: true,
@@ -110,7 +110,7 @@ function fakeGitHub() {
       return [];
     },
     async getIssue() {
-      return issue;
+      return workItem;
     },
     async addComment(number, text) {
       comments.push({ number, text });
@@ -170,7 +170,7 @@ async function runOnePass(overrides: Partial<PassRun> & { github: GitHubClient }
     repoRoot: await gitRepo(),
     config: passConfig,
     secrets: passSecrets,
-    issue,
+    workItem,
     open: fakeSandbox().open,
     createCrew: () => createStubCrew(),
     ...overrides,
@@ -262,7 +262,7 @@ describe("runPassOnItem", () => {
   it("names each sub-issue by number, so the human copies the cleanup rather than fills it in", async () => {
     const { github, comments } = fakeGitHub();
     const withTickets: GitHubIssue = {
-      ...issue,
+      ...workItem,
       subIssues: [
         { number: 8, isOpen: true },
         { number: 9, isOpen: true },
@@ -270,7 +270,7 @@ describe("runPassOnItem", () => {
     };
 
     await expect(
-      runOnePass({ github, issue: withTickets, createCrew: crashingCrew }),
+      runOnePass({ github, workItem: withTickets, createCrew: crashingCrew }),
     ).rejects.toThrow("the sandbox died");
 
     expect(comments[0]?.text).toContain("gh issue edit 8 --remove-label agent-in-progress");

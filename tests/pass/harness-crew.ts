@@ -26,7 +26,7 @@ import type { GitHubIssue } from "../../src/tracker/github.js";
  * they are about — the topology, binding findings, the re-review, `merge`
  * landing — and all four need the same crew to say anything at all.
  */
-export const issue: GitHubIssue = {
+export const workItem: GitHubIssue = {
   number: 1,
   labels: ["ready-for-agent"],
   isOpen: true,
@@ -40,7 +40,7 @@ export const resolvedGate: ResolvedGate = {
   source: "AGENTS.md, under Verifying",
 };
 
-export const run = (crew: Crew) => runHarness(crew, issue);
+export const run = (crew: Crew) => runHarness(crew, workItem);
 
 export const ticket = (number: number): TicketRef => ({ number, summary: `work on #${number}` });
 
