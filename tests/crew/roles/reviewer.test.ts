@@ -56,21 +56,23 @@ beforeEach(async () => {
  */
 function fakeSandbox(stdout: string, commits: { sha: string }[], worktree: string) {
   const runs: SandboxRunOptions[] = [];
+  const execs: string[] = [];
   const sandbox = {
     async run(options: SandboxRunOptions): Promise<SandboxRunResult> {
       runs.push(options);
       return { iterations: [], stdout, commits };
     },
-    async exec() {
+    async exec(command: string) {
+      execs.push(command);
       return { stdout: worktree, stderr: "", exitCode: 0 };
     },
   } as unknown as Sandbox;
-  return { sandbox, runs };
+  return { sandbox, runs, execs };
 }
 
 const reviewing = (stdout: string, commits: { sha: string }[] = [], worktree = "") => {
-  const { sandbox, runs } = fakeSandbox(stdout, commits, worktree);
-  return { review: createReviewer({ sandbox, config, recordDir, baseBranch }), runs };
+  const { sandbox, runs, execs } = fakeSandbox(stdout, commits, worktree);
+  return { review: createReviewer({ sandbox, config, recordDir, baseBranch }), runs, execs };
 };
 
 const taggedFindings = (json: string) =>
@@ -158,10 +160,11 @@ describe("createReviewer", () => {
     await expect(review(ticketScope)).rejects.toThrow(RoleError);
   });
 
-  it("refuses a review that edited without committing, which the next leg would inherit", async () => {
-    const { review } = reviewing(cleanTicket, [], " M src/a.ts\n?? notes.md");
+  it("discards what a review edited without committing, which the next leg would inherit", async () => {
+    const { review, execs } = reviewing(cleanTicket, [], " M src/a.ts\n?? notes.md");
 
-    await expect(review(ticketScope)).rejects.toThrow(/left the worktree changed/);
+    await expect(review(ticketScope)).resolves.toEqual([]);
+    expect(execs).toContain("git checkout -- . && git clean -fd");
   });
 
   it("writes each review's findings to its own file", async () => {
@@ -365,10 +368,11 @@ describe("createReviewer over the quality scope", () => {
     await expect(review(qualityScope)).rejects.toThrow(RoleError);
   });
 
-  it("refuses a review that started the restructuring its rubric described", async () => {
-    const { review } = reviewing(cleanQuality, [], " M src/a.ts");
+  it("discards the restructuring a review started rather than describing", async () => {
+    const { review, execs } = reviewing(cleanQuality, [], " M src/a.ts");
 
-    await expect(review(qualityScope)).rejects.toThrow(/left the worktree changed/);
+    await expect(review(qualityScope)).resolves.toEqual([]);
+    expect(execs).toContain("git checkout -- . && git clean -fd");
   });
 
   it("writes its findings to a file of its own", async () => {

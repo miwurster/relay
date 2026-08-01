@@ -98,6 +98,12 @@ export async function runRole<Schema extends z.ZodType>({
  * A read-only leg is checked for uncommitted work as well as for commits: the
  * legs share one worktree, so an edit a review never committed is still there
  * for the next leg to read and for the fixer to commit as nobody's work.
+ *
+ * That dirt is discarded rather than fatal. A leg that judges the branch has to
+ * build it, and a build writes files nobody edited — a lockfile the install
+ * refreshed is not a review misbehaving, and ending the pass over one throws
+ * away every leg that came before it. Discarding restores the property the rule
+ * is there for: the next leg reads the branch as the leg found it.
  */
 async function enforceBranchRule(
   sandbox: Sandbox,
@@ -117,7 +123,16 @@ async function enforceBranchRule(
 
   const dirt = await worktreeChanges(sandbox, name);
   if (dirt) {
-    throw new RoleError(`${name} is read-only but left the worktree changed:\n${dirt}`);
+    console.error(`relay: [${name}] is read-only; discarding what it left behind:\n${dirt}`);
+    await discardWorktreeChanges(sandbox, name);
+  }
+}
+
+/** Put the worktree back the way a read-only leg found it. */
+async function discardWorktreeChanges(sandbox: Sandbox, name: string): Promise<void> {
+  const { stderr, exitCode } = await sandbox.exec("git checkout -- . && git clean -fd");
+  if (exitCode !== 0) {
+    throw new RoleError(`Could not restore the worktree after ${name}: ${stderr.trim()}`);
   }
 }
 
