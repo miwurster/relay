@@ -33,6 +33,29 @@ The digest carries the pull request's URL on the handover's line.
 
 **The next seed deletes that pull request.** Read it before you rehearse again.
 
+## Rehearse everything, several times over
+
+```sh
+rehearsal/loop.sh        # 3 rounds
+rehearsal/loop.sh 1      # one round
+```
+
+Runs `npm run rehearse` over every scenario against both landings, `rounds` times, one pass after another.
+Each round is six passes — `happy-path`, `bug-report` and `single-spec`, each `merge` then `pull-request` — and each pass reseeds, so the passes stay independent the way `all` as a `rehearse` argument could not be.
+
+For the question one digest cannot answer: whether a change to a prompt, a model or the topology holds up across the roles' own variance.
+Read the run files afterwards, not the loop's output.
+
+A pass is 20-35 minutes, so the default three rounds is the better part of a day — start it in the morning, or run `1` and read it after lunch.
+Nothing in the loop is interactive and no pass's exit code stops it: a blocked pass is a result, and the round after it still runs.
+The `=== exit N ===` line after each pass is that pass's exit code, and the `===` heading before it carries the round, the scenario, the landing and the start time.
+
+Everything both streams to your terminal and lands in `rehearsal/runs/loop-<start time>.log`, which is the loop's only artefact beyond the digests each pass files itself.
+The last thing printed is that log's path and every run file the loop produced.
+
+**Every pass in a round after the first destroys the round before it** — a seed force-pushes genesis and deletes the issues, so only the digests survive a loop.
+Read the pull requests as they happen or not at all.
+
 ## Or step by step
 
 The same three pieces, separately invokable: how you drive relay with an ad-hoc flag, or poke the clone mid-flight.
