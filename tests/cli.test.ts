@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { parseArgs, runCli, type CliHandlers } from "../src/cli.js";
-import { SelectionError } from "../src/errors.js";
+import { RoleError, SelectionError } from "../src/errors.js";
 import { ExitCode } from "../src/exit-codes.js";
 
 describe("parseArgs", () => {
@@ -70,6 +70,14 @@ describe("runCli", () => {
       throw new SelectionError("PROJ-123 is a Task — relay only runs Story, Bug, Vulnerability.");
     });
     expect(await runCli(["PROJ-123"], h)).toBe(ExitCode.Error);
+  });
+
+  it("maps a role that misbehaved to the blocked exit code, not the error one", async () => {
+    const h = handlers();
+    h.runPass = vi.fn(async () => {
+      throw new RoleError("branch-review may not commit but committed 1 commit(s).");
+    });
+    expect(await runCli([], h)).toBe(ExitCode.Blocked);
   });
 
   it("maps an unexpected handler crash to the error exit code", async () => {

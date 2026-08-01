@@ -1,4 +1,4 @@
-import { RelayError } from "./errors.js";
+import { RelayError, RoleError } from "./errors.js";
 import { ExitCode } from "./exit-codes.js";
 
 /** A single flagless invocation, resolved from the positional argument. */
@@ -30,7 +30,9 @@ export function parseArgs(argv: readonly string[]): Command {
  * Dispatch the CLI and return the exit code to hand to the process.
  *
  * Any unexpected throw collapses to the error exit code so the contract holds
- * end to end even when a handler crashes.
+ * end to end even when a handler crashes — except a role that misbehaved, which
+ * is the pass being blocked rather than relay's config, auth or infra failing,
+ * and which a caller must be able to tell apart from a setup it has to repair.
  */
 export async function runCli(argv: readonly string[], handlers: CliHandlers): Promise<ExitCode> {
   const command = parseArgs(argv);
@@ -45,6 +47,6 @@ export async function runCli(argv: readonly string[], handlers: CliHandlers): Pr
     }
   } catch (error) {
     console.error(error instanceof RelayError ? error.message : error);
-    return ExitCode.Error;
+    return error instanceof RoleError ? ExitCode.Blocked : ExitCode.Error;
   }
 }
