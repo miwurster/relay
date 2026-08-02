@@ -138,8 +138,28 @@ function classify(files: readonly RecordFile[]): Records {
   return records;
 }
 
-function legOf(status: RoleStatus, mtimeMs: number): Leg {
-  return { role: status.role, model: status.model, status: statusOf(status.answer), mtimeMs };
+/**
+ * A leg that broke the output protocol reads as its failure, not as the generic
+ * phrase: that leg is why the pass blocked, so the digest has to say so.
+ */
+function legOf(record: RoleStatus, mtimeMs: number): Leg {
+  const status = "failure" in record ? record.failure : statusOf(record.answer);
+  return { role: record.role, model: record.model, status: onePhrase(status), mtimeMs };
+}
+
+/** How long a status phrase may be before the leg it belongs to is unreadable. */
+const PHRASE_LIMIT = 200;
+
+/**
+ * A leg is one line of a table, so its status is one line of text.
+ *
+ * A schema failure carries zod's own message, which is pretty-printed JSON over
+ * a dozen lines — left as it is, one such leg would break every later leg's
+ * columns and bury the pass's shape under one leg's error.
+ */
+function onePhrase(status: string): string {
+  const phrase = status.replace(/\s+/g, " ").trim();
+  return phrase.length > PHRASE_LIMIT ? `${phrase.slice(0, PHRASE_LIMIT)}…` : phrase;
 }
 
 /**
@@ -266,7 +286,7 @@ function isRoleStatus(value: unknown): value is RoleStatus {
     isRecord(value) &&
     typeof value.role === "string" &&
     typeof value.model === "string" &&
-    "answer" in value
+    ("answer" in value || (typeof value.failure === "string" && typeof value.stdout === "string"))
   );
 }
 

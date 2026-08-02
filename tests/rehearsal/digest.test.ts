@@ -225,6 +225,45 @@ describe("digestRecords", () => {
     expect(digest.slice(digest.indexOf("Unparseable records"))).toContain("lander.status.json");
   });
 
+  it("lists a leg that broke the output protocol with its failure as its status", async () => {
+    await passRecords();
+    await record(
+      "fixer-quality.status.json",
+      {
+        role: "fixer-quality",
+        model: "claude-sonnet-5",
+        failure: "fixer-quality emitted no <relay-fix> block.",
+        stdout: "I have addressed both findings.",
+      },
+      6,
+    );
+
+    const digest = await digestRecords(dir);
+
+    expect(digest).toMatch(/fixer-quality.*emitted no <relay-fix> block\./);
+    expect(digest.slice(digest.indexOf("Unparseable records"))).not.toContain("fixer-quality");
+  });
+
+  it("keeps a leg to one line when its failure is a multi-line schema error", async () => {
+    await passRecords();
+    await record(
+      "fixer-quality.status.json",
+      {
+        role: "fixer-quality",
+        model: "claude-sonnet-5",
+        failure: `fixer-quality's <relay-fix> block does not fit: [\n  {\n    "code": "invalid_value"\n  }\n]`,
+        stdout: "Here you go.",
+      },
+      6,
+    );
+
+    const digest = await digestRecords(dir);
+    const legs = digest.slice(digest.indexOf("Legs "), digest.indexOf("Findings by axis"));
+
+    expect(legs.split("\n").filter((line) => line.includes("fixer-quality"))).toHaveLength(1);
+    expect(legs).toContain(`does not fit: [ { "code": "invalid_value" } ]`);
+  });
+
   it("says the record directory is empty rather than throwing", async () => {
     const digest = await digestRecords(dir);
 

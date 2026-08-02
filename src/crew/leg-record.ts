@@ -30,12 +30,23 @@ export const RECORD_RULE: IgnoreRule = {
   why: "What a relay leg recorded. Runtime output, never committed.",
 };
 
-/** The tagged answer one leg ended its run with, as relay parsed it. */
-interface RoleStatus {
-  role: string;
-  model: string;
-  answer: unknown;
-}
+/**
+ * What one leg left behind: the tagged answer as relay parsed it, or the reason
+ * relay could not parse one.
+ *
+ * A leg that broke the output protocol records too, because it is the leg a
+ * human most needs to read — the pass blocked on it
+ * ([ADR-0033](../../docs/adr/0033-a-protocol-slip-gets-one-retry.md)).
+ */
+type RoleStatus = { role: string; model: string } & (
+  | { answer: unknown }
+  | {
+      /** Why the leg's answer could not be read, as the role error phrases it. */
+      failure: string;
+      /** Every attempt's raw output, since nothing parsed out of any of them. */
+      stdout: string;
+    }
+);
 
 /** Write one role's status to the leg's record directory, a file per run. */
 export async function writeStatusFile({

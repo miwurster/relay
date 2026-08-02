@@ -67,7 +67,7 @@ export async function runRole<Schema extends z.ZodType>({
   schema,
   branchRule,
 }: RunRoleOptions<Schema>): Promise<z.infer<Schema>> {
-  const { stdout, commits } = await sandbox.run({
+  const first = await sandbox.run({
     name,
     agent: roleAgent(model),
     // Every role is one shot. Sandcastle defaults to this, but a role that
@@ -84,12 +84,72 @@ export async function runRole<Schema extends z.ZodType>({
     signal: AbortSignal.timeout(config.roleTimeoutMs),
   });
 
-  const answer = readTaggedOutput({ stdout, tag, schema, role: name });
+  // Every attempt's output, kept whole: a role that narrated its answer instead
+  // of tagging it said the substantive thing on its first attempt, and a record
+  // holding only the terse retry would lose exactly what a human came to read.
+  const said = [first.stdout];
+  let commitCount = first.commits.length;
+  let read = readAnswer({ stdout: first.stdout, tag, schema, role: name });
+
+  // A protocol slip is not a role that cannot do the work, so it gets exactly
+  // one more iteration of the same session, told what was wrong
+  // ([ADR-0033](../../docs/adr/0033-a-protocol-slip-gets-one-retry.md)). The
+  // retry runs under a fresh signal from the same role timeout, and its commits
+  // are added to the first attempt's before any branch rule is judged.
+  if ("error" in read && first.resume) {
+    const retry = await first.resume(retryPrompt(read.error, tag), {
+      name: `${name}-retry`,
+      signal: AbortSignal.timeout(config.roleTimeoutMs),
+    });
+    said.push(retry.stdout);
+    commitCount += retry.commits.length;
+    read = readAnswer({ stdout: retry.stdout, tag, schema, role: name });
+  }
+
+  if ("error" in read) {
+    // Recorded before it is raised: the leg the pass blocks on is the one leg a
+    // human has to be able to read, and only the record survives the sandbox.
+    await writeStatusFile({
+      dir: recordDir,
+      status: { role: name, model, failure: read.error, stdout: said.join("\n\n") },
+    });
+    throw new RoleError(read.error);
+  }
+
   // Written before the leg is judged: a leg that broke its branch rule is
   // exactly the one whose answer a human needs to read.
-  await writeStatusFile({ dir: recordDir, status: { role: name, model, answer } });
-  if (branchRule) await enforceBranchRule(sandbox, name, branchRule(answer), commits.length);
-  return answer;
+  await writeStatusFile({ dir: recordDir, status: { role: name, model, answer: read.answer } });
+  if (branchRule) await enforceBranchRule(sandbox, name, branchRule(read.answer), commitCount);
+  return read.answer;
+}
+
+/** The leg's answer, or the sentence saying why there is none to be had. */
+function readAnswer<Schema extends z.ZodType>(options: {
+  stdout: string;
+  tag: string;
+  schema: Schema;
+  role: string;
+}): { answer: z.infer<Schema> } | { error: string } {
+  try {
+    return { answer: readTaggedOutput(options) };
+  } catch (error) {
+    if (error instanceof RoleError) return { error: error.message };
+    throw error;
+  }
+}
+
+/**
+ * What the role is told on its second attempt.
+ *
+ * It names the tag as well as the failure, so a role whose block was missing,
+ * unfenced or the wrong shape all know what to emit — and it asks for the answer
+ * again rather than for the work again, because the work is already done.
+ */
+function retryPrompt(failure: string, tag: string): string {
+  return [
+    `Your last answer did not fit relay's output protocol: ${failure}`,
+    `Re-emit that same answer now as a single <${tag}>…</${tag}> block holding the JSON the prompt asked for, and nothing else. Do not redo the work.`,
+  ].join("\n");
 }
 
 /**
