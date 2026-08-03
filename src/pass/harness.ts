@@ -62,11 +62,12 @@ const QUALITY_FIXER_NO_ANSWER_REASON =
  * Every exit path ends at the same handover call, so no outcome can skip it.
  *
  * A multi-ticket plan is the shape that topology is for. A single-ticket plan
- * drops the per-ticket review, since there is no ticket after it to protect —
- * see `reviewsEachTicket` — and its branch review is asked for `standards` as
- * well as `spec`, because the review that would have read that axis is the one
- * just dropped. It drops the quality review too, since that branch review is
- * then already reading the structural question over the same diff
+ * drops the per-ticket review, since there is no ticket after it to protect, and
+ * its branch review is asked for `standards` as well as `spec`, because the
+ * review that would have read that axis is the one just dropped
+ * ([ADR-0031](../../docs/adr/0031-the-branch-review-takes-the-standards-axis-when-no-ticket-review-ran.md)).
+ * It drops the quality review too, since that branch review is then already
+ * reading the structural question over the same diff
  * ([ADR-0037](../../docs/adr/0037-the-quality-review-runs-only-on-a-multi-ticket-plan.md)).
  */
 export async function runHarness(crew: Crew, workItem: GitHubIssue): Promise<PassFacts> {
@@ -208,7 +209,10 @@ async function runLegs(crew: Crew, workItem: GitHubIssue): Promise<LegsResult> {
   };
 
   try {
-    return await runTopology(crew, workItem, resolvedGate, progress);
+    // The outcome first, then the facts: `progress` is read after the legs have
+    // filled it in, never in the same expression that is still waiting on them.
+    const outcome = await runTopology(crew, workItem, resolvedGate, progress);
+    return { ...progress, outcome };
   } catch (error) {
     if (!(error instanceof RoleError)) throw error;
     return { ...progress, outcome: { kind: "mid-block", reason: error.message } };
@@ -218,31 +222,37 @@ async function runLegs(crew: Crew, workItem: GitHubIssue): Promise<LegsResult> {
 /**
  * The pass's legs in order, filling `progress` in as each one answers, so a leg
  * that fails to answer leaves its caller holding everything the pass got through.
+ *
+ * It answers with the outcome alone: every fact a pass has to show for itself is
+ * in `progress` by the time it returns, so its caller is the one place those two
+ * halves are put together and no exit path here can compose a different pair.
  */
 async function runTopology(
   crew: Crew,
   workItem: GitHubIssue,
   resolvedGate: ResolvedGate,
   progress: PassProgress,
-): Promise<LegsResult> {
+): Promise<Outcome> {
   const plan = await crew.plan(workItem);
   if (plan.kind === "under-specified") {
-    return { ...progress, outcome: { kind: "early-bail", reason: plan.reason } };
+    return { kind: "early-bail", reason: plan.reason };
   }
 
-  const reviewEachTicket = reviewsEachTicket(plan.tickets);
-  const tickets = await implementTickets(crew, plan.tickets, reviewEachTicket, progress);
-  if (tickets.blocked) return { ...progress, outcome: tickets.blocked };
+  // The one fact three of the legs below turn on, and the shape the topology is
+  // for: the per-ticket round exists to keep a bad ticket out of the tickets that
+  // follow it, and a one-ticket plan has none. That holds however the plan came to
+  // have one ticket — whether the work item had no sub-issues and became the
+  // ticket itself, or a human filed exactly one.
+  const multiTicket = plan.tickets.length > 1;
+
+  const tickets = await implementTickets(crew, plan.tickets, multiTicket, progress);
+  if (tickets.blocked) return tickets.blocked;
 
   // One fact, both ways round: the per-ticket review is what reads `standards`,
-  // so the branch review takes that axis exactly when no ticket review ran.
-  const branch = await reviewBranch(
-    crew,
-    workItem.number,
-    reviewEachTicket ? "spec" : "both",
-    progress,
-  );
-  if (branch.blocked) return { ...progress, outcome: branch.blocked };
+  // so the branch review takes that axis exactly when no ticket review ran
+  // ([ADR-0031](../../docs/adr/0031-the-branch-review-takes-the-standards-axis-when-no-ticket-review-ran.md)).
+  const branch = await reviewBranch(crew, workItem.number, multiTicket ? "spec" : "both", progress);
+  if (branch.blocked) return branch.blocked;
 
   // Only now: the branch does what the item asked, so what is left to ask is
   // whether it is worth keeping. A branch that just took a spec fix is the most
@@ -263,7 +273,7 @@ async function runTopology(
   // one review that reads the branch last cannot order the reversal of a fix an
   // earlier review ordered without knowing it is doing so
   // ([ADR-0034](../../docs/adr/0034-the-quality-review-is-told-what-the-pass-already-settled.md)).
-  if (reviewEachTicket) {
+  if (multiTicket) {
     await reviewQuality(crew, workItem.number, [...tickets.fixed, ...branch.fixed], progress);
   }
 
@@ -272,41 +282,19 @@ async function runTopology(
   // already reached rather than claiming the gate never ran.
   const loop = await driveGate(crew, resolvedGate, progress);
   // Only a green branch is worth landing, so a blocked pass never asks.
-  if (loop.outcome.kind !== "success") return { ...progress, outcome: loop.outcome };
+  if (loop.outcome.kind !== "success") return loop.outcome;
 
   // The loop's verdict said nothing about what the base branch has gained since
   // it was taken, so the lander's result is gated once more — the same resolved
   // gate, numbered as the run after the loop's last.
   const land = await crew.land(() => crew.greenGate(loop.runs + 1, resolvedGate));
+  progress.land = land;
   // A base branch that was meant to be landed on and was not is a `mid-block`
   // with everything the pass committed still only on its own branch — nothing
   // landed, nothing closed. Anything else leaves the gate loop's verdict as the
   // outcome: the gate is what verified what landed, and the lander's own story
   // travels beside it.
-  return {
-    ...progress,
-    land,
-    outcome: land.kind === "not-landed" ? { kind: "mid-block", reason: land.reason } : loop.outcome,
-  };
-}
-
-/**
- * Whether each ticket is reviewed as it is implemented.
- *
- * The count is the whole test, and the count is the reason: the per-ticket
- * round exists to keep a bad ticket out of the tickets that follow it, and a
- * one-ticket plan has none. That holds however the plan came to have one ticket
- * — whether the work item had no sub-issues and became the ticket itself, or a
- * human filed exactly one. The branch review then reads that same diff on both
- * axes, and it stays what it always was — the only review that reads a fixer's
- * commit
- * ([ADR-0031](../../docs/adr/0031-the-branch-review-takes-the-standards-axis-when-no-ticket-review-ran.md)),
- * and the quality review — the other whole-branch structural read — is the leg
- * that then stands down
- * ([ADR-0037](../../docs/adr/0037-the-quality-review-runs-only-on-a-multi-ticket-plan.md)).
- */
-function reviewsEachTicket(tickets: readonly TicketRef[]): boolean {
-  return tickets.length > 1;
+  return land.kind === "not-landed" ? { kind: "mid-block", reason: land.reason } : loop.outcome;
 }
 
 /**
