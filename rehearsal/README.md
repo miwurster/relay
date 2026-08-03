@@ -41,7 +41,7 @@ rehearsal/loop.sh 1      # one round
 ```
 
 Runs `npm run rehearse` over every scenario against both landings, `rounds` times, one pass after another.
-Each round is six passes — `happy-path`, `bug-report` and `single-spec`, each `merge` then `pull-request` — and each pass reseeds, so the passes stay independent the way `all` as a `rehearse` argument could not be.
+Each round is six passes — all three scenarios under `merge`, then the same three under `pull-request` — and each pass reseeds, so the passes stay independent the way `all` as a `rehearse` argument could not be.
 
 For the question one digest cannot answer: whether a change to a prompt, a model or the topology holds up across the roles' own variance.
 Read the run files afterwards, not the loop's output.

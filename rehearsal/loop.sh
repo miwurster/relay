@@ -1,5 +1,5 @@
 #!/bin/sh
-# Runs every scenario against both landings, N rounds, one after another.
+# Runs all three scenarios under `merge`, then all three under `pull-request`, N rounds.
 # usage: rehearsal/loop.sh [rounds]   (default 3)
 # Each pass is ~20-35 min, so a 3-round loop is the better part of a day.
 # Digests land in rehearsal/runs/; this log is the only extra artefact.
@@ -12,8 +12,8 @@ log="rehearsal/runs/loop-$(date -u +%Y-%m-%dT%H-%M-%S).log"
 started=$(date -u +%FT%TZ)
 round=1
 while [ "$round" -le "$rounds" ]; do
-  for scenario in happy-path bug-report single-spec; do
-    for landing in merge pull-request; do
+  for landing in merge pull-request; do
+    for scenario in happy-path bug-report single-spec; do
       echo "=== round $round | $scenario | $landing | $(date -u +%FT%TZ) ==="
       npm run rehearse -- "$scenario" "$landing"
       echo "=== exit $? ==="
