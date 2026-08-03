@@ -99,6 +99,10 @@ export async function runRole<Schema extends z.ZodType>({
   if ("error" in read && first.resume) {
     const retry = await first.resume(retryPrompt(read.error, tag), {
       name: `${name}-retry`,
+      // Cleared, because resume carries the first attempt's options forward: the
+      // retry prompt is inline, and sandcastle refuses arguments without a
+      // prompt file. Nothing is lost — the retry prompt has no placeholders.
+      promptArgs: {},
       signal: AbortSignal.timeout(config.roleTimeoutMs),
     });
     said.push(retry.stdout);

@@ -1,7 +1,7 @@
 import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Sandbox, SandboxRunResult } from "@ai-hero/sandcastle";
+import type { ResumeSandboxRunResultOptions, Sandbox, SandboxRunResult } from "@ai-hero/sandcastle";
 import { beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { relayConfigSchema } from "../../src/config.js";
@@ -30,12 +30,14 @@ interface Attempt {
  */
 function fakeSandbox(attempts: readonly Attempt[], { resumable = true } = {}) {
   const prompts: string[] = [];
+  const resumeOptions: (ResumeSandboxRunResultOptions | undefined)[] = [];
   const resultOf = (index: number): SandboxRunResult => {
     const attempt = attempts[index] ?? { stdout: "" };
     const next =
       resumable && index + 1 < attempts.length
-        ? async (prompt: string) => {
+        ? async (prompt: string, options?: ResumeSandboxRunResultOptions) => {
             prompts.push(prompt);
+            resumeOptions.push(options);
             return resultOf(index + 1);
           }
         : undefined;
@@ -49,7 +51,7 @@ function fakeSandbox(attempts: readonly Attempt[], { resumable = true } = {}) {
       return { stdout: "", stderr: "", exitCode: 0 };
     },
   } as unknown as Sandbox;
-  return { sandbox, prompts };
+  return { sandbox, prompts, resumeOptions };
 }
 
 let recordDir: string;
@@ -63,9 +65,14 @@ function running(
   {
     resumable = true,
     branchRule,
-  }: { resumable?: boolean; branchRule?: () => "read-only" | "must-commit" } = {},
+    promptArgs = {},
+  }: {
+    resumable?: boolean;
+    branchRule?: () => "read-only" | "must-commit";
+    promptArgs?: Record<string, string>;
+  } = {},
 ) {
-  const { sandbox, prompts } = fakeSandbox(attempts, { resumable });
+  const { sandbox, prompts, resumeOptions } = fakeSandbox(attempts, { resumable });
   const run = () =>
     runRole({
       sandbox,
@@ -74,12 +81,12 @@ function running(
       name: "fixer-quality",
       model: "claude-sonnet-5",
       prompt: "prompts/fix.md",
-      promptArgs: {},
+      promptArgs,
       tag: TAG,
       schema,
       branchRule,
     });
-  return { run, prompts };
+  return { run, prompts, resumeOptions };
 }
 
 const statusFile = async () =>
@@ -140,6 +147,16 @@ describe("runRole", () => {
       model: "claude-sonnet-5",
       answer: { kind: "done" },
     });
+  });
+
+  it("clears the first attempt's prompt arguments, which an inline retry prompt cannot carry", async () => {
+    const { run, resumeOptions } = running([{ stdout: "nothing" }, { stdout: DONE }], {
+      promptArgs: { TICKET: "#42" },
+    });
+
+    await run();
+
+    expect(resumeOptions[0]).toMatchObject({ promptArgs: {} });
   });
 
   it("tells the retry which tag to re-emit and what was wrong", async () => {
