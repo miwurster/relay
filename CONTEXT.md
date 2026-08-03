@@ -148,7 +148,7 @@ A **finding** an earlier review raised and a **fixer** acted on, whose remedy is
 _Avoid_: applied finding, landed fix, prior finding
 
 **Unaddressed finding**:
-A **finding** nobody acted on, and why: one the **fixer** declined, or one the **re-review** raised, which by design reaches no fixer.
+A **finding** nobody acted on, and why: one the **fixer** declined, one the **re-review** raised, which by design reaches no fixer, or one the **quality review**'s fixer was handed and never decided, because that leg failed to answer.
 Every one of them reaches the **handover** — a green pass names how many, a blocked pass names them all.
 _Avoid_: ignored finding, leftover, open finding
 
@@ -203,6 +203,7 @@ _Avoid_: status, result
 
 **Blocked**:
 A pass that stopped short of green — `mid-block` after work started, or `early-bail` when the planner refused an under-specified **work item**.
+A **leg** that **failed to answer** is one of the things that ends a pass this way, rather than crashing it ([ADR-0036](docs/adr/0036-a-leg-that-fails-to-answer-blocks-the-pass-and-never-on-quality.md)).
 Exit code 1.
 Never used for the tracker relation; that is an **open blocker**.
 _Avoid_: failed, stuck, paused
@@ -275,6 +276,13 @@ _Avoid_: bundled skill, forked skill, inlined skill
 The `<tag>…</tag>` block a **role** ends its run with, holding the JSON answer the harness reads.
 The last block wins — a role that corrected itself means the correction.
 _Avoid_: output block, response payload
+
+**Failed to answer**:
+What a **leg** did when it ran but produced no usable **tagged block** — none at all, one that is not JSON, or one that does not fit the shape its **role** answers in — after the one retry it gets ([ADR-0033](docs/adr/0033-a-protocol-slip-gets-one-retry.md)).
+Not a **crash**: relay knows which leg it was and has the leg's own sentence, so the **pass** it ends is **blocked** rather than crashed, and the **handover** publishes it ([ADR-0036](docs/adr/0036-a-leg-that-fails-to-answer-blocks-the-pass-and-never-on-quality.md)).
+On the **quality review** and its **fixer** it ends nothing at all: that stage cannot stop a pass by any means, so the stage degrades and the pass carries on to its **green gate**.
+The **handover** is the one leg excluded — it is what would have reported the block, so its own failure is a crash.
+_Avoid_: protocol violation, bad output, malformed response
 
 **Init**:
 The one-off bootstrap that writes a repo's `.relay/config.ts`, **sandbox recipe** and **credential file** example from what it can detect, creates the label vocabulary the repo is missing, and names what is left to a human.

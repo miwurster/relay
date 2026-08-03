@@ -1,6 +1,6 @@
 # 0003. A crashed pass leaves its work for a human, and relay never touches an existing branch
 
-- **Status:** accepted
+- **Status:** accepted, what counts as a crash narrowed by [ADR-0036](0036-a-leg-that-fails-to-answer-blocks-the-pass-and-never-on-quality.md)
 - **Date:** 2026-07-26
 
 ## Context and Problem Statement

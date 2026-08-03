@@ -147,7 +147,7 @@ The planner refused an under-specified item before any code was written.
 ## 3. Say what the pass left unaddressed
 
 A review raises findings and the fixer answers each one.
-These are the ones nobody acted on — a finding the fixer declined, or one the branch re-review raised after the fixer's own commit:
+These are the ones nobody acted on — a finding the fixer declined, one the branch re-review raised after the fixer's own commit, or one the quality review's fixer was handed and never decided because that leg failed to answer:
 
 ```
 {{UNADDRESSED}}

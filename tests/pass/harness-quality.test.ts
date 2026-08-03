@@ -1,5 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Crew, Finding, ReviewScope } from "../../src/crew/contract.js";
+import { RoleError } from "../../src/errors.js";
+import { ExitCode } from "../../src/exit-codes.js";
+import { exitCodeFor } from "../../src/pass/harness.js";
 import {
   finding,
   recordingCrew,
@@ -164,6 +167,113 @@ describe("runHarness reviewing the branch's quality", () => {
       );
 
       expect(scope).toEqual({ kind: "quality", workItem: 1, settled: [onTicket] });
+    });
+  });
+
+  /**
+   * The stage cannot stop a pass by any means — not by a finding, which it cannot
+   * raise bindingly, and not by a leg that fails to answer
+   * ([ADR-0036](../../docs/adr/0036-a-leg-that-fails-to-answer-blocks-the-pass-and-never-on-quality.md)).
+   */
+  describe("a leg of it that fails to answer", () => {
+    const slip = new RoleError("the quality fixer emitted no <relay-fix> block");
+
+    /** A crew whose quality review throws what it is given, and whose others are clean. */
+    const reviewThatFailsToAnswer = (error: Error): Partial<Crew> => ({
+      async review(scope) {
+        if (scope.kind === "quality") throw error;
+        return [];
+      },
+    });
+
+    beforeEach(() => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("leaves the pass running to the gate when it is the reviewer, with nothing unaddressed", async () => {
+      const { crew, calls, unaddressed } = recordingCrew({
+        async review(scope) {
+          calls.push(`review:${reviewName(scope)}`);
+          if (scope.kind === "quality") throw slip;
+          return [];
+        },
+      });
+
+      const outcome = await run(crew);
+
+      expect(outcome).toEqual({ kind: "success", detail: "green" });
+      expect(calls.slice(calls.indexOf("review:quality"))).toEqual([
+        "review:quality",
+        "gate",
+        "land",
+        "handover:success",
+      ]);
+      expect(unaddressed()).toEqual([]);
+    });
+
+    it("leaves every finding it was handed unaddressed when it is the fixer", async () => {
+      const { crew, calls, unaddressed } = recordingCrew({
+        async review(scope) {
+          calls.push(`review:${reviewName(scope)}`);
+          return scope.kind === "quality" ? [wanted] : [];
+        },
+        async fix() {
+          calls.push("fix");
+          throw slip;
+        },
+      });
+
+      const outcome = await run(crew);
+
+      expect(outcome).toEqual({ kind: "success", detail: "green" });
+      expect(calls.slice(calls.indexOf("review:quality"))).toEqual([
+        "review:quality",
+        "fix",
+        "gate",
+        "land",
+        "handover:success",
+      ]);
+      expect(unaddressed()).toEqual([
+        {
+          finding: wanted,
+          reason: "the quality fixer failed to answer, so nothing it was handed was decided",
+        },
+      ]);
+    });
+
+    it("lands the pass and exits zero when the gate is green after the degrade", async () => {
+      const { crew, land } = recordingCrew({
+        ...reviewThatFailsToAnswer(slip),
+        async land() {
+          return { kind: "landed", detail: "fast-forwarded main onto the pass branch" };
+        },
+      });
+
+      const outcome = await run(crew);
+
+      expect(exitCodeFor(outcome)).toBe(ExitCode.Success);
+      expect(land()).toEqual({
+        kind: "landed",
+        detail: "fast-forwarded main onto the pass branch",
+      });
+    });
+
+    it("names it on the console, since the handover cannot tell it from a clean review", async () => {
+      const { crew } = recordingCrew(reviewThatFailsToAnswer(slip));
+
+      await run(crew);
+
+      expect(console.error).toHaveBeenCalledWith(expect.stringContaining(slip.message));
+    });
+
+    it("lets a leg that died for any other reason through as the crash it is", async () => {
+      const { crew } = recordingCrew(reviewThatFailsToAnswer(new Error("the sandbox died")));
+
+      await expect(run(crew)).rejects.toThrow("the sandbox died");
     });
   });
 

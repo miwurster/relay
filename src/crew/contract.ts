@@ -90,8 +90,11 @@ export type Verdict = { kind: "fixed" } | { kind: "skipped"; reason: string };
 /**
  * A finding the pass left unaddressed, and why nobody acted on it.
  *
- * Two things reach this: a finding the fixer declined, and a finding the
- * **re-review** raised, which by design reaches no fixer at all.
+ * Three things reach this: a finding the fixer declined, a finding the
+ * **re-review** raised, which by design reaches no fixer at all, and a finding
+ * the quality review's fixer was handed and never decided, because that leg
+ * failed to answer
+ * ([ADR-0036](../../docs/adr/0036-a-leg-that-fails-to-answer-blocks-the-pass-and-never-on-quality.md)).
  */
 export interface UnaddressedFinding {
   finding: Finding;

@@ -10,7 +10,7 @@ import { runCli } from "../../src/cli.js";
 import { passRecordDir } from "../../src/crew/leg-record.js";
 import { CONFIG_FILE_PATH, relayConfigSchema, RELAY_DIR } from "../../src/config.js";
 import type { Crew } from "../../src/crew/contract.js";
-import { ConfigError, SandboxError } from "../../src/errors.js";
+import { ConfigError, RoleError, SandboxError } from "../../src/errors.js";
 import { ExitCode } from "../../src/exit-codes.js";
 import type { GitHubClient, GitHubIssue } from "../../src/tracker/github.js";
 import { type PassRun, runPass, runPassOnItem } from "../../src/pass/pass.js";
@@ -189,6 +189,30 @@ function crashingCrew(): Crew {
   };
 }
 
+/**
+ * A crew whose implementer ran and did not answer usably, which is a block
+ * rather than a crash
+ * ([ADR-0036](../../docs/adr/0036-a-leg-that-fails-to-answer-blocks-the-pass-and-never-on-quality.md)).
+ */
+function legThatFailsToAnswer(): Crew {
+  return {
+    ...createStubCrew(),
+    async implement() {
+      throw new RoleError("the implementer emitted no <relay-implement> block");
+    },
+  };
+}
+
+/** A crew whose handover fails to answer — the one leg whose slip is still a crash. */
+function handoverThatFailsToAnswer(): Crew {
+  return {
+    ...createStubCrew(),
+    async handover() {
+      throw new RoleError("handover emitted no <relay-handover> block");
+    },
+  };
+}
+
 /** The exit code the CLI ends on for a pass that throws. */
 async function exitCodeOf(run: () => Promise<ExitCode>): Promise<ExitCode> {
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -325,9 +349,38 @@ describe("runPassOnItem", () => {
     expect(archived).toHaveLength(1);
   });
 
-  it("records a crash as a crash, since that pass reached no handover to tell", async () => {
+  it("records a leg that failed to answer as handed over, not as a crash", async () => {
     const root = await gitRepo();
-    const { github } = fakeGitHub();
+    const { github, comments } = fakeGitHub();
+    vi.spyOn(console, "log").mockImplementation(() => {});
+
+    const code = await runOnePass({ github, repoRoot: root, createCrew: legThatFailsToAnswer });
+
+    expect(code).toBe(ExitCode.Blocked);
+    const record = await readPassRecord(passRecordDir(root, workItem.number));
+    expect(record?.end.kind).toBe("handed-over");
+    // The handover is what reports a block, so the crash comment would be a
+    // second, wrong story about one event.
+    expect(comments).toEqual([]);
+  });
+
+  it("keeps a handover that failed to answer a crash, since nothing reported the block", async () => {
+    const root = await gitRepo();
+    const { github, comments } = fakeGitHub();
+    vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await expect(
+      runOnePass({ github, repoRoot: root, createCrew: handoverThatFailsToAnswer }),
+    ).rejects.toThrow(RoleError);
+
+    const record = await readPassRecord(passRecordDir(root, workItem.number));
+    expect(record?.end.kind).toBe("crashed");
+    expect(comments[0]?.text).toMatch(/relay crashed[\s\S]*<relay-handover>/);
+  });
+
+  it("records a crash as a crash and comments it, since that pass reached no handover to tell", async () => {
+    const root = await gitRepo();
+    const { github, comments } = fakeGitHub();
     vi.spyOn(console, "log").mockImplementation(() => {});
 
     await expect(runOnePass({ github, repoRoot: root, createCrew: crashingCrew })).rejects.toThrow(
@@ -336,6 +389,7 @@ describe("runPassOnItem", () => {
 
     const record = await readPassRecord(passRecordDir(root, workItem.number));
     expect(record?.end).toEqual({ kind: "crashed", error: "the sandbox died" });
+    expect(comments[0]?.text).toMatch(/relay crashed[\s\S]*the sandbox died/);
   });
 
   it("refuses to run when the pass branch already exists, without opening a sandbox", async () => {

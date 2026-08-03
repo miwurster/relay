@@ -5,6 +5,7 @@ import {
   findingLabel,
   type FixReport,
   type FixTarget,
+  type GateResult,
   type GateVerdict,
   isBinding,
   type LandResult,
@@ -17,6 +18,7 @@ import {
   type TicketRef,
   type UnaddressedFinding,
 } from "../crew/contract.js";
+import { RoleError } from "../errors.js";
 import { ExitCode } from "../exit-codes.js";
 import type { GitHubIssue } from "../tracker/github.js";
 
@@ -37,6 +39,18 @@ export const MAX_GATE_FIX_ATTEMPTS = 2;
  */
 const REREVIEW_REASON =
   "the re-review found the fixer's commit does not address it, and a re-review's findings reach no fixer";
+
+/**
+ * Why a finding the quality fixer was handed was left where it was.
+ *
+ * A quality fixer that fails to answer decided nothing about the findings it was
+ * handed, and `quality` is not an axis anything may stop a pass on
+ * ([ADR-0036](../../docs/adr/0036-a-leg-that-fails-to-answer-blocks-the-pass-and-never-on-quality.md))
+ * — so they are reported as unaddressed rather than blocking. A weaker signal
+ * than a fixer that declined with a reason, and named as one.
+ */
+const QUALITY_FIXER_NO_ANSWER_REASON =
+  "the quality fixer failed to answer, so nothing it was handed was decided";
 
 /**
  * Run the pass's crew over one work item and return how it ended.
@@ -141,6 +155,39 @@ interface LegsResult {
   unaddressed: UnaddressedFinding[];
 }
 
+/**
+ * What the pass has to show for itself so far, filled in by each leg as it
+ * answers rather than assembled from what the stages returned.
+ *
+ * As it goes, because a leg that fails to answer stops its stage mid-way: the
+ * tickets already committed and the findings already left are facts the block has
+ * to carry, and a stage that returned nothing cannot hand them over
+ * ([ADR-0036](../../docs/adr/0036-a-leg-that-fails-to-answer-blocks-the-pass-and-never-on-quality.md)).
+ */
+type PassProgress = Omit<LegsResult, "outcome">;
+
+/**
+ * Run the legs, and turn a leg that failed to answer into a block rather than a
+ * crash.
+ *
+ * A `RoleError` is a leg that ran and did not deliver a usable answer, after the
+ * one retry it gets ([ADR-0033](../../docs/adr/0033-a-protocol-slip-gets-one-retry.md)).
+ * That is a pass a human has to look at, but it is not a crash: relay knows what
+ * happened, and the pass has committed tickets, findings and a gate verdict to
+ * report. So it becomes a `mid-block` carrying the error's own sentence, with
+ * whatever `progress` had by then, and takes the ordinary blocked path — the
+ * handover runs, the labels are swapped, the branch is pushed
+ * ([ADR-0036](../../docs/adr/0036-a-leg-that-fails-to-answer-blocks-the-pass-and-never-on-quality.md)).
+ *
+ * Deliberately inside the legs and outside the handover call, which is why the
+ * conversion is here rather than in `runHarness`: a handover that fails to
+ * answer is still a crash, because it is the leg that would have reported the
+ * block and there is nothing left to hand the work to.
+ *
+ * The gate resolver is outside it too, for a narrower reason: it is what supplies
+ * the `ResolvedGate` every `GateVerdict` carries, so a pass that never got one
+ * has no gate verdict to state and nothing to report the block with.
+ */
 async function runLegs(crew: Crew, workItem: GitHubIssue): Promise<LegsResult> {
   // Resolved once per pass, ahead of the planner, so the same command answers
   // every attempt of the gate loop below — and so even a pass the planner bails
@@ -151,29 +198,48 @@ async function runLegs(crew: Crew, workItem: GitHubIssue): Promise<LegsResult> {
   // landed and nothing is verified until the legs that do so say so, which is why
   // `no-landing` and `not-gated` are the defaults rather than facts every exit
   // short of those legs has to restate.
-  const progress: Omit<LegsResult, "outcome"> = {
+  const progress: PassProgress = {
     committed: [],
     land: NO_LANDING,
     gate: notGated(resolvedGate),
     unaddressed: [],
   };
 
+  try {
+    return await runTopology(crew, workItem, resolvedGate, progress);
+  } catch (error) {
+    if (!(error instanceof RoleError)) throw error;
+    return { ...progress, outcome: { kind: "mid-block", reason: error.message } };
+  }
+}
+
+/**
+ * The pass's legs in order, filling `progress` in as each one answers, so a leg
+ * that fails to answer leaves its caller holding everything the pass got through.
+ */
+async function runTopology(
+  crew: Crew,
+  workItem: GitHubIssue,
+  resolvedGate: ResolvedGate,
+  progress: PassProgress,
+): Promise<LegsResult> {
   const plan = await crew.plan(workItem);
   if (plan.kind === "under-specified") {
     return { ...progress, outcome: { kind: "early-bail", reason: plan.reason } };
   }
 
   const reviewEachTicket = reviewsEachTicket(plan.tickets);
-  const tickets = await implementTickets(crew, plan.tickets, reviewEachTicket);
-  progress.committed = tickets.committed;
-  progress.blockedOn = tickets.blockedOn;
-  progress.unaddressed.push(...tickets.unaddressed);
+  const tickets = await implementTickets(crew, plan.tickets, reviewEachTicket, progress);
   if (tickets.blocked) return { ...progress, outcome: tickets.blocked };
 
   // One fact, both ways round: the per-ticket review is what reads `standards`,
   // so the branch review takes that axis exactly when no ticket review ran.
-  const branch = await reviewBranch(crew, workItem.number, reviewEachTicket ? "spec" : "both");
-  progress.unaddressed.push(...branch.unaddressed);
+  const branch = await reviewBranch(
+    crew,
+    workItem.number,
+    reviewEachTicket ? "spec" : "both",
+    progress,
+  );
   if (branch.blocked) return { ...progress, outcome: branch.blocked };
 
   // Only now: the branch does what the item asked, so what is left to ask is
@@ -181,28 +247,22 @@ async function runLegs(crew: Crew, workItem: GitHubIssue): Promise<LegsResult> {
   // likely to be structurally messy, which is why this runs after the fix rather
   // than only over a review that was clean first time.
   //
-  // Nothing here can block, and there is no re-review: a `quality` finding is not
-  // binding, and a fix is verified once
-  // ([ADR-0022](../../docs/adr/0022-a-fix-is-verified-once.md)). What the fixer
-  // declined is reported so a human knows a role overrode a call about their code.
+  // Nothing here can block — not a finding, and not a leg that fails to answer
+  // — and there is no re-review: a `quality` finding is not binding, and a fix is
+  // verified once ([ADR-0022](../../docs/adr/0022-a-fix-is-verified-once.md)).
+  // What the fixer declined is reported so a human knows a role overrode a call
+  // about their code.
   //
   // It is handed everything the pass's earlier fixers changed code for, so the
   // one review that reads the branch last cannot order the reversal of a fix an
   // earlier review ordered without knowing it is doing so
   // ([ADR-0034](../../docs/adr/0034-the-quality-review-is-told-what-the-pass-already-settled.md)).
-  const quality = await reviewAndFix(crew, {
-    kind: "quality",
-    workItem: workItem.number,
-    settled: [...tickets.fixed, ...branch.fixed],
-  });
-  progress.unaddressed.push(...quality.skipped);
+  await reviewQuality(crew, workItem.number, [...tickets.fixed, ...branch.fixed], progress);
 
-  const loop = await driveGate(crew, resolvedGate);
-  progress.unaddressed.push(...loop.unaddressed);
-  // The loop's last run, which is the verdict that decided the pass. The lander's
-  // own re-gate travels in its `LandResult` instead, since what it verified is a
-  // branch the loop never saw.
-  progress.gate = loop.verdict;
+  // It writes each run's verdict into `progress` as that run answers, so a fixer
+  // that fails to answer mid-loop still hands over the red verdict that was
+  // already reached rather than claiming the gate never ran.
+  const loop = await driveGate(crew, resolvedGate, progress);
   // Only a green branch is worth landing, so a blocked pass never asks.
   if (loop.outcome.kind !== "success") return { ...progress, outcome: loop.outcome };
 
@@ -239,12 +299,11 @@ function reviewsEachTicket(tickets: readonly TicketRef[]): boolean {
 }
 
 /**
- * What one stage of the topology left behind: findings nobody acted on, and any
- * block they earn. Every stage below reports this shape, which is what lets
- * `runLegs` treat them alike.
+ * What one stage of the topology answers with. The findings it left unaddressed
+ * are not here: a stage writes those into `PassProgress` as it produces them, so
+ * a leg that fails to answer part-way through does not take them with it.
  */
 interface StageResult {
-  unaddressed: UnaddressedFinding[];
   /**
    * The findings this stage's fixer changed code for, which travel to the
    * quality review as the decisions already on the branch
@@ -252,13 +311,6 @@ interface StageResult {
    */
   fixed: readonly Finding[];
   blocked?: Outcome;
-}
-
-/** What the ticket loop got through, plus whatever stopped it. */
-interface TicketsResult extends StageResult {
-  committed: TicketRef[];
-  /** The ticket an implementer asked for a human over, when one did. */
-  blockedOn?: TicketRef;
 }
 
 /**
@@ -276,33 +328,27 @@ async function implementTickets(
   crew: Crew,
   tickets: readonly TicketRef[],
   reviewEachTicket: boolean,
-): Promise<TicketsResult> {
-  const committed: TicketRef[] = [];
-  const unaddressed: UnaddressedFinding[] = [];
+  progress: PassProgress,
+): Promise<StageResult> {
   const fixed: Finding[] = [];
   for (const ticket of tickets) {
     const result = await crew.implement(ticket);
     if (result.kind === "needs-input") {
       // Named rather than only counted as absent: it carries the hold its
       // implementer applied, and the handover is the leg that has to say so.
-      return {
-        committed,
-        unaddressed,
-        fixed,
-        blockedOn: ticket,
-        blocked: { kind: "mid-block", reason: result.reason },
-      };
+      progress.blockedOn = ticket;
+      return { fixed, blocked: { kind: "mid-block", reason: result.reason } };
     }
-    committed.push(ticket);
+    progress.committed.push(ticket);
     if (!reviewEachTicket) continue;
 
     const report = await reviewAndFix(crew, { kind: "ticket", ticket, base: result.base });
-    unaddressed.push(...report.skipped);
+    progress.unaddressed.push(...report.skipped);
     fixed.push(...report.fixed);
     const blocked = blockFor(report.skipped);
-    if (blocked) return { committed, unaddressed, fixed, blocked };
+    if (blocked) return { fixed, blocked };
   }
-  return { committed, unaddressed, fixed };
+  return { fixed };
 }
 
 /**
@@ -322,7 +368,12 @@ async function implementTickets(
  * touched anything
  * ([ADR-0032](../../docs/adr/0032-the-re-review-verifies-the-fix-it-was-handed.md)).
  */
-async function reviewBranch(crew: Crew, workItem: number, axes: BranchAxes): Promise<StageResult> {
+async function reviewBranch(
+  crew: Crew,
+  workItem: number,
+  axes: BranchAxes,
+  progress: PassProgress,
+): Promise<StageResult> {
   const report = await reviewAndFix(crew, {
     kind: "branch",
     workItem,
@@ -331,19 +382,21 @@ async function reviewBranch(crew: Crew, workItem: number, axes: BranchAxes): Pro
   });
   const declined = report.skipped;
   const fixed = report.fixed;
+  progress.unaddressed.push(...declined);
   const blocked = blockFor(declined);
-  if (blocked) return { unaddressed: [...declined], fixed, blocked };
+  if (blocked) return { fixed, blocked };
   // Nothing changed, so there is nothing new to read: a review that found
   // nothing, or a fixer that declined all of it, has already been accounted for.
-  if (fixed.length === 0) return { unaddressed: [...declined], fixed };
+  if (fixed.length === 0) return { fixed };
 
   // The same axes as the first run: what it verifies is that review's own
   // findings, so an axis dropped here would be a claim nobody checked.
   const findings = await crew.review({ kind: "branch", workItem, axes, verifying: fixed });
   const raised = findings.map((finding) => ({ finding, reason: REREVIEW_REASON }));
+  progress.unaddressed.push(...raised);
   // Only the re-review's own findings can block from here: whatever the fixer
   // declined was already judged above, and it did not.
-  return { unaddressed: [...declined, ...raised], fixed, blocked: blockFor(raised) };
+  return { fixed, blocked: blockFor(raised) };
 }
 
 /**
@@ -367,6 +420,53 @@ function blockFor(unaddressed: readonly UnaddressedFinding[]): Outcome | undefin
   };
 }
 
+/**
+ * The quality review and its fix, neither of which may stop the pass by any
+ * means.
+ *
+ * Its own sequence rather than `reviewAndFix`'s, because the degrade between the
+ * two legs is what this stage is: the shared helper cannot express it, and the
+ * ticket and branch scopes must not gain it
+ * ([ADR-0036](../../docs/adr/0036-a-leg-that-fails-to-answer-blocks-the-pass-and-never-on-quality.md)).
+ *
+ * - A **reviewer** that fails to answer means the stage produced nothing. There
+ *   are no findings, so nothing is unaddressed and there is nothing to fix.
+ * - A **fixer** that fails to answer means the findings it was handed were never
+ *   decided, so every one of them is unaddressed under `QUALITY_FIXER_NO_ANSWER_REASON`.
+ *   Whatever it had already committed is judged by the green gate next, which is
+ *   this stage's only verifier by design.
+ *
+ * Either way the pass carries on to the gate. Both are named on the console,
+ * because the handover cannot tell a skipped review from one that found nothing.
+ */
+async function reviewQuality(
+  crew: Crew,
+  workItem: number,
+  settled: readonly Finding[],
+  progress: PassProgress,
+): Promise<void> {
+  let findings: Finding[];
+  try {
+    findings = await crew.review({ kind: "quality", workItem, settled });
+  } catch (error) {
+    if (!(error instanceof RoleError)) throw error;
+    console.error(`relay: the quality review failed to answer, and cannot block: ${error.message}`);
+    return;
+  }
+  if (findings.length === 0) return;
+
+  try {
+    const report = await crew.fix(findings, { kind: "quality" });
+    progress.unaddressed.push(...report.skipped);
+  } catch (error) {
+    if (!(error instanceof RoleError)) throw error;
+    console.error(`relay: the quality fixer failed to answer, and cannot block: ${error.message}`);
+    progress.unaddressed.push(
+      ...findings.map((finding) => ({ finding, reason: QUALITY_FIXER_NO_ANSWER_REASON })),
+    );
+  }
+}
+
 /** Review one scope and hand whatever it wants changed to the fixer. */
 async function reviewAndFix(crew: Crew, scope: ReviewScope): Promise<FixReport> {
   const findings: Finding[] = await crew.review(scope);
@@ -388,12 +488,8 @@ function fixTargetFor(scope: ReviewScope): FixTarget {
 /** How the gate loop ended, and how many gate runs it took to get there. */
 interface GateLoop {
   outcome: Outcome;
-  /** What the loop's last run said, which is the verdict the handover reports. */
-  verdict: GateVerdict;
   /** How many gate runs it took, which is what a later run has to number after. */
   runs: number;
-  /** The gate findings the fixer declined, which are reported but never block. */
-  unaddressed: UnaddressedFinding[];
 }
 
 /**
@@ -403,25 +499,38 @@ interface GateLoop {
  * stays red, and the cap below is what blocks. Its declines are still reported,
  * because a fixer that talked its way past a red gate that then went green on
  * its own is worth a human knowing about.
+ *
+ * Each run's verdict goes into `progress` as that run answers, so what the
+ * handover reports is the last verdict the loop actually reached — including when
+ * a fixer between two runs fails to answer. The lander's own re-gate travels in
+ * its `LandResult` instead, since what it verified is a branch the loop never saw.
  */
-async function driveGate(crew: Crew, gate: ResolvedGate): Promise<GateLoop> {
+async function driveGate(
+  crew: Crew,
+  gate: ResolvedGate,
+  progress: PassProgress,
+): Promise<GateLoop> {
   let result = await crew.greenGate(1, gate);
   let runs = 1;
-  const unaddressed: UnaddressedFinding[] = [];
+  progress.gate = gatedVerdict(gate, result);
   for (let attempt = 1; !result.green && attempt <= MAX_GATE_FIX_ATTEMPTS; attempt++) {
     const report = await crew.fix([gateFinding(result.detail)], { kind: "gate", attempt });
-    unaddressed.push(...report.skipped);
+    progress.unaddressed.push(...report.skipped);
     result = await crew.greenGate(attempt + 1, gate);
     runs++;
+    progress.gate = gatedVerdict(gate, result);
   }
   return {
     outcome: result.green
       ? { kind: "success", detail: result.detail }
       : { kind: "mid-block", reason: result.detail },
-    verdict: { kind: "gated", gate, green: result.green, detail: result.detail },
     runs,
-    unaddressed,
   };
+}
+
+/** What one gate run said, as the verdict the handover reports. */
+function gatedVerdict(gate: ResolvedGate, result: GateResult): GateVerdict {
+  return { kind: "gated", gate, green: result.green, detail: result.detail };
 }
 
 function gateFinding(detail: string): Finding {
