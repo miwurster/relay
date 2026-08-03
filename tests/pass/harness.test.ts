@@ -333,6 +333,27 @@ describe("runHarness", () => {
     ]);
   });
 
+  it("answers with the findings nobody addressed too, since only the record carries the reason", async () => {
+    const { crew } = recordingCrew({
+      async review(scope) {
+        if (scope.kind !== "branch" || scope.verifying) return [];
+        return [finding("branch-review", "standards", "the two loaders should be one")];
+      },
+      async fix(findings) {
+        return skippedAll(findings, "AGENTS.md prefers one file until a second caller exists");
+      },
+    });
+
+    const facts = await runHarness(crew, workItem);
+
+    expect(facts.unaddressed).toEqual([
+      {
+        finding: finding("branch-review", "standards", "the two loaders should be one"),
+        reason: "AGENTS.md prefers one file until a second caller exists",
+      },
+    ]);
+  });
+
   it("hands the handover the gate's verdict, rather than leaving it to infer it", async () => {
     const { crew, gate } = recordingCrew();
 

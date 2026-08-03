@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import { type Landing, LANDINGS } from "../config.js";
-import type { PassFacts } from "../crew/contract.js";
+import type { Finding, PassFacts } from "../crew/contract.js";
 
 /** The pass record's file name, in the same directory as the pass's leg records. */
 export const PASS_RECORD_FILE = "pass.json";
@@ -47,6 +47,18 @@ export async function writePassRecord({
 }
 
 const ticketRefSchema = z.object({ number: z.number(), summary: z.string() });
+
+const findingSchema: z.ZodType<Finding> = z.union([
+  z.object({
+    source: z.enum(["ticket-review", "branch-review", "quality-review"]),
+    axis: z.enum(["standards", "spec", "quality"]),
+    ticket: z.number().optional(),
+    summary: z.string(),
+  }),
+  z.object({ source: z.literal("green-gate"), summary: z.string() }),
+]);
+
+const unaddressedFindingSchema = z.object({ finding: findingSchema, reason: z.string() });
 
 const resolvedGateSchema = z.object({
   command: z.string(),
@@ -103,6 +115,7 @@ const passRecordSchema: z.ZodType<PassRecord> = z.object({
       committed: z.array(ticketRefSchema),
       finished: z.array(ticketRefSchema),
       blocked: z.array(ticketRefSchema),
+      unaddressed: z.array(unaddressedFindingSchema),
     }),
   ]),
 });

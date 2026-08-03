@@ -277,6 +277,14 @@ export interface PassFacts {
   finished: readonly TicketRef[];
   /** The tickets a human has to decide about. */
   blocked: readonly TicketRef[];
+  /**
+   * Every finding nobody acted on, with the reason nobody did.
+   *
+   * A harness fact like the rest of them, and not one the verdict records carry:
+   * a fixer that failed to answer wrote no verdicts at all, so the reason those
+   * findings went unaddressed exists here or nowhere.
+   */
+  unaddressed: readonly UnaddressedFinding[];
 }
 
 /**

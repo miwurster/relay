@@ -2,8 +2,9 @@ import { mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
-import type { Finding } from "../../src/crew/contract.js";
+import type { Finding, UnaddressedFinding } from "../../src/crew/contract.js";
 import { digestRecords } from "../../src/archive/digest.js";
+import { writePassRecord } from "../../src/archive/pass-record.js";
 
 /** The mtimes the durations are read out of, one minute apart per leg. */
 const GENESIS = new Date("2026-07-30T12:00:00Z").getTime();
@@ -106,6 +107,36 @@ async function passRecords(): Promise<void> {
   );
 }
 
+/** The pass's own record, which is where the unaddressed findings are read from. */
+async function passRecord(unaddressed: readonly UnaddressedFinding[]): Promise<void> {
+  await writePassRecord({
+    dir,
+    record: {
+      workItem: 101,
+      branch: "agent/101",
+      baseBranch: "main",
+      landing: "merge",
+      startedAt: new Date(GENESIS).toISOString(),
+      endedAt: new Date(GENESIS + 8 * MINUTE).toISOString(),
+      end: {
+        kind: "handed-over",
+        outcome: { kind: "success", detail: "landed" },
+        gate: {
+          kind: "gated",
+          gate: { command: "npm run verify", provenance: "declared", source: "AGENTS.md" },
+          green: true,
+          detail: "exited 0",
+        },
+        land: { kind: "landed", detail: "fast-forwarded main" },
+        committed: [],
+        finished: [],
+        blocked: [],
+        unaddressed,
+      },
+    },
+  });
+}
+
 describe("digestRecords", () => {
   it("names every leg that recorded, with its role, its model and its status", async () => {
     await passRecords();
@@ -186,15 +217,39 @@ describe("digestRecords", () => {
     expect(digest).toContain("the name matches the repo's own convention");
   });
 
-  it("lists the finding the fixer declined and the one the re-review raised", async () => {
+  it("lists every finding the pass recorded as unaddressed, with the reason it recorded", async () => {
     await passRecords();
+    await passRecord([
+      { finding: standardsFinding, reason: "the fixer declined it" },
+      { finding: rereviewFinding, reason: "a re-review's findings reach no fixer" },
+    ]);
 
     const digest = await digestRecords(dir);
 
     const unaddressed = digest.slice(digest.indexOf("Unaddressed findings"));
-    expect(unaddressed).toContain(standardsFinding.summary);
+    expect(unaddressed).toContain(`${standardsFinding.summary} — the fixer declined it`);
     expect(unaddressed).toContain(rereviewFinding.summary);
     expect(unaddressed).not.toContain(specFinding.summary);
+  });
+
+  it("reports the pass's own reason for a finding whose fixer left no verdicts", async () => {
+    await passRecords();
+    await rm(join(dir, "fixer-quality.verdicts.json"));
+    await passRecord([{ finding: qualityFinding, reason: "the quality fixer failed to answer" }]);
+
+    const digest = await digestRecords(dir);
+    const unaddressed = digest.slice(digest.indexOf("Unaddressed findings"));
+
+    expect(unaddressed).toContain(`${qualityFinding.summary} — the quality fixer failed to answer`);
+    expect(unaddressed).not.toContain("no fixer was handed it");
+  });
+
+  it("says nothing is unaddressed where the pass recorded no facts at all", async () => {
+    await passRecords();
+
+    const digest = await digestRecords(dir);
+
+    expect(digest.slice(digest.indexOf("Unaddressed findings"))).toContain("none");
   });
 
   it("presents each leg's duration as approximate, derived from record mtimes", async () => {

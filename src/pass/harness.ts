@@ -77,7 +77,7 @@ export async function runHarness(crew: Crew, workItem: GitHubIssue): Promise<Pas
   // The same facts the handover was told, answered rather than only spoken: they
   // are what the pass record holds, and nothing on disk holds them otherwise
   // ([ADR-0035](../../docs/adr/0035-a-pass-records-its-own-facts.md)).
-  return { outcome, gate, land, committed, finished, blocked };
+  return { outcome, gate, land, committed, finished, blocked, unaddressed };
 }
 
 /** Which tickets the pass earned a done for, and which one a human has to decide about. */

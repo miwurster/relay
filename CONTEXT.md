@@ -150,7 +150,7 @@ _Avoid_: applied finding, landed fix, prior finding
 
 **Unaddressed finding**:
 A **finding** nobody acted on, and why: one the **fixer** declined, one the **re-review** raised, which by design reaches no fixer, or one the **quality review**'s fixer was handed and never decided, because that leg failed to answer.
-Every one of them reaches the **handover** — a green pass names how many, a blocked pass names them all.
+Every one of them reaches the **handover** — a green pass names how many, a blocked pass names them all — and the **pass record** carries them, since a fixer that failed to answer wrote no **verdict** to read one off.
 _Avoid_: ignored finding, leftover, open finding
 
 ## Finishing

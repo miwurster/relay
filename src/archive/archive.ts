@@ -66,7 +66,7 @@ export async function renderArchive(
 
   return [
     headingSection({ workItem, archivedAt, record }),
-    await digestRecords(dir, record ? Date.parse(record.startedAt) : undefined),
+    await digestRecords(dir),
     await diffSection({ repoRoot, record, git }),
     await transcriptsSection({ repoRoot, branch }),
   ].join("\n");

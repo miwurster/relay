@@ -35,6 +35,7 @@ const handedOver: PassRecord = {
     committed: [{ number: 43, summary: "the search core" }],
     finished: [],
     blocked: [{ number: 43, summary: "the search core" }],
+    unaddressed: [],
   },
 };
 

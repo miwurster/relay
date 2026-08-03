@@ -2,7 +2,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { type Axis, type Finding, findingLabel } from "../crew/contract.js";
 import type { FindingVerdict, RoleStatus } from "../crew/leg-record.js";
-import { PASS_RECORD_FILE } from "./pass-record.js";
+import { PASS_RECORD_FILE, type PassRecord, readPassRecord } from "./pass-record.js";
 import { section } from "./section.js";
 
 const STATUS_SUFFIX = ".status.json";
@@ -68,18 +68,19 @@ interface RecordFile {
  * section that vanished when it was empty would show up in a diff as a change to
  * the flow rather than as the absence it is.
  */
-export async function digestRecords(dir: string, startedAtMs?: number): Promise<string> {
+export async function digestRecords(dir: string): Promise<string> {
   const names = await recordNames(dir);
   if (!names) return heading(dir, "The record directory is absent: no pass recorded here.");
   if (names.length === 0) return heading(dir, "The record directory is empty: no leg recorded.");
 
+  const record = await readPassRecord(dir);
   const records = classify(await Promise.all(names.map((name) => readRecord(dir, name))));
   return [
     heading(dir, `${records.legs.length} leg(s) recorded.`),
-    legsSection(records.legs, startedAtMs),
+    legsSection(records.legs, record ? Date.parse(record.startedAt) : undefined),
     findingsSection(records.findings),
     verdictsSection(records.verdicts),
-    unaddressedSection(records),
+    unaddressedSection(record),
     unparseableSection(records.unparseable),
   ].join("\n");
 }
@@ -234,26 +235,19 @@ function verdictsSection(verdicts: readonly FindingVerdict[]): string {
 }
 
 /**
- * Every finding nobody acted on, with the sentence explaining why.
+ * Every finding nobody acted on, with the sentence explaining why, as the pass
+ * itself recorded it.
  *
- * Two kinds reach this, and neither is read off a leg's name: a finding the
- * fixer declined, and a finding no fixer was ever handed — which is what the
- * re-review raises by design. Whether a fixer saw a finding is a fact about the
- * verdict records, so the digest asks them rather than the file names.
+ * Read rather than re-derived: the harness is the only thing that knows why a
+ * finding went unaddressed, and its reasons are not all recoverable from the
+ * verdict records — a fixer that failed to answer left no verdicts, so a digest
+ * inferring from them reported "no fixer was handed it" about a finding a fixer
+ * was handed twice. A pass that crashed has no facts to state, and so no lines
+ * here.
  */
-function unaddressedSection({ findings, verdicts }: Records): string {
-  const handed = new Set(verdicts.map(({ finding }) => keyOf(finding)));
-  const declined = verdicts.flatMap(({ finding, verdict }) =>
-    verdict.kind === "skipped"
-      ? [{ finding, reason: `the fixer declined it: ${verdict.reason}` }]
-      : [],
-  );
-  const unfixed = findings
-    .filter(({ finding }) => !handed.has(keyOf(finding)))
-    .map(({ finding }) => ({ finding, reason: "no fixer was handed it" }));
-  const lines = [...declined, ...unfixed].map(
-    ({ finding, reason }) => `  ${describe(finding)} — ${reason}`,
-  );
+function unaddressedSection(record: PassRecord | undefined): string {
+  const unaddressed = record?.end.kind === "handed-over" ? record.end.unaddressed : [];
+  const lines = unaddressed.map(({ finding, reason }) => `  ${describe(finding)} — ${reason}`);
   return section("Unaddressed findings", lines);
 }
 
@@ -262,11 +256,6 @@ function unparseableSection(names: readonly string[]): string {
     "Unparseable records",
     names.map((name) => `  ${name}`),
   );
-}
-
-/** What identifies one finding across the files that carry copies of it. */
-function keyOf(finding: Finding): string {
-  return `${findingLabel(finding)}|${finding.summary}`;
 }
 
 function describe(finding: Finding): string {
