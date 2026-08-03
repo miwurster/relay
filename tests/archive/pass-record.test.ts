@@ -53,6 +53,37 @@ describe("the pass record", () => {
     expect(await readPassRecord(dir)).toBeUndefined();
   });
 
+  it("answers with nothing for an ending whose facts are there but empty", async () => {
+    await writeFile(
+      join(dir, PASS_RECORD_FILE),
+      JSON.stringify({
+        ...record,
+        end: {
+          kind: "handed-over",
+          outcome: {},
+          gate: {},
+          land: {},
+          committed: [],
+          finished: [],
+          blocked: [],
+        },
+      }),
+      "utf8",
+    );
+
+    expect(await readPassRecord(dir)).toBeUndefined();
+  });
+
+  it("answers with nothing where a timestamp is not an instant the digest can read", async () => {
+    await writeFile(
+      join(dir, PASS_RECORD_FILE),
+      JSON.stringify({ ...record, startedAt: "some time yesterday" }),
+      "utf8",
+    );
+
+    expect(await readPassRecord(dir)).toBeUndefined();
+  });
+
   it("answers with nothing where the record names no landing to state", async () => {
     await writeFile(
       join(dir, PASS_RECORD_FILE),

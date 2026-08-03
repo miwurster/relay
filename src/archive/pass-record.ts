@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { Landing } from "../config.js";
+import { z } from "zod";
+import { type Landing, LANDINGS } from "../config.js";
 import type { PassFacts } from "../crew/contract.js";
 
 /** The pass record's file name, in the same directory as the pass's leg records. */
@@ -45,71 +46,81 @@ export async function writePassRecord({
   await writeFile(join(dir, PASS_RECORD_FILE), `${JSON.stringify(record, undefined, 2)}\n`, "utf8");
 }
 
+const ticketRefSchema = z.object({ number: z.number(), summary: z.string() });
+
+const resolvedGateSchema = z.object({
+  command: z.string(),
+  provenance: z.enum(["declared", "inferred"]),
+  source: z.string(),
+});
+
+/**
+ * The record as it is read back, checked all the way down to every field the
+ * archive dereferences.
+ *
+ * Parsed rather than trusted, because the file may have been hand-edited or
+ * written by an older relay — and checked to the leaf, because a record ending
+ * `{ "kind": "handed-over" }` and nothing else would otherwise read as an ending
+ * with facts and throw where those facts are rendered. The point is that an
+ * archive of an unreadable record says so
+ * ([ADR-0035](../../docs/adr/0035-a-pass-records-its-own-facts.md)).
+ *
+ * Typed as the record it must produce, so a change to the contract's own shapes
+ * is a typecheck failure here rather than a schema that quietly stops matching.
+ * The timestamps are held to ISO instants, which is what the writer emits and
+ * what the digest parses back into a duration.
+ */
+const passRecordSchema: z.ZodType<PassRecord> = z.object({
+  workItem: z.number(),
+  branch: z.string(),
+  baseBranch: z.string(),
+  landing: z.enum(LANDINGS),
+  startedAt: z.iso.datetime(),
+  endedAt: z.iso.datetime(),
+  end: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("crashed"), error: z.string() }),
+    z.object({
+      kind: z.literal("handed-over"),
+      outcome: z.discriminatedUnion("kind", [
+        z.object({ kind: z.literal("success"), detail: z.string() }),
+        z.object({ kind: z.literal("mid-block"), reason: z.string() }),
+        z.object({ kind: z.literal("early-bail"), reason: z.string() }),
+      ]),
+      gate: z.discriminatedUnion("kind", [
+        z.object({
+          kind: z.literal("gated"),
+          gate: resolvedGateSchema,
+          green: z.boolean(),
+          detail: z.string(),
+        }),
+        z.object({ kind: z.literal("not-gated"), gate: resolvedGateSchema }),
+      ]),
+      land: z.discriminatedUnion("kind", [
+        z.object({ kind: z.literal("landed"), detail: z.string() }),
+        z.object({ kind: z.literal("not-landed"), reason: z.string() }),
+        z.object({ kind: z.literal("no-landing") }),
+      ]),
+      committed: z.array(ticketRefSchema),
+      finished: z.array(ticketRefSchema),
+      blocked: z.array(ticketRefSchema),
+    }),
+  ]),
+});
+
 /**
  * The pass record in `dir`, or nothing when there is none to read.
  *
  * Absent, unparseable and the wrong shape all answer the same way, because what
  * the caller does about them is the same: an archive says it has no pass record
- * rather than failing. The shape is checked because the file may have been
- * written by an older relay, whose record the fields below are read out of.
+ * rather than failing.
  */
 export async function readPassRecord(dir: string): Promise<PassRecord | undefined> {
+  let value: unknown;
   try {
-    const value: unknown = JSON.parse(await readFile(join(dir, PASS_RECORD_FILE), "utf8"));
-    return isPassRecord(value) ? value : undefined;
+    value = JSON.parse(await readFile(join(dir, PASS_RECORD_FILE), "utf8"));
   } catch {
     return undefined;
   }
-}
-
-function isPassRecord(value: unknown): value is PassRecord {
-  const record = asFields(value);
-  if (!record) return false;
-  return (
-    typeof record.workItem === "number" &&
-    typeof record.branch === "string" &&
-    typeof record.baseBranch === "string" &&
-    typeof record.landing === "string" &&
-    typeof record.startedAt === "string" &&
-    typeof record.endedAt === "string" &&
-    isPassEnd(record.end)
-  );
-}
-
-/**
- * Whether the ending is one the archive can read all the way down.
- *
- * Every field the archive's heading dereferences is checked, not just the arm's
- * own name: a record ending `{ "kind": "handed-over" }` and nothing else would
- * otherwise pass as an ending with facts and throw where those facts are read.
- * The point of the guard is that an archive of an unreadable record says so
- * ([ADR-0035](../../docs/adr/0035-a-pass-records-its-own-facts.md)).
- */
-function isPassEnd(value: unknown): value is PassEnd {
-  const end = asFields(value);
-  if (!end) return false;
-  if (end.kind === "crashed") return typeof end.error === "string";
-  if (end.kind !== "handed-over") return false;
-  return (
-    asFields(end.outcome) !== undefined &&
-    asFields(end.gate) !== undefined &&
-    asFields(end.land) !== undefined &&
-    Array.isArray(end.committed) &&
-    Array.isArray(end.finished) &&
-    Array.isArray(end.blocked)
-  );
-}
-
-/**
- * The value's own fields, as unknowns, or nothing where it is not an object at
- * all.
- *
- * Read as unknown fields rather than as a partial record: a file that was
- * hand-edited or written by an older relay may hold anything at all, including a
- * `null` where a record's own type says there is an object.
- */
-function asFields(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === "object" && value !== null
-    ? (value as Record<string, unknown>)
-    : undefined;
+  const result = passRecordSchema.safeParse(value);
+  return result.success ? result.data : undefined;
 }
