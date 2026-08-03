@@ -218,6 +218,10 @@ relay finds it by reading Claude's own `installed_plugins.json`, and `relay doct
 A pass does not run on a copy of your repo.
 relay cuts a real git worktree at `.sandcastle/worktrees/<branch>` inside your clone and bind-mounts it into the container, so everything an agent writes lands on your disk as it happens.
 
+That worktree starts with nothing git does not track, so a pass initialises submodules in it and — where a `pnpm-lock.yaml`, a `package-lock.json` or a `uv.lock` is there to say how — installs the repo's dependencies before its first leg runs.
+Without that, the green gate's own command is not on `PATH` in a fresh worktree.
+A Maven or Gradle repo needs no such step: its build resolves its own dependencies as it runs.
+
 A linked worktree cannot work without the repository it was cut from, so your clone's whole `.git` directory is mounted read-write as well.
 An agent inside the sandbox can therefore reach every ref, object and hook in your clone — not only the pass branch.
 In particular, a hook it wrote would run on your host the next time you ran git there.
