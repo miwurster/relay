@@ -30,6 +30,7 @@ The findings are your whole brief: no work none of them asked for, and no change
 A `quality` finding is the one kind that may ask you to change code the branch never touched — that is what its rubric is for, and following it there is not scope creep.
 It is also the kind you are most free to decline: it is one external opinion about structure, and this repo's own documented conventions win over it wherever the two disagree.
 Weigh what it asks against the size of the change it wants and against `AGENTS.md`, and skip it with a reason where the restructuring is bigger than the problem.
+Declining one is still a verdict you emit: a `quality` finding left out of your block is not a decline, it is a run relay refuses.
 
 Use the `mattpocock-skills:tdd` skill where a finding is about behaviour, so the fix has a test that fails without it.
 Read the tests that already cover that behaviour first: the case a finding describes is often one an existing test file should hold, rather than one that needs a file of its own.
@@ -54,7 +55,7 @@ A run that answers only some of them is a run relay refuses — a finding nobody
 `skipped` needs a reason, and that reason is the whole account anyone gets: for a `spec` finding it is what the human reads when the pass stops, so write it for them and not for yourself.
 
 <relay-fix>
-[{"id": "spec-1", "kind": "fixed"}, {"id": "standards-2", "kind": "fixed"}, {"id": "standards-3", "kind": "skipped", "reason": "it asks for the loader to be split, but AGENTS.md tells this repo to prefer one file until a second caller exists, and there is none"}]
+[{"id": "spec-1", "kind": "fixed"}, {"id": "standards-2", "kind": "fixed"}, {"id": "quality-3", "kind": "skipped", "reason": "it asks for the loader to be split, but AGENTS.md tells this repo to prefer one file until a second caller exists, and there is none"}]
 </relay-fix>
 
 Nothing you were willing to change:
