@@ -21,6 +21,26 @@ import { resolveSkillPlugins, type SkillPlugin } from "./skills.js";
 const SUBMODULE_INIT = "git submodule update --init --recursive";
 
 /**
+ * Install the repo's dependencies in the fresh worktree, for the same reason
+ * submodules are initialised: `node_modules/` and `.venv/` are gitignored, so
+ * every worktree starts without them and the green gate's own command is not on
+ * `PATH` — which presents as a red gate that has nothing to do with the branch.
+ *
+ * Chosen by lockfile rather than configured, because the lockfile is where the
+ * repo already states how it installs — one branch per stack relay ships a
+ * sandbox recipe for, and nothing for a stack whose image relay does not build.
+ * Maven and Gradle need no branch at all: they resolve their dependencies as the
+ * build runs, so a Java repo's gate command installs its own.
+ *
+ * Inside the sandbox rather than on the host, since the install is the image's
+ * toolchain and the container's platform, not the operator's.
+ */
+const INSTALL_DEPENDENCIES =
+  "if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; " +
+  "elif [ -f package-lock.json ]; then npm ci; " +
+  "elif [ -f uv.lock ]; then uv sync --frozen; fi";
+
+/**
  * Hand the repo root inside the sandbox to the sandbox user.
  *
  * A linked worktree's `.git` is a file pointing at an absolute host path, so
@@ -158,7 +178,13 @@ export function sandboxOptions({
     baseBranch,
     hooks: {
       host: { onWorktreeReady: [{ command: SUBMODULE_INIT }] },
-      sandbox: { onSandboxReady: [{ command: claimRepoRoot(repoRoot), sudo: true }] },
+      sandbox: {
+        onSandboxReady: [
+          { command: claimRepoRoot(repoRoot), sudo: true },
+          // After the chown, since the install writes into the repo root.
+          { command: INSTALL_DEPENDENCIES },
+        ],
+      },
     },
     sandbox: dockerSandbox({
       imageName: host.image,

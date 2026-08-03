@@ -103,12 +103,19 @@ describe("sandboxOptions", () => {
 
   it("claims the repo root docker fabricated for the `.git` mount, non-recursively", () => {
     const options = optionsFor("main");
-    expect(options.hooks?.sandbox?.onSandboxReady).toEqual([
-      {
-        command: `chown ${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000} /repo`,
-        sudo: true,
-      },
-    ]);
+    expect(options.hooks?.sandbox?.onSandboxReady?.[0]).toEqual({
+      command: `chown ${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000} /repo`,
+      sudo: true,
+    });
+  });
+
+  it("installs the lockfile's dependencies after the chown, so the gate's command exists", () => {
+    const options = optionsFor("main");
+    const install = options.hooks?.sandbox?.onSandboxReady?.[1];
+    expect(install?.command).toContain("pnpm install --frozen-lockfile");
+    expect(install?.command).toContain("npm ci");
+    expect(install?.command).toContain("uv sync --frozen");
+    expect(options.hooks?.sandbox?.onSandboxReady).toHaveLength(2);
   });
 
   it("runs the resolved image with the socket group, mounts and env", () => {
