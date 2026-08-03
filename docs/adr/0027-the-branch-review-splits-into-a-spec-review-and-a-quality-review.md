@@ -1,6 +1,6 @@
 # 0027. the branch review splits into a spec review and a quality review
 
-- **Status:** accepted, spec-only half amended by [ADR-0031](0031-the-branch-review-takes-the-standards-axis-when-no-ticket-review-ran.md), quality scope amended by [ADR-0034](0034-the-quality-review-is-told-what-the-pass-already-settled.md), quality's non-binding rule extended to its legs by [ADR-0036](0036-a-leg-that-fails-to-answer-blocks-the-pass-and-never-on-quality.md)
+- **Status:** accepted, spec-only half amended by [ADR-0031](0031-the-branch-review-takes-the-standards-axis-when-no-ticket-review-ran.md), quality scope amended by [ADR-0034](0034-the-quality-review-is-told-what-the-pass-already-settled.md), quality's non-binding rule extended to its legs by [ADR-0036](0036-a-leg-that-fails-to-answer-blocks-the-pass-and-never-on-quality.md), quality scope gated to a multi-ticket plan by [ADR-0037](0037-the-quality-review-runs-only-on-a-multi-ticket-plan.md)
 - **Date:** 2026-07-31
 
 ## Context and Problem Statement

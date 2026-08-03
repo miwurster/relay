@@ -65,7 +65,9 @@ const QUALITY_FIXER_NO_ANSWER_REASON =
  * drops the per-ticket review, since there is no ticket after it to protect —
  * see `reviewsEachTicket` — and its branch review is asked for `standards` as
  * well as `spec`, because the review that would have read that axis is the one
- * just dropped.
+ * just dropped. It drops the quality review too, since that branch review is
+ * then already reading the structural question over the same diff
+ * ([ADR-0037](../../docs/adr/0037-the-quality-review-runs-only-on-a-multi-ticket-plan.md)).
  */
 export async function runHarness(crew: Crew, workItem: GitHubIssue): Promise<PassFacts> {
   const { outcome, committed, blockedOn, land, gate, unaddressed } = await runLegs(crew, workItem);
@@ -247,6 +249,10 @@ async function runTopology(
   // likely to be structurally messy, which is why this runs after the fix rather
   // than only over a review that was clean first time.
   //
+  // Where no ticket review ran, the branch review above already read `standards`
+  // over this very diff, so a single-ticket pass goes straight to the gate
+  // ([ADR-0037](../../docs/adr/0037-the-quality-review-runs-only-on-a-multi-ticket-plan.md)).
+  //
   // Nothing here can block — not a finding, and not a leg that fails to answer
   // — and there is no re-review: a `quality` finding is not binding, and a fix is
   // verified once ([ADR-0022](../../docs/adr/0022-a-fix-is-verified-once.md)).
@@ -257,7 +263,9 @@ async function runTopology(
   // one review that reads the branch last cannot order the reversal of a fix an
   // earlier review ordered without knowing it is doing so
   // ([ADR-0034](../../docs/adr/0034-the-quality-review-is-told-what-the-pass-already-settled.md)).
-  await reviewQuality(crew, workItem.number, [...tickets.fixed, ...branch.fixed], progress);
+  if (reviewEachTicket) {
+    await reviewQuality(crew, workItem.number, [...tickets.fixed, ...branch.fixed], progress);
+  }
 
   // It writes each run's verdict into `progress` as that run answers, so a fixer
   // that fails to answer mid-loop still hands over the red verdict that was
@@ -292,7 +300,10 @@ async function runTopology(
  * human filed exactly one. The branch review then reads that same diff on both
  * axes, and it stays what it always was — the only review that reads a fixer's
  * commit
- * ([ADR-0031](../../docs/adr/0031-the-branch-review-takes-the-standards-axis-when-no-ticket-review-ran.md)).
+ * ([ADR-0031](../../docs/adr/0031-the-branch-review-takes-the-standards-axis-when-no-ticket-review-ran.md)),
+ * and the quality review — the other whole-branch structural read — is the leg
+ * that then stands down
+ * ([ADR-0037](../../docs/adr/0037-the-quality-review-runs-only-on-a-multi-ticket-plan.md)).
  */
 function reviewsEachTicket(tickets: readonly TicketRef[]): boolean {
   return tickets.length > 1;

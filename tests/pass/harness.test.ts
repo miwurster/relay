@@ -110,7 +110,6 @@ describe("runHarness", () => {
       "plan",
       "implement:1",
       "review:branch",
-      "review:quality",
       "gate",
       "land",
       "handover:success",

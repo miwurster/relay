@@ -40,7 +40,6 @@ describe("runHarness under merge landing", () => {
       "plan",
       "implement:1",
       "review:branch",
-      "review:quality",
       "gate",
       "land",
       "gate",

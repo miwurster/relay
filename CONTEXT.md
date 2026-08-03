@@ -106,7 +106,8 @@ _Avoid_: diff range, target, lens
 **Quality review**:
 The **review scope** that asks whether the branch's implementation is worth keeping, once the **spec** question is settled.
 It judges against a vendored third-party rubric rather than this repo's own conventions, and unlike the other two scopes it is not bounded by the diff — a remedy may name code the change never touched, though a problem the change did not cause is not its to raise.
-It runs whenever the branch scope did not block, including after a fix, because a branch that was just patched is the likeliest to be structurally messy.
+It runs only on a multi-ticket **plan**, where the branch scope did not block — including after a fix, because a branch that was just patched is the likeliest to be structurally messy.
+A single-ticket plan skips it: its branch review already reads `standards` over the same diff, and two whole-branch reads of one question ordered each other's work undone ([ADR-0037](docs/adr/0037-the-quality-review-runs-only-on-a-multi-ticket-plan.md)).
 Being last, it is handed the pass's **settled findings**, and may overrule one only by naming what it overrules and why ([ADR-0034](docs/adr/0034-the-quality-review-is-told-what-the-pass-already-settled.md)).
 Its **findings** carry the `quality` **axis**, reach one **fixer** leg, and are verified by nothing but the **green gate** ([ADR-0027](docs/adr/0027-the-branch-review-splits-into-a-spec-review-and-a-quality-review.md)).
 _Avoid_: code review, deep review, maintainability review, quality role

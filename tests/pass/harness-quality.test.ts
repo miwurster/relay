@@ -17,6 +17,10 @@ import {
  * rubric relay vendors rather than authors. It reads the branch once the spec
  * question is settled, its findings are not binding, and nothing verifies its fix
  * ([ADR-0027](../../docs/adr/0027-the-branch-review-splits-into-a-spec-review-and-a-quality-review.md)).
+ *
+ * These run a multi-ticket plan, because that is the only shape that reaches the
+ * stage at all — the last of them says what the other shape does instead
+ * ([ADR-0037](../../docs/adr/0037-the-quality-review-runs-only-on-a-multi-ticket-plan.md)).
  */
 describe("runHarness reviewing the branch's quality", () => {
   const wanted = finding("quality-review", "quality", "the two loaders should be one module");
@@ -24,6 +28,7 @@ describe("runHarness reviewing the branch's quality", () => {
   /** A crew whose quality scope found `wanted`, and whose branch review found what is given. */
   const crewFinding = (onBranch: Finding[] = []) => {
     const recorded = recordingCrew({
+      ...twoTicketPlan,
       async review(scope) {
         recorded.calls.push(`review:${reviewName(scope)}`);
         if (scope.kind === "quality") return [wanted];
@@ -43,8 +48,10 @@ describe("runHarness reviewing the branch's quality", () => {
 
     expect(calls).toEqual([
       "resolveGate",
-      "plan",
       "implement:1",
+      "review:1",
+      "implement:2",
+      "review:2",
       "review:branch",
       "fix",
       "review:branch-rereview",
@@ -66,7 +73,7 @@ describe("runHarness reviewing the branch's quality", () => {
   });
 
   it("calls no fixer when it found nothing", async () => {
-    const { crew, calls } = recordingCrew();
+    const { crew, calls } = recordingCrew(twoTicketPlan);
 
     await run(crew);
 
@@ -91,6 +98,7 @@ describe("runHarness reviewing the branch's quality", () => {
 
   it("lands a pass whose quality findings the fixer declined, and reports them", async () => {
     const { crew, unaddressed } = recordingCrew({
+      ...twoTicketPlan,
       async review(scope) {
         return scope.kind === "quality" ? [wanted] : [];
       },
@@ -180,6 +188,7 @@ describe("runHarness reviewing the branch's quality", () => {
 
     /** A crew whose quality review throws what it is given, and whose others are clean. */
     const reviewThatFailsToAnswer = (error: Error): Partial<Crew> => ({
+      ...twoTicketPlan,
       async review(scope) {
         if (scope.kind === "quality") throw error;
         return [];
@@ -196,6 +205,7 @@ describe("runHarness reviewing the branch's quality", () => {
 
     it("leaves the pass running to the gate when it is the reviewer, with nothing unaddressed", async () => {
       const { crew, calls, unaddressed } = recordingCrew({
+        ...twoTicketPlan,
         async review(scope) {
           calls.push(`review:${reviewName(scope)}`);
           if (scope.kind === "quality") throw slip;
@@ -217,6 +227,7 @@ describe("runHarness reviewing the branch's quality", () => {
 
     it("leaves every finding it was handed unaddressed when it is the fixer", async () => {
       const { crew, calls, unaddressed } = recordingCrew({
+        ...twoTicketPlan,
         async review(scope) {
           calls.push(`review:${reviewName(scope)}`);
           return scope.kind === "quality" ? [wanted] : [];
@@ -279,6 +290,7 @@ describe("runHarness reviewing the branch's quality", () => {
 
   it("never runs when the branch review's own findings blocked the pass", async () => {
     const { crew, calls } = recordingCrew({
+      ...twoTicketPlan,
       async review(scope) {
         calls.push(`review:${reviewName(scope)}`);
         return scope.kind === "branch" && !scope.verifying
@@ -294,5 +306,52 @@ describe("runHarness reviewing the branch's quality", () => {
 
     expect(outcome.kind).toBe("mid-block");
     expect(calls).not.toContain("review:quality");
+  });
+
+  /**
+   * The stage runs where each ticket was reviewed, and nowhere else: a
+   * single-ticket plan's branch review already reads `standards` over the same
+   * diff, and the two reads ordering each other's work undone is what the gate is
+   * for ([ADR-0037](../../docs/adr/0037-the-quality-review-runs-only-on-a-multi-ticket-plan.md)).
+   */
+  describe("on a single-ticket plan", () => {
+    it("reaches neither the review nor its fixer", async () => {
+      // The branch review finds something, so the pass does reach a fixer: the
+      // one it never reaches is the quality fixer.
+      const { crew, calls, fixTargets } = recordingCrew({
+        async review(scope) {
+          calls.push(`review:${reviewName(scope)}`);
+          if (scope.kind === "quality") return [wanted];
+          return scope.kind === "branch" && !scope.verifying
+            ? [finding("branch-review", "spec", "the cap is read from the wrong key")]
+            : [];
+        },
+      });
+
+      await run(crew);
+
+      expect(calls).not.toContain("review:quality");
+      expect(fixTargets).toEqual([{ kind: "branch" }]);
+    });
+
+    it("runs the branch review's re-review straight into the gate", async () => {
+      const { crew, calls } = recordingCrew({
+        async review(scope) {
+          calls.push(`review:${reviewName(scope)}`);
+          return scope.kind === "branch" && !scope.verifying
+            ? [finding("branch-review", "spec", "the cap is read from the wrong key")]
+            : [];
+        },
+      });
+
+      await run(crew);
+
+      expect(calls.slice(calls.indexOf("review:branch-rereview"))).toEqual([
+        "review:branch-rereview",
+        "gate",
+        "land",
+        "handover:success",
+      ]);
+    });
   });
 });
