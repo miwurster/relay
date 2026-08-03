@@ -42,7 +42,13 @@ const bothAxesBranchScope: ReviewScope = {
   axes: "both",
   verifying: undefined,
 };
-const qualityScope: ReviewScope = { kind: "quality", workItem: 7 };
+const qualityScope: ReviewScope = { kind: "quality", workItem: 7, settled: [] };
+const settled: Finding = {
+  source: "branch-review",
+  axis: "standards",
+  summary: "src/todo-list.ts:54 — extract the trim into a shared helper",
+};
+const settledQualityScope: ReviewScope = { kind: "quality", workItem: 7, settled: [settled] };
 
 let recordDir: string;
 
@@ -398,6 +404,29 @@ describe("createReviewer over the quality scope", () => {
     expect(String(runs[0]?.promptArgs?.["RUBRIC"])).toContain("Thermo-Nuclear Code Quality Review");
     await expectPromptParity(runs[0], "quality-review.md");
   });
+
+  /**
+   * The whole of ADR-0034, and the mirror of the re-review's `FIXES` argument:
+   * what an earlier fixer acted on reaches this prompt, in the same stripped
+   * shape and for the same reason.
+   */
+  it("hands it the findings a fixer already acted on this pass", async () => {
+    const { review, runs } = reviewing(cleanQuality);
+
+    await review(settledQualityScope);
+
+    expect(runs[0]?.promptArgs?.["SETTLED"]).toContain(settled.summary);
+    expect(runs[0]?.promptArgs?.["SETTLED"]).toContain('"axis": "standards"');
+    expect(runs[0]?.promptArgs?.["SETTLED"]).not.toContain("branch-review");
+  });
+
+  it("carries the settled list empty rather than absent when the pass fixed nothing", async () => {
+    const { review, runs } = reviewing(cleanQuality);
+
+    await review(qualityScope);
+
+    expect(runs[0]?.promptArgs?.["SETTLED"]).toBe("[]");
+  });
 });
 
 /**
@@ -481,6 +510,19 @@ describe("the quality review prompt", () => {
     const prompt = await readResource("quality-review.md");
     expect(prompt).toContain("deliberately not bounded by that diff");
     expect(prompt).toContain("is not this pass's to answer for");
+  });
+
+  it("tells it what the pass already settled, as decisions rather than suggestions", async () => {
+    const prompt = await readResource("quality-review.md");
+    expect(prompt).toContain("{{SETTLED}}");
+    expect(prompt).toContain("decisions, not suggestions");
+  });
+
+  it("lets it overrule a settled remedy only by naming what it overrules and why", async () => {
+    const prompt = await readResource("quality-review.md");
+    expect(prompt).toContain(
+      "**A finding that undoes a settled remedy must name the settled finding it overrules and say why that earlier call was wrong**",
+    );
   });
 
   it("asks for one quality array, and nothing the spec review answers", async () => {

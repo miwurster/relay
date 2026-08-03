@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
-import type { Finding } from "../../src/crew/contract.js";
-import { finding, recordingCrew, reviewName, run, skippedAll } from "./harness-crew.js";
+import type { Crew, Finding, ReviewScope } from "../../src/crew/contract.js";
+import {
+  finding,
+  recordingCrew,
+  reviewName,
+  run,
+  skippedAll,
+  twoTicketPlan,
+} from "./harness-crew.js";
 
 /**
  * The quality review asks the wider version of the standards question, on a
@@ -98,6 +105,66 @@ describe("runHarness reviewing the branch's quality", () => {
         reason: "AGENTS.md prefers one file until a second caller exists",
       },
     ]);
+  });
+
+  /**
+   * ADR-0034: the last review of the pass is told what the earlier ones settled,
+   * so it cannot order the reversal of a landed fix without knowing it is doing
+   * so. A multi-ticket plan, because that is the only shape where a ticket
+   * review runs at all — and so the only one where both sources can contribute.
+   */
+  describe("the settled findings it is handed", () => {
+    const onTicket = finding("ticket-review", "standards", "extract the shared trim helper", 1);
+    const onBranch = finding("branch-review", "spec", "the cap is read from the wrong key");
+
+    /** The scope the quality review was called with, over a two-ticket plan. */
+    const qualityScopeOf = async (
+      findings: (scope: ReviewScope) => Finding[],
+      fix?: Crew["fix"],
+    ) => {
+      let scoped: ReviewScope | undefined;
+      const { crew } = recordingCrew({
+        ...twoTicketPlan,
+        async review(scope) {
+          if (scope.kind === "quality") scoped = scope;
+          return findings(scope);
+        },
+        ...(fix ? { fix } : {}),
+      });
+      await run(crew);
+      return scoped;
+    };
+
+    it("carries what a fixer fixed at ticket scope and at branch scope alike", async () => {
+      const scope = await qualityScopeOf((s) => {
+        if (s.kind === "ticket" && s.ticket.number === 1) return [onTicket];
+        if (s.kind === "branch" && !s.verifying) return [onBranch];
+        return [];
+      });
+
+      expect(scope).toEqual({ kind: "quality", workItem: 1, settled: [onTicket, onBranch] });
+    });
+
+    it("carries an empty list when the pass fixed nothing, rather than nothing at all", async () => {
+      const scope = await qualityScopeOf(() => []);
+
+      expect(scope).toEqual({ kind: "quality", workItem: 1, settled: [] });
+    });
+
+    it("leaves out what a fixer declined, since no code changed for it", async () => {
+      const declined = finding("ticket-review", "standards", "inline the second loader", 1);
+      const scope = await qualityScopeOf(
+        (s) => (s.kind === "ticket" && s.ticket.number === 1 ? [onTicket, declined] : []),
+        async (findings) => ({
+          fixed: findings.filter((f) => f !== declined),
+          skipped: [
+            { finding: declined, reason: "AGENTS.md prefers one file until a second call" },
+          ],
+        }),
+      );
+
+      expect(scope).toEqual({ kind: "quality", workItem: 1, settled: [onTicket] });
+    });
   });
 
   it("never runs when the branch review's own findings blocked the pass", async () => {

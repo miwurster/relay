@@ -181,7 +181,16 @@ async function runLegs(crew: Crew, workItem: GitHubIssue): Promise<LegsResult> {
   // binding, and a fix is verified once
   // ([ADR-0022](../../docs/adr/0022-a-fix-is-verified-once.md)). What the fixer
   // declined is reported so a human knows a role overrode a call about their code.
-  const quality = await reviewAndFix(crew, { kind: "quality", workItem: workItem.number });
+  //
+  // It is handed everything the pass's earlier fixers changed code for, so the
+  // one review that reads the branch last cannot order the reversal of a fix an
+  // earlier review ordered without knowing it is doing so
+  // ([ADR-0034](../../docs/adr/0034-the-quality-review-is-told-what-the-pass-already-settled.md)).
+  const quality = await reviewAndFix(crew, {
+    kind: "quality",
+    workItem: workItem.number,
+    settled: [...tickets.fixed, ...branch.fixed],
+  });
   progress.unaddressed.push(...quality.skipped);
 
   const loop = await driveGate(crew, resolvedGate);
@@ -232,6 +241,12 @@ function reviewsEachTicket(tickets: readonly TicketRef[]): boolean {
  */
 interface StageResult {
   unaddressed: UnaddressedFinding[];
+  /**
+   * The findings this stage's fixer changed code for, which travel to the
+   * quality review as the decisions already on the branch
+   * ([ADR-0034](../../docs/adr/0034-the-quality-review-is-told-what-the-pass-already-settled.md)).
+   */
+  fixed: readonly Finding[];
   blocked?: Outcome;
 }
 
@@ -260,6 +275,7 @@ async function implementTickets(
 ): Promise<TicketsResult> {
   const committed: TicketRef[] = [];
   const unaddressed: UnaddressedFinding[] = [];
+  const fixed: Finding[] = [];
   for (const ticket of tickets) {
     const result = await crew.implement(ticket);
     if (result.kind === "needs-input") {
@@ -268,6 +284,7 @@ async function implementTickets(
       return {
         committed,
         unaddressed,
+        fixed,
         blockedOn: ticket,
         blocked: { kind: "mid-block", reason: result.reason },
       };
@@ -277,10 +294,11 @@ async function implementTickets(
 
     const report = await reviewAndFix(crew, { kind: "ticket", ticket, base: result.base });
     unaddressed.push(...report.skipped);
+    fixed.push(...report.fixed);
     const blocked = blockFor(report.skipped);
-    if (blocked) return { committed, unaddressed, blocked };
+    if (blocked) return { committed, unaddressed, fixed, blocked };
   }
-  return { committed, unaddressed };
+  return { committed, unaddressed, fixed };
 }
 
 /**
@@ -308,19 +326,20 @@ async function reviewBranch(crew: Crew, workItem: number, axes: BranchAxes): Pro
     verifying: undefined,
   });
   const declined = report.skipped;
+  const fixed = report.fixed;
   const blocked = blockFor(declined);
-  if (blocked) return { unaddressed: [...declined], blocked };
+  if (blocked) return { unaddressed: [...declined], fixed, blocked };
   // Nothing changed, so there is nothing new to read: a review that found
   // nothing, or a fixer that declined all of it, has already been accounted for.
-  if (report.fixed.length === 0) return { unaddressed: [...declined] };
+  if (fixed.length === 0) return { unaddressed: [...declined], fixed };
 
   // The same axes as the first run: what it verifies is that review's own
   // findings, so an axis dropped here would be a claim nobody checked.
-  const findings = await crew.review({ kind: "branch", workItem, axes, verifying: report.fixed });
+  const findings = await crew.review({ kind: "branch", workItem, axes, verifying: fixed });
   const raised = findings.map((finding) => ({ finding, reason: REREVIEW_REASON }));
   // Only the re-review's own findings can block from here: whatever the fixer
   // declined was already judged above, and it did not.
-  return { unaddressed: [...declined, ...raised], blocked: blockFor(raised) };
+  return { unaddressed: [...declined, ...raised], fixed, blocked: blockFor(raised) };
 }
 
 /**

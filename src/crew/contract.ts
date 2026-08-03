@@ -183,7 +183,23 @@ export type ReviewScope =
        */
       verifying: readonly Finding[] | undefined;
     }
-  | { kind: "quality"; workItem: number };
+  | {
+      kind: "quality";
+      workItem: number;
+      /**
+       * Every finding a fixer already acted on earlier in this pass — the ticket
+       * reviews' and the branch review's both — whose remedy is therefore on the
+       * branch as a decision rather than as a suggestion.
+       *
+       * Carried so the last review of the pass cannot silently order the reversal
+       * of a fix an earlier review ordered minutes before. It may still overrule
+       * one, but only by saying what it overrules and why
+       * ([ADR-0034](../../docs/adr/0034-the-quality-review-is-told-what-the-pass-already-settled.md)).
+       * Empty when nothing was fixed, which reads as "nobody has corrected this
+       * branch before you" rather than as not being told.
+       */
+      settled: readonly Finding[];
+    };
 
 /** Which of the three reviews a scope is, in the model map and on its findings. */
 export function reviewKindOf(scope: ReviewScope): ReviewKind {

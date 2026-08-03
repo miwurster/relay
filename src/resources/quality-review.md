@@ -15,7 +15,22 @@ The rubric below is deliberately not bounded by that diff.
 Where a code-judo move means deleting a layer, moving logic to the module that already owns the concept, or splitting a file the change grew, say so, and name the files it would touch even where the change never touched them.
 What the rubric will not let you do is raise a problem this branch did not cause: pre-existing mess nobody's commit here made worse is not this pass's to answer for.
 
-## 2. The rubric
+## 2. What this pass already settled
+
+```json
+{{SETTLED}}
+```
+
+Each entry is one finding an earlier review of this same pass raised and a fixer acted on, under the axis it came from.
+Their remedies are on the branch in front of you: they are decisions, not suggestions, and the code did not arrive that way.
+An empty list means nobody has corrected this branch before you.
+
+You may still overrule one — an earlier call can be wrong, and you read the branch that its fix produced.
+What you may not do is reverse it silently.
+**A finding that undoes a settled remedy must name the settled finding it overrules and say why that earlier call was wrong**, in the finding's own sentence.
+Anything else asks the fixer to satisfy two instructions pointing opposite ways, and it will satisfy neither.
+
+## 3. The rubric
 
 Judge the branch by this, in full.
 It is a vendored copy of a third party's rubric, quoted verbatim — read it as your brief, not as background.
@@ -29,11 +44,11 @@ It is a vendored copy of a third party's rubric, quoted verbatim — read it as 
 Two things in it are not yours, because they were written for a human reviewing a pull request:
 
 - **You do not approve or block.** Ignore the approval bar as a gate. Read it instead as a list of what is worth reporting — what it calls a presumptive blocker is a finding relay wants to hear about, nothing more.
-- **You do not write review tone.** Its example phrasings are conversational because a human would read them; the next reader of your findings is a machine. Take its severity from it and its wording from section 3 below.
+- **You do not write review tone.** Its example phrasings are conversational because a human would read them; the next reader of your findings is a machine. Take its severity from it and its wording from section 4 below.
 
 Where the rubric and this repo's own `AGENTS.md` disagree, the repo wins, and there is no finding to report.
 
-## 3. Report what it found
+## 4. Report what it found
 
 Turn everything the rubric wants changed into one finding each, and keep nothing else: no praise, no summary of the change, no counts.
 

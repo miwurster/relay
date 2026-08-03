@@ -84,6 +84,7 @@ _Avoid_: backlog, task list
 **Review scope**:
 What one review reads: one **ticket**'s own change from the commit it started at, the whole branch from the **base branch**, or that same branch on the **quality review**'s rubric.
 It is the only thing that differs between the reviewer's runs, so it is also what names each one, what picks its model, its prompt, which **axes** it is asked for — a ticket both, the quality scope `quality`, and the whole branch whichever set the **harness** handed it — and the shape it answers in.
+It carries what a run has to be told beyond that too: the **findings** the **re-review** is verifying, and the **settled findings** the **quality review** must not silently reverse.
 The branch scope reads `spec` alone where every **ticket** was already read on `standards` by its own review, and both axes where no ticket review ran at all — which is the one-ticket **plan**, whose per-ticket review is dropped because no ticket follows the one it would read ([ADR-0031](docs/adr/0031-the-branch-review-takes-the-standards-axis-when-no-ticket-review-ran.md)).
 Three scopes, one **role**: a review is one read-only run over a diff ending in a finding per thing it wants changed, however wide the question ([ADR-0027](docs/adr/0027-the-branch-review-splits-into-a-spec-review-and-a-quality-review.md)).
 _Avoid_: diff range, target, lens
@@ -92,6 +93,7 @@ _Avoid_: diff range, target, lens
 The **review scope** that asks whether the branch's implementation is worth keeping, once the **spec** question is settled.
 It judges against a vendored third-party rubric rather than this repo's own conventions, and unlike the other two scopes it is not bounded by the diff — a remedy may name code the change never touched, though a problem the change did not cause is not its to raise.
 It runs whenever the branch scope did not block, including after a fix, because a branch that was just patched is the likeliest to be structurally messy.
+Being last, it is handed the pass's **settled findings**, and may overrule one only by naming what it overrules and why ([ADR-0034](docs/adr/0034-the-quality-review-is-told-what-the-pass-already-settled.md)).
 Its **findings** carry the `quality` **axis**, reach one **fixer** leg, and are verified by nothing but the **green gate** ([ADR-0027](docs/adr/0027-the-branch-review-splits-into-a-spec-review-and-a-quality-review.md)).
 _Avoid_: code review, deep review, maintainability review, quality role
 
@@ -126,6 +128,10 @@ _Avoid_: mandatory, blocking, required
 What the **fixer** did with one **finding**: fixed, or skipped with a reason.
 One per finding and never one per **leg**, and on the **leg record** either way — so declining is a report rather than a veto, and a **binding** finding nobody addressed stops the pass on the sentence the fixer wrote.
 _Avoid_: decision, disposition, outcome
+
+**Settled finding**:
+A **finding** an earlier review raised and a **fixer** acted on, whose remedy is now on the branch as a decision rather than as a suggestion.
+_Avoid_: applied finding, landed fix, prior finding
 
 **Unaddressed finding**:
 A **finding** nobody acted on, and why: one the **fixer** declined, or one the **re-review** raised, which by design reaches no fixer.

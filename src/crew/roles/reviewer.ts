@@ -216,19 +216,34 @@ async function describeScope(scope: ReviewScope, baseBranch: string): Promise<Re
           ITEM: `#${scope.workItem}`,
           BASE: baseBranch,
           RUBRIC: await readResource(...RUBRIC_RESOURCE),
+          SETTLED: strippedFindings(scope.settled),
         },
       };
   }
 }
 
 /**
+ * Findings as a prompt reads them: stripped to their axis and their line,
+ * because that is the whole of what the fixer was told, and `source` says
+ * nothing a leg reading them does not already know.
+ *
+ * The same shape for the re-review's claims and for the quality scope's settled
+ * list, since both are a leg being shown the sentences a fixer acted on.
+ */
+function strippedFindings(findings: readonly Finding[]): string {
+  const stripped = findings.map((finding) => ({
+    axis: findingLabel(finding),
+    summary: finding.summary,
+  }));
+  return JSON.stringify(stripped, undefined, 2);
+}
+
+/**
  * The re-review's run: the fixer's own claims, and the same answer shape the
  * review it follows would have used.
  *
- * The findings are handed over stripped to their axis and their line, because
- * that is the whole of what the fixer was told — a run that verifies a fix has
- * to read exactly the sentence the fixer read, and `source` says nothing it
- * does not already know.
+ * A run that verifies a fix has to read exactly the sentence the fixer read,
+ * which is why its claims travel stripped.
  */
 function verifyRun(
   workItem: number,
@@ -236,10 +251,6 @@ function verifyRun(
   verifying: readonly Finding[],
   axes: (typeof AXIS_SETS)[keyof typeof AXIS_SETS],
 ): ReviewTarget {
-  const claimed = verifying.map((finding) => ({
-    axis: findingLabel(finding),
-    summary: finding.summary,
-  }));
   return {
     rereview: true,
     prompt: REREVIEW_PROMPT,
@@ -248,7 +259,7 @@ function verifyRun(
       ITEM: `#${workItem}`,
       BASE: baseBranch,
       TRACKER_DOC: TRACKER_DOC_PATH,
-      FIXES: JSON.stringify(claimed, undefined, 2),
+      FIXES: strippedFindings(verifying),
       ANSWER: axes.answer,
     },
   };
