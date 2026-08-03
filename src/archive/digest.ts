@@ -1,16 +1,9 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { type Axis, type Finding, findingLabel } from "../src/crew/contract.js";
-import type { FindingVerdict, writeStatusFile } from "../src/crew/leg-record.js";
-
-/**
- * The status record a leg leaves behind, as relay's own writer types it.
- *
- * Read off the writer rather than restated here: relay does not export the
- * shape, and a rig that re-declared it would keep rendering a digest after
- * relay's record changed. This way that change is a typecheck failure.
- */
-type RoleStatus = Parameters<typeof writeStatusFile>[0]["status"];
+import { type Axis, type Finding, findingLabel } from "../crew/contract.js";
+import type { FindingVerdict, RoleStatus } from "../crew/leg-record.js";
+import { PASS_RECORD_FILE } from "./pass-record.js";
+import { section } from "./section.js";
 
 const STATUS_SUFFIX = ".status.json";
 const VERDICTS_SUFFIX = ".verdicts.json";
@@ -75,7 +68,7 @@ interface RecordFile {
  * section that vanished when it was empty would show up in a diff as a change to
  * the flow rather than as the absence it is.
  */
-export async function digestRecords(dir: string): Promise<string> {
+export async function digestRecords(dir: string, startedAtMs?: number): Promise<string> {
   const names = await recordNames(dir);
   if (!names) return heading(dir, "The record directory is absent: no pass recorded here.");
   if (names.length === 0) return heading(dir, "The record directory is empty: no leg recorded.");
@@ -83,7 +76,7 @@ export async function digestRecords(dir: string): Promise<string> {
   const records = classify(await Promise.all(names.map((name) => readRecord(dir, name))));
   return [
     heading(dir, `${records.legs.length} leg(s) recorded.`),
-    legsSection(records.legs),
+    legsSection(records.legs, startedAtMs),
     findingsSection(records.findings),
     verdictsSection(records.verdicts),
     unaddressedSection(records),
@@ -121,6 +114,11 @@ async function readRecord(dir: string, name: string): Promise<RecordFile> {
 function classify(files: readonly RecordFile[]): Records {
   const records: Records = { legs: [], findings: [], verdicts: [], unparseable: [] };
   for (const file of files) {
+    // The pass record is the pass's own facts rather than any leg's, and the
+    // archive's heading is where it is read. Skipped rather than classified, so
+    // it does not report itself as a record the digest cannot read.
+    if (file.name === PASS_RECORD_FILE) continue;
+
     if (file.name.endsWith(STATUS_SUFFIX)) {
       if (isRoleStatus(file.value)) records.legs.push(legOf(file.value, file.mtimeMs));
       else records.unparseable.push(file.name);
@@ -187,14 +185,17 @@ function statusOf(answer: unknown): string {
  * A status record carries no timestamp, so the duration is the gap to the
  * previous record's mtime: records land as a leg finishes, which makes the gap
  * the leg's own run plus the harness's overhead between the two. That is why it
- * is labelled approximate, and why the first leg has no number at all — nothing
- * on disk says when the pass started.
+ * is labelled approximate.
+ *
+ * The first leg's gap is to the pass's own start, which only the pass record
+ * knows — so a digest read without one still prints that leg, with no number
+ * against it rather than a made-up one.
  */
-function legsSection(legs: readonly Leg[]): string {
+function legsSection(legs: readonly Leg[], startedAtMs?: number): string {
   const width = Math.max(0, ...legs.map(({ role }) => role.length));
   const lines = legs.map((leg, index) => {
-    const previous = legs[index - 1];
-    const duration = previous ? `~${((leg.mtimeMs - previous.mtimeMs) / 1000).toFixed(1)}s` : "—";
+    const since = legs[index - 1]?.mtimeMs ?? startedAtMs;
+    const duration = since === undefined ? "—" : `~${((leg.mtimeMs - since) / 1000).toFixed(1)}s`;
     return `  ${leg.role.padEnd(width)}  ${leg.model}  ${duration}  ${leg.status}`;
   });
   return section("Legs (durations approximate, from record mtimes)", lines);
@@ -275,10 +276,6 @@ function describe(finding: Finding): string {
 
 function heading(dir: string, detail: string): string {
   return `relay pass digest — ${dir}\n${detail}\n`;
-}
-
-function section(title: string, lines: readonly string[]): string {
-  return [`${title}:`, ...(lines.length > 0 ? lines : ["  none"]), ""].join("\n");
 }
 
 function isRoleStatus(value: unknown): value is RoleStatus {

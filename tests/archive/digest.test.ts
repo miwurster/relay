@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Finding } from "../../src/crew/contract.js";
-import { digestRecords } from "../../rehearsal/digest.js";
+import { digestRecords } from "../../src/archive/digest.js";
 
 /** The mtimes the durations are read out of, one minute apart per leg. */
 const GENESIS = new Date("2026-07-30T12:00:00Z").getTime();

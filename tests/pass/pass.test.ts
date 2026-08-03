@@ -1,11 +1,13 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import type { Sandbox } from "@ai-hero/sandcastle";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { readPassRecord } from "../../src/archive/pass-record.js";
 import { runCli } from "../../src/cli.js";
+import { passRecordDir } from "../../src/crew/leg-record.js";
 import { CONFIG_FILE_PATH, relayConfigSchema, RELAY_DIR } from "../../src/config.js";
 import type { Crew } from "../../src/crew/contract.js";
 import { ConfigError, SandboxError } from "../../src/errors.js";
@@ -194,6 +196,7 @@ async function exitCodeOf(run: () => Promise<ExitCode>): Promise<ExitCode> {
     runPass: run,
     runDoctor: async () => ExitCode.Success,
     runInit: async () => ExitCode.Success,
+    runArchive: async () => ExitCode.Success,
   });
 }
 
@@ -303,6 +306,36 @@ describe("runPassOnItem", () => {
     await expect(runOnePass({ github, createCrew: crashingCrew })).rejects.toThrow(
       "the sandbox died",
     );
+  });
+
+  it("records what the pass was and archives it, whichever way it ended", async () => {
+    const root = await gitRepo();
+    const { github } = fakeGitHub();
+    vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await runOnePass({ github, repoRoot: root });
+
+    const record = await readPassRecord(passRecordDir(root, workItem.number));
+    expect(record?.branch).toBe("agent/1");
+    expect(record?.baseBranch).toBe("main");
+    expect(record?.end.kind).toBe("handed-over");
+    const archived = (await readdir(passRecordDir(root, workItem.number))).filter((name) =>
+      name.startsWith("archive-"),
+    );
+    expect(archived).toHaveLength(1);
+  });
+
+  it("records a crash as a crash, since that pass reached no handover to tell", async () => {
+    const root = await gitRepo();
+    const { github } = fakeGitHub();
+    vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await expect(runOnePass({ github, repoRoot: root, createCrew: crashingCrew })).rejects.toThrow(
+      "the sandbox died",
+    );
+
+    const record = await readPassRecord(passRecordDir(root, workItem.number));
+    expect(record?.end).toEqual({ kind: "crashed", error: "the sandbox died" });
   });
 
   it("refuses to run when the pass branch already exists, without opening a sandbox", async () => {

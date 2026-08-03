@@ -255,6 +255,28 @@ export type Outcome =
   | { kind: "early-bail"; reason: string };
 
 /**
+ * What a pass that reached its handover has to show for itself: how it ended,
+ * what verified it, what became of the base branch, and which tickets it earned
+ * what for.
+ *
+ * The harness's own facts. Every one of them is derived as the legs run and none
+ * is readable off a leg record afterwards, which is why the harness answers with
+ * them rather than only handing them to the handover
+ * ([ADR-0035](../../docs/adr/0035-a-pass-records-its-own-facts.md)).
+ */
+export interface PassFacts {
+  outcome: Outcome;
+  gate: GateVerdict;
+  land: LandResult;
+  /** The tickets the branch carries, in the order they were implemented. */
+  committed: readonly TicketRef[];
+  /** The committed tickets the pass earned a done for. */
+  finished: readonly TicketRef[];
+  /** The tickets a human has to decide about. */
+  blocked: readonly TicketRef[];
+}
+
+/**
  * The crew of roles one pass runs. Every role is its own cold agent session
  * sharing only the worktree's files and git history, so the harness passes
  * nothing between them but the small values in this file.

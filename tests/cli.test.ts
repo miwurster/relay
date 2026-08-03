@@ -19,6 +19,14 @@ describe("parseArgs", () => {
     expect(parseArgs(["init"])).toEqual({ kind: "init" });
   });
 
+  it("treats the `archive` keyword as the archive command over the item named next", () => {
+    expect(parseArgs(["archive", "42"])).toEqual({ kind: "archive", workItem: "42" });
+  });
+
+  it("leaves `archive` with no work item for the handler to refuse", () => {
+    expect(parseArgs(["archive"])).toEqual({ kind: "archive", workItem: undefined });
+  });
+
   it("treats no argument as an auto-pick pass", () => {
     expect(parseArgs([])).toEqual({ kind: "pass", workItem: undefined });
   });
@@ -29,6 +37,7 @@ describe("runCli", () => {
     runPass: vi.fn(async () => ExitCode.Success),
     runDoctor: vi.fn(async () => ExitCode.Success),
     runInit: vi.fn(async () => ExitCode.Success),
+    runArchive: vi.fn(async () => ExitCode.Success),
   });
 
   it("dispatches a named work item to runPass and returns its exit code", async () => {
@@ -48,6 +57,13 @@ describe("runCli", () => {
     const h = handlers();
     await runCli(["doctor"], h);
     expect(h.runDoctor).toHaveBeenCalledOnce();
+    expect(h.runPass).not.toHaveBeenCalled();
+  });
+
+  it("dispatches `archive` to runArchive with the work item it names", async () => {
+    const h = handlers();
+    await runCli(["archive", "42"], h);
+    expect(h.runArchive).toHaveBeenCalledWith("42");
     expect(h.runPass).not.toHaveBeenCalled();
   });
 

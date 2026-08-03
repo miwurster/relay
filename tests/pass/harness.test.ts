@@ -397,13 +397,13 @@ describe("runHarness", () => {
   });
 
   it("runs end to end on the stub crew", async () => {
-    const outcome = await runHarness(createStubCrew(), workItem);
+    const { outcome } = await runHarness(createStubCrew(), workItem);
 
     expect(outcome).toEqual({ kind: "success", detail: "stub gate is always green" });
   });
 
   it("runs end to end on the stub crew of a merge-landing repo", async () => {
-    const outcome = await runHarness(createStubCrew({ landing: "merge" }), workItem);
+    const { outcome } = await runHarness(createStubCrew({ landing: "merge" }), workItem);
 
     expect(outcome).toEqual({ kind: "success", detail: "stub gate is always green" });
   });

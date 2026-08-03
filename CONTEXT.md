@@ -38,7 +38,21 @@ What one **leg** leaves on the host for a human to read: its status, the **findi
 A file per leg, never a shared one, so every file is attributable to the leg that wrote it.
 It lives on the host rather than in the **sandbox**'s worktree, because that worktree is disposed of once the **pass** ends ([ADR-0003](docs/adr/0003-a-crashed-pass-leaves-the-work-for-a-human.md)).
 A **pass** records under `.relay/<work item>`; the **gate probe** records under `.relay/doctor`.
+Its sibling in that directory is the **pass record**, which belongs to no leg.
 _Avoid_: output, artefact, hand-off
+
+**Pass record**:
+The **pass**'s own facts, as against a **leg record**, which is one leg's: which **work item** over which branches, the repo's **landing**, when it ran, and how it ended — either the **outcome** with everything the harness worked out beside it, or the error that ended it.
+The harness's, so there is no leg to keep it next to: every fact in it is derived as the legs run and readable off none of their records afterwards ([ADR-0035](docs/adr/0035-a-pass-records-its-own-facts.md)).
+A crashed pass records that it crashed and states the rest as unknown, rather than recording a **gate verdict** nobody asked for.
+_Avoid_: pass status, run metadata, summary
+
+**Archive**:
+Everything relay knows about one **pass**, as a single file: the **pass record**, the **leg records** rendered as a digest, the **pass branch**'s diff, and every leg's transcript whole.
+Made for judging the flow long after the pass, by a human or by a model, which is why it is one file rather than a directory and why every section is present even when empty.
+Written unasked at the end of every pass, because a leg's transcript is named after the pass branch alone and the next pass over that **work item** overwrites it — and written again on demand by `relay archive`.
+It infers nothing: what the pass did comes from the pass record, what each leg did from the leg records, what the legs said from their transcripts, and what came of it from git.
+_Avoid_: log, dump, report, postmortem
 
 ## The work
 

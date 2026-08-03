@@ -5,7 +5,7 @@ import type { Landing } from "../src/config.js";
 import { passRecordDir } from "../src/crew/leg-record.js";
 import { ConfigError } from "../src/errors.js";
 import { loadSecrets, type Secrets } from "../src/host/secrets.js";
-import { digestRecords } from "./digest.js";
+import { digestRecords } from "../src/archive/digest.js";
 import { BASE_BRANCH, CLONE_DIR, REHEARSAL_REPO } from "./rehearsal-repo.js";
 import type { Scenario } from "./scenarios.js";
 import { seedRehearsalRepo } from "./seed.js";

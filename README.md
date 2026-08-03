@@ -36,10 +36,21 @@ cp .relay/.env.example .relay/.env   # then paste your tokens in
 npx @miwurster/relay doctor          # check config, landing, secrets, plugins, tracker doc, gh, labels, sandbox image, Docker, gate
 npx @miwurster/relay 42              # run a pass over issue 42
 npx @miwurster/relay                 # or over the longest-waiting ready-for-agent item
+npx @miwurster/relay archive 42      # re-collect that pass into one readable file
 ```
 
 Label an issue `ready-for-agent` to make it eligible.
 See [docs/setup.md](docs/setup.md) for the full walkthrough, the token permissions, and what the sandbox can reach on your host.
+
+## Read a pass back
+
+Every pass files an **archive** at `.relay/<issue>/archive-<time>.txt` as its last act, whichever way it ended.
+One file, gitignored, holding what the pass itself knew — its outcome, what its green gate said, what its lander did, which tickets it earned a done for — then every leg's status, the findings each review raised and what the fixer did with them, the branch's diff, and every leg's transcript whole.
+
+Read it yourself after a block, or hand it to a model and ask what to improve about the flow.
+`relay archive 42` renders another one from the same records whenever you want it.
+
+Archive before you re-run a blocked item: a leg's transcript is named after the pass branch, so the next pass over that issue overwrites it.
 
 ## Declare how a pass lands
 

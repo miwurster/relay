@@ -1,8 +1,10 @@
 import type { Sandbox } from "@ai-hero/sandcastle";
+import { writeArchive } from "../archive/archive.js";
+import { type PassEnd, type PassRecord, writePassRecord } from "../archive/pass-record.js";
 import { loadConfig, type RelayConfig } from "../config.js";
 import type { Crew } from "../crew/contract.js";
 import { createCrew as createRelayCrew } from "../crew/crew.js";
-import { ConfigError, SandboxError } from "../errors.js";
+import { ConfigError, reasonOf, SandboxError } from "../errors.js";
 import { ExitCode } from "../exit-codes.js";
 import { passRecordDir } from "../crew/leg-record.js";
 import { createGitHubClient, type GitHubClient, type GitHubIssue } from "../tracker/github.js";
@@ -103,18 +105,77 @@ export async function runPassOnItem({
   }
   await refuseOnBranchCollision({ repoRoot, branch, git });
 
+  const startedAt = new Date();
+  const record = { workItem: workItem.number, branch, baseBranch, landing: config.landing };
+
   let opened: Sandbox | undefined;
   try {
     // Inside the try: a sandbox that will not open is the likeliest crash of
     // all, and it deserves the same note on the item as one that dies later.
     opened = await open({ repoRoot, config, secrets, branch, baseBranch });
-    const outcome = await runHarness(createCrew(opened, branch, baseBranch), workItem);
-    return exitCodeFor(outcome);
+    const facts = await runHarness(createCrew(opened, branch, baseBranch), workItem);
+    await recordPass({
+      repoRoot,
+      config,
+      record,
+      startedAt,
+      end: { kind: "handed-over", ...facts },
+    });
+    return exitCodeFor(facts.outcome);
   } catch (error) {
+    await recordPass({
+      repoRoot,
+      config,
+      record,
+      startedAt,
+      end: { kind: "crashed", error: reasonOf(error) },
+    });
     await reportCrash(github, workItem, branch, error);
     throw error;
   } finally {
     await opened?.close();
+  }
+}
+
+/**
+ * Write what the pass was, then archive it — the last thing every pass does,
+ * whichever way it ended.
+ *
+ * Unasked, because the evidence does not keep: a leg's transcript is named after
+ * the pass branch alone, so the next pass over this item overwrites it, and that
+ * next pass is exactly what a human runs after clearing up a blocked one
+ * ([ADR-0035](../../docs/adr/0035-a-pass-records-its-own-facts.md)).
+ *
+ * Best-effort, like the crash comment beside it: a pass that ran must not end on
+ * the error code of the file it was writing about itself.
+ */
+async function recordPass({
+  repoRoot,
+  config,
+  record,
+  startedAt,
+  end,
+}: {
+  repoRoot: string;
+  config: RelayConfig;
+  record: Pick<PassRecord, "workItem" | "branch" | "baseBranch" | "landing">;
+  startedAt: Date;
+  end: PassEnd;
+}): Promise<void> {
+  try {
+    await writePassRecord({
+      dir: passRecordDir(repoRoot, record.workItem),
+      record: {
+        ...record,
+        startedAt: startedAt.toISOString(),
+        endedAt: new Date().toISOString(),
+        end,
+      },
+    });
+    const path = await writeArchive({ repoRoot, workItem: record.workItem, config });
+    console.log(`relay: archived this pass to ${path}`);
+  } catch (error) {
+    console.error(`relay: could not archive the pass on #${record.workItem}:`, error);
   }
 }
 

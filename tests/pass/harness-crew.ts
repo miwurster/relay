@@ -42,7 +42,12 @@ export const resolvedGate: ResolvedGate = {
   source: "AGENTS.md, under Verifying",
 };
 
-export const run = (crew: Crew) => runHarness(crew, workItem);
+/**
+ * The outcome of one harness run, which is what these tests are about — the rest
+ * of the pass's facts are asserted where they matter, in the pass's own tests.
+ */
+export const run = async (crew: Crew): Promise<Outcome> =>
+  (await runHarness(crew, workItem)).outcome;
 
 export const ticket = (number: number): TicketRef => ({ number, summary: `work on #${number}` });
 

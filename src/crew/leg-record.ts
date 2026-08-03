@@ -38,7 +38,7 @@ export const RECORD_RULE: IgnoreRule = {
  * human most needs to read — the pass blocked on it
  * ([ADR-0033](../../docs/adr/0033-a-protocol-slip-gets-one-retry.md)).
  */
-type RoleStatus = { role: string; model: string } & (
+export type RoleStatus = { role: string; model: string } & (
   | { answer: unknown }
   | {
       /** Why the leg's answer could not be read, as the role error phrases it. */

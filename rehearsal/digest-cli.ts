@@ -1,4 +1,4 @@
-import { digestRecords } from "./digest.js";
+import { digestRecords } from "../src/archive/digest.js";
 
 /**
  * Digest one pass's record directory on its own.

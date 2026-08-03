@@ -274,3 +274,15 @@ That is deliberate: the work of a pass that went wrong is yours to look at, not 
 
 Under `merge` landing the same holds, and your own branch is untouched by a pass that crashed: the fast-forward is the last thing to happen, after relay's re-run of the gate on the lander's result has passed.
 The one branch relay does rewrite is its own pass branch, where the lander rebases it ([ADR-0017](adr/0017-the-lander-rebases-and-the-host-only-fast-forwards.md)).
+
+## 10. Read a pass back before you re-run it
+
+Every pass files an archive at `.relay/<issue>/archive-<time>.txt` as its last act — a crashed one included — holding what the pass itself knew, what each leg did and said, and the diff of its branch ([ADR-0035](adr/0035-a-pass-records-its-own-facts.md)).
+That is the file to read after a block, and the file to hand a model when what you want judged is the flow rather than the code.
+
+```sh
+npx @miwurster/relay archive 42
+```
+
+Renders another one from the same records, any time.
+Do it before you clean up and re-run a blocked item: a leg's transcript is named after the pass branch alone, so the next pass over that issue overwrites the last one's.

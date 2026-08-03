@@ -11,6 +11,7 @@ import {
   NO_LANDING,
   notGated,
   type Outcome,
+  type PassFacts,
   type ResolvedGate,
   type ReviewScope,
   type TicketRef,
@@ -52,11 +53,14 @@ const REREVIEW_REASON =
  * well as `spec`, because the review that would have read that axis is the one
  * just dropped.
  */
-export async function runHarness(crew: Crew, workItem: GitHubIssue): Promise<Outcome> {
+export async function runHarness(crew: Crew, workItem: GitHubIssue): Promise<PassFacts> {
   const { outcome, committed, blockedOn, land, gate, unaddressed } = await runLegs(crew, workItem);
   const { finished, blocked } = ticketState(committed, unaddressed, blockedOn);
   await crew.handover(outcome, committed, finished, blocked, land, gate, unaddressed);
-  return outcome;
+  // The same facts the handover was told, answered rather than only spoken: they
+  // are what the pass record holds, and nothing on disk holds them otherwise
+  // ([ADR-0035](../../docs/adr/0035-a-pass-records-its-own-facts.md)).
+  return { outcome, gate, land, committed, finished, blocked };
 }
 
 /** Which tickets the pass earned a done for, and which one a human has to decide about. */
