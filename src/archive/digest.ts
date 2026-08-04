@@ -49,12 +49,19 @@ interface RaisedFinding {
   leg: string;
 }
 
+/** One verdict, with the fixer leg that reached it. */
+interface SettledFinding {
+  verdict: FindingVerdict;
+  /** The record file's name without its suffix, which is the leg's own name. */
+  leg: string;
+}
+
 /** Everything the digest reports, read out of one pass's record directory. */
 interface Records {
   /** In the order the legs finished. */
   legs: Leg[];
   findings: RaisedFinding[];
-  verdicts: FindingVerdict[];
+  verdicts: SettledFinding[];
   /** The files whose JSON, or whose shape, the digest did not recognise. */
   unparseable: string[];
 }
@@ -131,8 +138,10 @@ function classify(files: readonly RecordFile[]): Records {
       if (isRoleStatus(file.value)) records.legs.push(legOf(file.value, file.mtimeMs));
       else records.unparseable.push(file.name);
     } else if (file.name.endsWith(VERDICTS_SUFFIX)) {
-      if (isArrayOf(file.value, isFindingVerdict)) records.verdicts.push(...file.value);
-      else records.unparseable.push(file.name);
+      if (isArrayOf(file.value, isFindingVerdict)) {
+        const leg = file.name.slice(0, -VERDICTS_SUFFIX.length);
+        records.verdicts.push(...file.value.map((verdict) => ({ verdict, leg })));
+      } else records.unparseable.push(file.name);
     } else if (isArrayOf(file.value, isFinding)) {
       const leg = file.name.replace(/\.json$/, "");
       records.findings.push(...file.value.map((finding) => ({ finding, leg })));
@@ -232,11 +241,23 @@ function findingsSection(findings: readonly RaisedFinding[]): string {
   return section("Findings by axis", lines);
 }
 
-function verdictsSection(verdicts: readonly FindingVerdict[]): string {
-  const width = Math.max(0, ...verdicts.map(({ id }) => id.length));
-  const lines = verdicts.map(({ id, finding, verdict }) => {
+/**
+ * The verdicts, each behind the fixer leg that reached it.
+ *
+ * The leg is named for the same reason it is in the findings section, and here it
+ * is what makes the ids readable at all: a fixer numbers findings from one within
+ * its own leg, so a pass over three tickets prints `spec-1` three times, and the
+ * section read as one fixer having answered the same finding twice.
+ */
+function verdictsSection(verdicts: readonly SettledFinding[]): string {
+  const labelled = verdicts.map(({ verdict, leg }) => ({
+    ...verdict,
+    label: `${leg} ${verdict.id}`,
+  }));
+  const width = Math.max(0, ...labelled.map(({ label }) => label.length));
+  const lines = labelled.map(({ label, finding, verdict }) => {
     const reason = verdict.kind === "skipped" ? ` — ${verdict.reason}` : "";
-    return `  ${id.padEnd(width)}  ${verdict.kind}  ${describe(finding)}${reason}`;
+    return `  ${label.padEnd(width)}  ${verdict.kind}  ${describe(finding)}${reason}`;
   });
   return section("Fixer verdicts", lines);
 }

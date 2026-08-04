@@ -209,6 +209,16 @@ describe("digestRecords", () => {
     expect(digest).toMatch(/quality-1 +fixed/);
   });
 
+  it("names the fixer leg each verdict came from, so ids numbered per leg are told apart", async () => {
+    await passRecords();
+
+    const digest = await digestRecords(dir);
+
+    const verdicts = digest.slice(digest.indexOf("Fixer verdicts"));
+    expect(verdicts).toMatch(/fixer-101 spec-1 +fixed/);
+    expect(verdicts).toMatch(/fixer-quality quality-1 +fixed/);
+  });
+
   it("carries the reason the fixer gave where it declined", async () => {
     await passRecords();
 
