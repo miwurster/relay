@@ -12,6 +12,7 @@ npm run rehearse -- single-spec merge
 ```
 
 Builds relay, seeds the scenario, runs the pass in the clone with relay's output streaming live, then prints the digest and files it as `rehearsal/runs/<scenario>-<landing>-<start time>.txt`.
+The pass's own records — its pass record, every leg record, and the archive it filed with every transcript in it — are copied in beside the digest as `<same name>-records/`, because the originals live in the clone and the next seed deletes them.
 Works from any state, a crashed previous rehearsal included.
 
 Both arguments are required and neither has a default, exactly as relay requires of a repo's own `landing`.
@@ -53,7 +54,7 @@ The `=== exit N ===` line after each pass is that pass's exit code, and the `===
 Everything both streams to your terminal and lands in `rehearsal/runs/loop-<start time>.log`, which is the loop's only artefact beyond the digests each pass files itself.
 The last thing printed is that log's path and every run file the loop produced.
 
-**Every pass in a round after the first destroys the round before it** — a seed force-pushes genesis and deletes the issues, so only the digests survive a loop.
+**Every pass in a round after the first destroys the round before it** — a seed force-pushes genesis and deletes the issues, so only the digests and the records copied beside them survive a loop.
 Read the pull requests as they happen or not at all.
 
 ## Or step by step

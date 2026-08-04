@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { cp, mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Landing } from "../src/config.js";
 import { passRecordDir } from "../src/crew/leg-record.js";
@@ -63,14 +63,17 @@ export async function rehearse({
   const startedAt = new Date();
   const exitCode = await runPassInClone({ workItem, secrets });
 
+  const recordDir = passRecordDir(CLONE_DIR, workItem);
   const digest = [
     heading({ scenario: scenario.name, landing, workItem, startedAt, exitCode }),
-    await digestRecords(passRecordDir(CLONE_DIR, workItem)),
+    await digestRecords(recordDir),
   ].join("\n");
 
   const runFile = await fileDigest({ scenario: scenario.name, landing, startedAt, digest });
+  const kept = await keepRecords({ recordDir, runFile });
   console.log(`\n${digest}`);
   step(`digest filed in ${runFile}`);
+  step(kept ? `records kept in ${kept}` : "no records to keep: the pass recorded none");
   return { exitCode, runFile };
 }
 
@@ -169,6 +172,39 @@ async function fileDigest({
   const path = join(RUNS_DIR, `${scenario}-${landing}-${stamp(startedAt)}.txt`);
   await writeFile(path, digest, "utf8");
   return path;
+}
+
+/**
+ * Copy the pass's own records in beside its digest, and answer with where they
+ * landed — or with nothing when the pass recorded none.
+ *
+ * The records live in the clone, which the next seed deletes, so a run that
+ * blocked or crashed is diagnosable only until the following rehearsal starts.
+ * The digest cannot stand in for them: it is a reading of the records, and the
+ * pass's archive — every leg's transcript included — is among the files copied
+ * here.
+ *
+ * Named after the digest file so the two sort together, and rebuilt rather than
+ * merged, because a rehearsal names its own directory and nothing else writes
+ * there.
+ */
+async function keepRecords({
+  recordDir,
+  runFile,
+}: {
+  recordDir: string;
+  runFile: string;
+}): Promise<string | undefined> {
+  const kept = runFile.replace(/\.txt$/, "-records");
+  try {
+    await rm(kept, { recursive: true, force: true });
+    await cp(recordDir, kept, { recursive: true });
+    return kept;
+  } catch {
+    // A pass that crashed before writing a record leaves no directory to copy,
+    // which is an outcome the digest above already reports.
+    return undefined;
+  }
 }
 
 /** An ISO instant a filename can carry, on every platform. */

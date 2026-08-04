@@ -2,14 +2,17 @@
 # Runs all three scenarios under `merge`, then all three under `pull-request`, N rounds.
 # usage: rehearsal/loop.sh [rounds]   (default 3)
 # Each pass is ~20-35 min, so a 3-round loop is the better part of a day.
-# Digests land in rehearsal/runs/; this log is the only extra artefact.
+# Digests and their records land in rehearsal/runs/; this log is the only extra artefact.
+# The stamp file is what the digests of this loop are told apart by: `find -newermt`
+# reads an ISO instant on GNU and refuses one on BSD, so a file's mtime is the
+# portable reference.
 set -u
 
 rounds=${1:-3}
 cd "$(dirname "$0")/.." || exit 2
 log="rehearsal/runs/loop-$(date -u +%Y-%m-%dT%H-%M-%S).log"
 
-started=$(date -u +%FT%TZ)
+stamp=$(mktemp)
 round=1
 while [ "$round" -le "$rounds" ]; do
   for landing in merge pull-request; do
@@ -24,5 +27,6 @@ done 2>&1 | tee "$log"
 
 echo
 echo "loop: log in $log"
-echo "loop: digests since $started:"
-find rehearsal/runs -name '*.txt' -newermt "$started" | sort
+echo "loop: digests from this loop:"
+find rehearsal/runs -name '*.txt' -newer "$stamp" | sort
+rm -f "$stamp"
