@@ -40,6 +40,14 @@ Use the `mattpocock-skills:tdd` skill where possible, at pre-agreed seams.
 
 Run typechecking regularly, single test files regularly, and the full test suite once at the end.
 
+A test that passes against the wrong implementation pins nothing.
+Before you keep a test, say what wrong code it would fail against — and where the answer is "none", change its setup until there is one.
+
+Every acceptance criterion the ticket states gets a test of its own, the ones that read as a repeat of the criterion above them included.
+Where code cannot check a criterion — a judgement about how the change reads, a step someone performs, something only a human can see — leave it untested rather than writing a test that passes either way.
+
+A change that makes a doc comment, a glossary entry or a line of a README false is not finished until that line is true again.
+
 Stay inside the ticket: no work the ticket did not ask for, and no changes to code your ticket does not touch.
 
 ## 5. Commit your work
