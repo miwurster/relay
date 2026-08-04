@@ -1,8 +1,15 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { type Axis, type Finding, findingLabel } from "../crew/contract.js";
+import {
+  type Axis,
+  type Finding,
+  findingLabel,
+  type GateVerdict,
+  type LandResult,
+  type TicketRef,
+} from "../crew/contract.js";
 import type { FindingVerdict, RoleStatus } from "../crew/leg-record.js";
-import { PASS_RECORD_FILE, type PassRecord, readPassRecord } from "./pass-record.js";
+import { PASS_RECORD_FILE, type PassEnd, type PassRecord, readPassRecord } from "./pass-record.js";
 import { section } from "./section.js";
 
 const STATUS_SUFFIX = ".status.json";
@@ -76,7 +83,7 @@ export async function digestRecords(dir: string): Promise<string> {
   const record = await readPassRecord(dir);
   const records = classify(await Promise.all(names.map((name) => readRecord(dir, name))));
   return [
-    heading(dir, `${records.legs.length} leg(s) recorded.`),
+    heading(dir, `${records.legs.length} leg(s) recorded.`, record),
     legsSection(records.legs, record ? Date.parse(record.startedAt) : undefined),
     findingsSection(records.findings),
     verdictsSection(records.verdicts),
@@ -116,8 +123,8 @@ function classify(files: readonly RecordFile[]): Records {
   const records: Records = { legs: [], findings: [], verdicts: [], unparseable: [] };
   for (const file of files) {
     // The pass record is the pass's own facts rather than any leg's, and the
-    // archive's heading is where it is read. Skipped rather than classified, so
-    // it does not report itself as a record the digest cannot read.
+    // heading is where it is read. Skipped rather than classified, so it does
+    // not report itself as a record the digest cannot read.
     if (file.name === PASS_RECORD_FILE) continue;
 
     if (file.name.endsWith(STATUS_SUFFIX)) {
@@ -263,8 +270,60 @@ function describe(finding: Finding): string {
   return `[${findingLabel(finding)}] ${ticket}${finding.summary}`;
 }
 
-function heading(dir: string, detail: string): string {
-  return `relay pass digest — ${dir}\n${detail}\n`;
+/**
+ * What the digest is of, what it found, and how the pass it reports ended.
+ *
+ * The ending is here rather than left to the archive's own heading, because the
+ * digest is read on its own — a rehearsal files nothing else — and a digest that
+ * named every leg but not the outcome reported a blocked pass and a crashed one
+ * as the same thing.
+ */
+function heading(dir: string, detail: string, record?: PassRecord): string {
+  const lines = [`relay pass digest — ${dir}`, detail];
+  lines.push(
+    ...(record ? endLines(record.end) : ["No pass record: how the pass ended is unknown."]),
+  );
+  return `${lines.join("\n")}\n`;
+}
+
+/** How the pass ended, in the words of whichever way it ended. */
+function endLines(end: PassEnd): string[] {
+  if (end.kind === "crashed") {
+    return [`outcome: crashed — ${end.error}`, "gate, landing and tickets: unknown, it crashed"];
+  }
+  const { outcome } = end;
+  return [
+    `outcome: ${outcome.kind} — ${"detail" in outcome ? outcome.detail : outcome.reason}`,
+    `gate: ${gateLine(end.gate)}`,
+    `landing result: ${landLine(end.land)}`,
+    `committed tickets: ${tickets(end.committed)}`,
+    `finished tickets: ${tickets(end.finished)}`,
+    `blocked tickets: ${tickets(end.blocked)}`,
+  ];
+}
+
+function gateLine(verdict: GateVerdict): string {
+  const { command, provenance } = verdict.gate;
+  const said =
+    verdict.kind === "not-gated"
+      ? "never ran"
+      : `${verdict.green ? "green" : "red"} — ${verdict.detail}`;
+  return `\`${command}\` (${provenance}): ${said}`;
+}
+
+function landLine(land: LandResult): string {
+  switch (land.kind) {
+    case "landed":
+      return `landed — ${land.detail}`;
+    case "not-landed":
+      return `not landed — ${land.reason}`;
+    case "no-landing":
+      return "no landing to do";
+  }
+}
+
+function tickets(refs: readonly TicketRef[]): string {
+  return refs.length === 0 ? "none" : refs.map(({ number }) => `#${number}`).join(", ");
 }
 
 function isRoleStatus(value: unknown): value is RoleStatus {

@@ -252,6 +252,46 @@ describe("digestRecords", () => {
     expect(digest.slice(digest.indexOf("Unaddressed findings"))).toContain("none");
   });
 
+  it("heads the digest with the outcome, the gate verdict and the landing result", async () => {
+    await passRecords();
+    await passRecord([]);
+
+    const digest = await digestRecords(dir);
+
+    expect(digest).toContain("outcome: success — landed");
+    expect(digest).toContain("gate: `npm run verify` (declared): green — exited 0");
+    expect(digest).toContain("landing result: landed — fast-forwarded main");
+  });
+
+  it("heads a crashed pass with the error it crashed on, since no leg reports it", async () => {
+    await passRecords();
+    await writePassRecord({
+      dir,
+      record: {
+        workItem: 101,
+        branch: "agent/101",
+        baseBranch: "main",
+        landing: "merge",
+        startedAt: new Date(GENESIS).toISOString(),
+        endedAt: new Date(GENESIS + 8 * MINUTE).toISOString(),
+        end: { kind: "crashed", error: "the sandbox exited 137" },
+      },
+    });
+
+    const digest = await digestRecords(dir);
+
+    expect(digest).toContain("outcome: crashed — the sandbox exited 137");
+    expect(digest).toContain("gate, landing and tickets: unknown, it crashed");
+  });
+
+  it("says how the pass ended is unknown where it recorded nothing", async () => {
+    await passRecords();
+
+    const digest = await digestRecords(dir);
+
+    expect(digest).toContain("No pass record: how the pass ended is unknown.");
+  });
+
   it("presents each leg's duration as approximate, derived from record mtimes", async () => {
     await passRecords();
 

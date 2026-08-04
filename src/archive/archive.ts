@@ -1,14 +1,13 @@
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { RelayConfig } from "../config.js";
-import type { GateVerdict, LandResult, TicketRef } from "../crew/contract.js";
 import { passRecordDir } from "../crew/leg-record.js";
 import { reasonOf } from "../errors.js";
 import { runGit, type GitRunner } from "../host/git.js";
 import { WORKTREE_DIR } from "../host/worktree-dir.js";
 import { passBranch } from "../sandbox/sandbox.js";
 import { digestRecords } from "./digest.js";
-import type { PassEnd, PassRecord } from "./pass-record.js";
+import type { PassRecord } from "./pass-record.js";
 import { readPassRecord } from "./pass-record.js";
 import { section } from "./section.js";
 
@@ -73,11 +72,11 @@ export async function renderArchive(
 }
 
 /**
- * What the pass itself knew, or that it never recorded it.
+ * Which pass this is an archive of, and when it was read back.
  *
- * A pass that crashed has no gate verdict, no landing and no ticket lists to
- * name, so those lines are absent rather than empty: the crash line is the whole
- * of what that pass has to say about how it ended.
+ * How the pass ended is the digest's heading below rather than this one's: the
+ * digest is also read on its own, so the outcome lives with it and is stated
+ * once.
  */
 function headingSection({
   workItem,
@@ -103,49 +102,8 @@ function headingSection({
     `landing: ${record.landing}`,
     `started: ${record.startedAt}`,
     `ended: ${record.endedAt}`,
-    ...endLines(record.end),
   );
   return `${lines.join("\n")}\n`;
-}
-
-/** How the pass ended, in the words of whichever way it ended. */
-function endLines(end: PassEnd): string[] {
-  if (end.kind === "crashed") {
-    return [`outcome: crashed — ${end.error}`, "gate, landing and tickets: unknown, it crashed"];
-  }
-  const { outcome } = end;
-  return [
-    `outcome: ${outcome.kind} — ${"detail" in outcome ? outcome.detail : outcome.reason}`,
-    `gate: ${gateLine(end.gate)}`,
-    `landing result: ${landLine(end.land)}`,
-    `committed tickets: ${tickets(end.committed)}`,
-    `finished tickets: ${tickets(end.finished)}`,
-    `blocked tickets: ${tickets(end.blocked)}`,
-  ];
-}
-
-function gateLine(verdict: GateVerdict): string {
-  const { command, provenance } = verdict.gate;
-  const said =
-    verdict.kind === "not-gated"
-      ? "never ran"
-      : `${verdict.green ? "green" : "red"} — ${verdict.detail}`;
-  return `\`${command}\` (${provenance}): ${said}`;
-}
-
-function landLine(land: LandResult): string {
-  switch (land.kind) {
-    case "landed":
-      return `landed — ${land.detail}`;
-    case "not-landed":
-      return `not landed — ${land.reason}`;
-    case "no-landing":
-      return "no landing to do";
-  }
-}
-
-function tickets(refs: readonly TicketRef[]): string {
-  return refs.length === 0 ? "none" : refs.map(({ number }) => `#${number}`).join(", ");
 }
 
 /**
